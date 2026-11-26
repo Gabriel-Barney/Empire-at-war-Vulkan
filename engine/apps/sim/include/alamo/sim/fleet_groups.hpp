@@ -121,7 +121,8 @@ public:
     // #603 (Modern HUD) the members a running locked move is waiting for, by regulate's measure: a moving member with a
     // goal lags when some moving member with a goal and a max speed (a leader regulate can slow) is ahead of it by more
     // than straggler_distance, lead = (p_leader - p_member) x the leader's start distance. The least-progressed member
-    // lags exactly when regulate slows a leader. One entry per moving group with a lagging member (group order), members
+    // lags exactly when regulate slows a leader; the set is a superset of that one member (regulate keys on the minimum
+    // only, but any member this far behind would hold the leader back on its own). One entry per moving group with a lagging member (group order), members
     // ascending. Changes nothing; for the HUD only (never the tick, a CRC or a save).
     struct Lagging {
         uint16_t group = 0;

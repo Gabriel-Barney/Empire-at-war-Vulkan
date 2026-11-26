@@ -187,6 +187,7 @@ private:
     // without drawing
     float lag_mark(Vec2f right_mid, uint32_t n, bool words, uint32_t layer);
     float lag_mark_width(uint32_t n, bool words);
+    std::u32string lag_text(uint32_t n, bool words) const;
     void build_move_readout(const TacticalHudFrame& f, std::span<const HudUnit> units);
     int32_t map_id() const { return radar_ >= 0 ? radar_ : kModernMapHit; }
     float map_side() const { return std::min(0.3f * canvas_.height, 0.22f * canvas_.width); }
@@ -250,6 +251,7 @@ private:
     RosterClick last_roster_click_;
     double time_ = 0.0;           // the frame's time (TacticalHudFrame::time) of the last build
     float status_bottom_ = 0.0f;  // canvas y under the status corner (the roster hangs from it)
+    float roster_right_ = 0.0f;   // #603 canvas x of the roster's right edge (the canvas's left edge without a roster)
     // #588 per drawn group tab (Classic's tab ids: kFleetTabHitBase / kFleetMergeHitBase / kFleetSplitHitBase + index).
     std::vector<std::vector<uint32_t>> fleet_tab_ids_;
     std::vector<std::pair<uint16_t, std::string>> fleet_tab_group_;  // the group id and name (UTF-8), for Rename
@@ -259,7 +261,7 @@ private:
         float gap = 0.0f, right = 0.0f;  // between cards; the section's right edge
     };
     // #600 / #601 a state chip's icon (a closed padlock, an open one, a wing) round `c`, `u` canvas units the unit size.
-    enum class Chip { Locked, Free, Wing, Lagging };
+    enum class Chip { Locked, Free, Wing, Lagging };  // Lagging: #603's warning triangle (not a state chip; the same icon set)
     void chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge, uint32_t layer);
     void build_run_tabs(const TacticalHudFrame& f, std::span<const HudUnit> units, const CardRow& row, float tab_h);
     uint32_t builder_ = commands::kNoObject, station_ = commands::kNoObject;

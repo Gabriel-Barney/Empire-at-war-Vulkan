@@ -138,6 +138,7 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     fleet_tab_group_.clear();
     builder_ = frame.builder;
     discipline_drawn_ = false;
+    roster_right_ = -0.5f * canvas_.width;  // no roster
     station_ = commands::kNoObject;
     map_view_ = {};
     radar_models_.clear();
@@ -154,10 +155,10 @@ void ModernTacticalHud::build(const TacticalHudFrame& frame, std::span<const Hud
     build_deck(frame, units, types);
     build_map(frame, units, types);
     build_badges(frame, units, types);
-    build_move_readout(frame, units);
     build_target_card(frame, units, types);
     build_status(frame);
     build_roster(frame, units, types);
+    build_move_readout(frame, units);  // after the roster: kept to its right
     build_controls(frame);
     const ModernAlertStrip strip = alert_strip(frame.alerts);
     stats_.alert_text = strip.text;
@@ -735,11 +736,22 @@ void ModernTacticalHud::chip_icon(Chip chip, Vec2f c, float u, Rgba8 edge, uint3
     }
 }
 
+namespace {
+// The unit with this id (units ascending by id), or null.
+const HudUnit* find_unit(std::span<const HudUnit> units, uint32_t id) {
+    const auto it = std::lower_bound(units.begin(), units.end(), id, [](const HudUnit& u, uint32_t v) { return u.id < v; });
+    return it != units.end() && it->id == id ? &*it : nullptr;
+}
+}  // namespace
+
+std::u32string ModernTacticalHud::lag_text(uint32_t n, bool words) const {
+    return words ? count_text(n) + U" " + text_or_port(text_, nullptr, U"lagging") : count_text(n);
+}
+
 float ModernTacticalHud::lag_mark_width(uint32_t n, bool words) {
     HudTextStyle st;
     st.font = font();
-    const std::u32string text = words ? count_text(n) + U" " + text_or_port(text_, nullptr, U"lagging") : count_text(n);
-    return 0.8f * text_height_units() + 0.5f * kPad + measure_text_block(*fonts_, canvas_, text, 0.0f, st).width;
+    return 0.8f * text_height_units() + 0.5f * kPad + measure_text_block(*fonts_, canvas_, lag_text(n, words), 0.0f, st).width;
 }
 
 float ModernTacticalHud::lag_mark(Vec2f right_mid, uint32_t n, bool words, uint32_t layer) {
@@ -747,10 +759,9 @@ float ModernTacticalHud::lag_mark(Vec2f right_mid, uint32_t n, bool words, uint3
     st.font = font();
     st.color = colours_.hull_warn;
     st.align = TextAlign::Right;
-    const std::u32string text = words ? count_text(n) + U" " + text_or_port(text_, nullptr, U"lagging") : count_text(n);
     const float w = lag_mark_width(n, words), u = 0.4f * text_height_units();
     chip_icon(Chip::Lagging, {right_mid.x - w + u, right_mid.y}, u, colours_.hull_warn, layer);
-    add_text(dl_, layer, HudList::Text, *fonts_, canvas_, text, right_mid, st);
+    add_text(dl_, layer, HudList::Text, *fonts_, canvas_, lag_text(n, words), right_mid, st);
     return w;
 }
 
@@ -826,8 +837,11 @@ void ModernTacticalHud::build_run_tabs(const TacticalHudFrame& f, std::span<cons
         const float room = (e < groups_.size() ? first_card.x - 0.5f * card_w + static_cast<float>(e) * (card_w + gap) - 0.5f * gap : row.right) - (x0 - 2.0f);
         const float label_w = measure_text_block(*fonts_, canvas_, label, 0.0f, st).width;
         const float tab_w = std::max(x1 - x0 + 4.0f, std::min(room, chip_full + label_w + lag_full + buttons + 3.0f * kPad));
-        const bool lag_words = lag > 0 && tab_w - buttons - 3.0f * kPad - 0.8f * tab_h - lag_full >= 0.0f;
-        const float lag_w = lag_words ? lag_full : lag_short;
+        // the words when they fit beside the icon-only chip, else the short form; neither (a one-card run with Merge and
+        // Split): no mark on the tab, the roster card still has it
+        const float lag_room = tab_w - buttons - 3.0f * kPad - 0.8f * tab_h;
+        const bool lag_words = lag > 0 && lag_room >= lag_full, lag_shown = lag > 0 && lag_room >= lag_short;
+        const float lag_w = !lag_shown ? 0.0f : lag_words ? lag_full : lag_short;
         // Short of room (a one-card run with Merge / Split): the chip keeps its icon only, then the label is squeezed (at
         // most to half width) or left out, so nothing runs under the buttons.
         const float avail = tab_w - buttons - 3.0f * kPad - lag_w;
@@ -852,7 +866,7 @@ void ModernTacticalHud::build_run_tabs(const TacticalHudFrame& f, std::span<cons
         if (chip_label) add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, chip_text, {cc.x + 0.3f * tab_h, cc.y}, bs);
         tx += chip_w + kPad;
         if (show_label) add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, label, {tx, tab.y + 1.0f}, st);
-        if (lag > 0) {
+        if (lag_shown) {
             lag_mark({tab.x + 0.5f * tab_w - buttons - 0.5f * kPad, tab.y + 1.0f}, lag, lag_words, kControlLayer);
             ++stats_.tab_lagging;
         }
@@ -1119,7 +1133,8 @@ void ModernTacticalHud::build_badges(const TacticalHudFrame& f, std::span<const 
         auto map_badge = [&](std::span<const uint32_t> ids, std::u32string_view text) {
             Vec2f c;
             if (text.empty() || !centre_of(ids, c)) return;
-            badge(text, {c.x + 3.0f, c.y}, kControlLayer, false);
+            constexpr bool kNotLagging = false;  // the map badge has no lagging look (#603: the world badge has)
+            badge(text, {c.x + 3.0f, c.y}, kControlLayer, kNotLagging);
             ++stats_.radar_badges;
         };
         if (f.fleet_groups_on)
@@ -1163,8 +1178,8 @@ void ModernTacticalHud::build_badges(const TacticalHudFrame& f, std::span<const 
             if (ring[k - 1] && ring[k]) line_quad(dl_, kWorldLayer, out(*ring[k - 1]), out(*ring[k]), 3.0f, Rgba8{0, 0, 0, 190});
         // #603 toward each lagging member: an amber dashed section of the ring (0.8 rad, 4 dashes) on the dark edge.
         for (const uint32_t lid : g.lagging) {
-            const auto it = std::lower_bound(units.begin(), units.end(), lid, [](const HudUnit& u, uint32_t v) { return u.id < v; });
-            if (it == units.end() || it->id != lid) continue;
+            const HudUnit* it = find_unit(units, lid);
+            if (!it) continue;
             const float a0 = std::atan2(it->position.y - o->centre.y, it->position.x - o->centre.x);
             constexpr int kSteps = 8;
             constexpr float kHalf = 0.4f;
@@ -1213,8 +1228,8 @@ void ModernTacticalHud::build_move_readout(const TacticalHudFrame& f, std::span<
     size_t n = 0;
     uint32_t lagging = 0;
     for (const HudFleetGoal& g : f.fleet_preview) {
-        const auto it = std::lower_bound(units.begin(), units.end(), g.id, [](const HudUnit& u, uint32_t v) { return u.id < v; });
-        if (it == units.end() || it->id != g.id) continue;
+        const HudUnit* it = find_unit(units, g.id);
+        if (!it) continue;
         x += g.x;
         y += g.y;
         z += it->position.z;
@@ -1243,7 +1258,7 @@ void ModernTacticalHud::build_move_readout(const TacticalHudFrame& f, std::span<
     w += 2.0f * kPad;
     const float h = line * (lagging > 0 ? 4.0f : 3.0f) + kPad;
     Vec2f c{at.x, at.y + 40.0f + 0.5f * h};
-    c.x = std::clamp(c.x, -0.5f * canvas_.width + kMargin + 0.5f * w, 0.5f * canvas_.width - kMargin - 0.5f * w);
+    c.x = std::clamp(c.x, std::max(-0.5f * canvas_.width + kMargin, roster_right_ + kPad) + 0.5f * w, 0.5f * canvas_.width - kMargin - 0.5f * w);
     c.y = std::clamp(c.y, -0.5f * canvas_.height + kMargin + kDeckHeight + 0.5f * h, 0.5f * canvas_.height - kMargin - 0.5f * h);
     frame_rect(dl_, kPanelLayer, c, {w, h}, colours_.back, accent(200));
     const float left = c.x - 0.5f * w + kPad;
@@ -1520,6 +1535,7 @@ void ModernTacticalHud::build_roster(const TacticalHudFrame& f, std::span<const 
     hit(kModernRosterHeaderHit, kPanelLayer, hc, {width, header_h});
     stats_.roster = true;
     stats_.roster_collapsed = roster_collapsed_;
+    roster_right_ = left + width;  // #603 the move readout keeps to its right
     if (roster_collapsed_) return;
     // Every card when they fit; else the cards shrink to one line (no detail line), and what still does not fit is counted
     // in a "+N more" line (the roster always ends with "+ New group" while fleet groups are on).
@@ -1557,17 +1573,26 @@ void ModernTacticalHud::build_roster(const TacticalHudFrame& f, std::span<const 
         cs.align = TextAlign::Center;
         const Rgba8 chip_edge = locked ? colours_.hull_warn : accent(220);
         const float icon_u = 0.22f * 1.1f * th * 2.0f;
-        const float chip_w = measure_text_block(*fonts_, canvas_, c.chip, 0.0f, cs).width + kPad + 2.0f * icon_u;
+        float chip_w = measure_text_block(*fonts_, canvas_, c.chip, 0.0f, cs).width + kPad + 2.0f * icon_u;
+        // #603 "N lagging": at the detail line's end, or (a slim card) before the chip. A slim card short of room keeps
+        // the chip's icon only; the words give way to the triangle and N when the line has no room for both.
+        const float lag_short = c.lagging > 0 ? lag_mark_width(c.lagging, false) : 0.0f;
+        bool chip_text = true;
+        if (c.lagging > 0 && !detail && right - chip_w - kPad - x < lag_short + kPad + th) {
+            chip_text = false;
+            chip_w = kPad + 2.0f * icon_u;
+        }
         const float line_y = detail ? cc.y + 0.5f * card_h - gap - 0.5f * th : cc.y;
         const Vec2f chip_c{right - 0.5f * chip_w, line_y};
         frame_rect(dl_, kControlLayer, chip_c, {chip_w, 1.1f * th}, Rgba8{0, 0, 0, 200}, chip_edge);
         chip_icon(c.state, {chip_c.x - 0.5f * chip_w + 0.5f * kPad + 0.6f * icon_u, chip_c.y}, icon_u, chip_edge, kControlLayer);
-        add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, c.chip, {chip_c.x + icon_u, chip_c.y}, cs);
-        // #603 "N lagging": at the detail line's end, or (a slim card) before the chip.
+        if (chip_text) add_text(dl_, kControlLayer, HudList::Text, *fonts_, canvas_, c.chip, {chip_c.x + icon_u, chip_c.y}, cs);
         float name_right = right - chip_w - kPad, detail_right = right;
         if (c.lagging > 0) {
-            if (detail) detail_right -= lag_mark({right, line_y - 1.2f * th}, c.lagging, true, kControlLayer) + kPad;
-            else name_right -= lag_mark({name_right, line_y}, c.lagging, true, kControlLayer) + kPad;
+            float& edge = detail ? detail_right : name_right;
+            const bool words = edge - x >= lag_mark_width(c.lagging, true) + 2.0f * th;
+            const Vec2f at{std::max(edge, x + lag_short), detail ? line_y - 1.2f * th : line_y};
+            edge = at.x - lag_mark(at, c.lagging, words, kControlLayer) - kPad;
             ++stats_.roster_lagging;
         }
         HudTextStyle ns = st;
