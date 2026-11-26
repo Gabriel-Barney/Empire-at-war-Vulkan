@@ -74,7 +74,8 @@ struct ModernHudStats {
     bool overflow_card = false;          // the last card is the "+N" overflow
     uint32_t orders = 0, orders_live = 0;  // order buttons drawn, enabled
     uint32_t wings = 0;                  // wing buttons drawn
-    bool clear_button = false, cohesion = false;  // cohesion: the fleet discipline control drawn (#599)
+    bool clear_button = false;
+    bool discipline_drawn = false;                // #599 the fleet discipline control (it shows the fleet cohesion)
     uint32_t discipline_lights = 0;               // its steps (2: Loose / Tight; 3 with Locked)
     FleetDiscipline discipline = FleetDiscipline::Loose;  // the step lit
     bool discipline_hint = false;                 // the one-line-per-step hint (hovered)
@@ -157,6 +158,7 @@ private:
     float build_discipline(const TacticalHudFrame& f, std::span<const HudUnit> units, Vec2f top_right, float height);
     FleetDisciplineStep discipline_{};  // the last build's step (its click), drawn: discipline_drawn_
     bool discipline_drawn_ = false;
+    bool discipline_selection_ = false;  // the control's selection (selected own units) is not empty: New group / Lock act
     float build_abilities(const TacticalHudFrame& f, std::span<const HudUnit> units, Vec2f top_right, float height, float max_width);
     void build_map(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);
     void build_target_card(const TacticalHudFrame& f, std::span<const HudUnit> units, std::span<const HudTypeInfo> types);

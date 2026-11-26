@@ -1074,6 +1074,7 @@ float ModernTacticalHud::build_discipline(const TacticalHudFrame& f, std::span<c
     for (const HudUnit& u : units)
         if (u.selected && u.owner == f.world.local_player) selection.push_back(u.id);
     discipline_ = fleet_discipline(f.fleet_groups_on, f.fleet_groups, selection, f.cohesion_tight);
+    discipline_selection_ = !selection.empty();
     const float th = text_height_units(), gap = 0.5f * kPad;
     const uint32_t steps = f.fleet_groups_on ? 3u : 2u;
     const float width = 10.0f * th;
@@ -1101,7 +1102,7 @@ float ModernTacticalHud::build_discipline(const TacticalHudFrame& f, std::span<c
     }
     key_badge(hk::kFleetCohesion, {c.x + 0.5f * width - 2.0f, c.y - 0.5f * control_h + 1.2f * th}, kControlLayer);  // O: Loose / Tight
     discipline_drawn_ = true;
-    stats_.cohesion = true;
+    stats_.discipline_drawn = true;
     stats_.discipline_lights = steps;
     stats_.discipline = discipline_.shown;
     if (f.fleet_groups_on) {  // New group (N) and Lock (Y), the keys' orders
@@ -1298,7 +1299,7 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
             continue;
         }
         if (e.component == kModernNewGroupHit || e.component == kModernLockHit) {
-            if (e.button == Button::Left && !selection_ids().empty())
+            if (e.button == Button::Left && discipline_drawn_ && discipline_selection_)
                 out.push_back(e.component == kModernLockHit ? fleet_lock_event(!discipline_.selection_locked) : fleet_button_event(false));
             continue;
         }

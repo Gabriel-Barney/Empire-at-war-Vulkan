@@ -1248,10 +1248,10 @@ void test_discipline_control() {
     // Land (no cohesion feed): no control.
     h.modern.build(f, s.units, s.types);
     const ModernHudStats& st = h.modern.stats();
-    CHECK(!st.cohesion && st.discipline_lights == 0 && st.fleet_buttons == 0);
+    CHECK(!st.discipline_drawn && st.discipline_lights == 0 && st.fleet_buttons == 0);
     f.cohesion_text = U"Fleet cohesion: Loose (O)";
     h.modern.build(f, s.units, s.types);
-    CHECK(st.cohesion && st.discipline_lights == 2 && st.discipline == FleetDiscipline::Loose && st.fleet_buttons == 0 &&
+    CHECK(st.discipline_drawn && st.discipline_lights == 2 && st.discipline == FleetDiscipline::Loose && st.fleet_buttons == 0 &&
           has_hit(h.modern.hit_boxes(), kModernDisciplineHit) && !has_hit(h.modern.hit_boxes(), kModernLockHit));
     auto click = [&](int32_t id) {
         std::pair<std::vector<commands::EventData>, std::vector<HudAction>> o;
