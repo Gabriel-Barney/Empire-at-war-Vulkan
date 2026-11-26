@@ -139,18 +139,18 @@ def markdown(summary: dict) -> str:
         def line(label, fn):
             lines.append(f"| {label} | " + " | ".join(fn(rows[c]) for c in counts) + " |")
 
-        line("tick median ms", lambda r: fmt(r["median_ms"]))
-        line("tick p99 ms", lambda r: fmt(r["p99_ms"]))
-        line("worst tick ms", lambda r: fmt(r["worst_ms"]))
+        line("tick median ms (mean of the rounds)", lambda r: fmt(r["median_ms"]))
+        line("tick p99 ms (mean of the rounds)", lambda r: fmt(r["p99_ms"]))
+        line("worst tick ms (mean of the rounds)", lambda r: fmt(r["worst_ms"]))
         line("median per round", lambda r: " / ".join(fmt(v) for v in r["medians_ms"]))
-        line(f"/ W{counts[0]}", lambda r: fmt(r["ratio_to_first"]))
+        line(f"time / W{counts[0]} (below 1 = faster)", lambda r: fmt(r["ratio_to_first"]))
         line("workers used", lambda r: ", ".join(str(w) for w in r["workers_used"]) or "-")
         line("busy before %", lambda r: " / ".join(fmt(v, 0) for v in r["busy_before_pct"]))
         line("other CPU % during", lambda r: " / ".join(fmt(v, 0) for v in r["other_cpu_pct"]))
         line("fingerprint", lambda r: "ok" if r["comparable"] else "**not comparable**")
         if sc["zones"]:
             lines.append("")
-            lines.append("| zone | " + " | ".join(f"W{c} p50 / mean (share)" for c in counts) + " |")
+            lines.append("| zone | " + " | ".join(f"W{c} p50 / mean ms (share), mean of the rounds" for c in counts) + " |")
             lines.append("|---|" + "---|" * len(counts))
             for n, by in sc["zones"].items():
                 lines.append(f"| `{n}` | " + " | ".join(

@@ -93,7 +93,7 @@ def main():
     check(s["extra_args"] == ["--ai-lane-k", "2"], "sweep.json records the extra arguments")
     with open(os.path.join(out, "sweep.md"), encoding="utf-8") as f:
         md = f.read()
-    check("### alpha" in md and "| tick median ms | 4.000 | 1.000 | 1.000 |" in md, "sweep.md has the median row")
+    check("### alpha" in md and "| tick median ms (mean of the rounds) | 4.000 | 1.000 | 1.000 |" in md, "sweep.md has the median row")
     check("| `tac.cap.rest` |" in md and "| fingerprint | ok | ok | ok |" in md, "sweep.md has the zone table and fingerprint row")
 
     # a run that does not match its fingerprint fails the sweep
