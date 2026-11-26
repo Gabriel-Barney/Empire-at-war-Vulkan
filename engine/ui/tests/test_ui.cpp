@@ -1665,7 +1665,14 @@ void test_camera_p1() {
     CHECK(near(po.distance, 2900.0f, 1e-2f) && near(po.fov_x, 70.0f * kDegToRad, 1e-4f));
     sp.toggle_overview();
     CHECK(sp.overview_level() == 0);
+    // #66: every level change counts once (the fade request); reset() does not
+    const uint32_t changes = sp.overview_changes();
+    sp.toggle_overview();
+    CHECK(sp.overview_changes() == changes + 1);
+    sp.set_overview(1);  // no change: no count
+    CHECK(sp.overview_changes() == changes + 1);
     sp.reset();
+    CHECK(sp.overview_changes() == changes + 1);
     CHECK(sp.overview_level() == 0 && !sp.overview_transitioning());
     // zooming out below the max distance never counts
     sp.set_distance(1000);

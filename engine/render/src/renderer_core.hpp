@@ -31,6 +31,7 @@ class SsaoPass;         // ssao.hpp: [port] screen-space ambient occlusion
 class SmaaPass;         // smaa.hpp: [port] SMAA 1x
 class TaaPass;          // taa.hpp: [port] temporal anti-aliasing
 class GammaPass;        // gamma.hpp: [port] output gamma
+class FrameFadePass;    // frame_fade.hpp: #66 FrameEffectAlpha
 class FsrPass;          // fsr.hpp: [port] FSR upscaling
 class XessPass;         // xess.hpp: [port] XeSS upscaling
 
@@ -85,6 +86,12 @@ public:
     // when a pipeline / descriptor / scratch image is missing (the frame is untouched).
     bool apply_gamma(rhi::Frame& frame, VkCommandBuffer cmd, VkImage color, VkImageView view, VkFormat format, VkExtent2D extent,
                      rhi::ImageState state, rhi::ImageState after, float gamma);
+    // #66 FrameEffectAlpha (FrameFade, frame_fade.hpp): over the drawn world, before the HUD. alpha > 0 draws the
+    // captured previous scene over `color` (in `state`) with that alpha; capture then copies the frame into the captured
+    // scene. `color` is left in `after`. Nothing requested records nothing and returns true; false when a requested part
+    // could not be recorded (FrameFade::capture_failed on a failed capture).
+    bool apply_frame_fade(rhi::Frame& frame, VkCommandBuffer cmd, VkImage color, VkImageView view, VkFormat format,
+                          VkExtent2D extent, rhi::ImageState state, rhi::ImageState after, float alpha, bool capture);
 
     bool upload_model(std::shared_ptr<const assets::ModelAsset> model, const TextureSource& textures, GpuModel& out,
                       jobs::JobSystem* js = nullptr, std::string* error = nullptr);
@@ -330,6 +337,7 @@ private:
     uint32_t aniso_request_ = 0, aniso_ = 0, aniso_engine_ = 0;  // aniso_ / aniso_engine_: level | mip skip << 8 (convert.hpp)
     uint32_t mip_skip_request_ = 0;                              // set_texture_reduction
     std::unique_ptr<GammaPass> gamma_;                           // [port] created on first apply_gamma
+    std::unique_ptr<FrameFadePass> frame_fade_;                  // #66 created on first apply_frame_fade
     uint64_t aniso_frame_ = ~0ull;
     uint32_t aniso_cap() const;                    // device limit (1 without samplerAnisotropy)
     bool write_engine_samplers(uint32_t level);  // the EngineSampler array of bindless_

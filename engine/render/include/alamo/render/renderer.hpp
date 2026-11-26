@@ -482,6 +482,12 @@ public:
     // when a pipeline / descriptor / scratch image is missing (the frame is untouched).
     bool apply_gamma(rhi::Frame& frame, VkCommandBuffer cmd, VkImage color, VkImageView view, VkFormat format, VkExtent2D extent,
                      rhi::ImageState state, rhi::ImageState after, float gamma);
+    // #66 FrameEffectAlpha (FrameFade, frame_fade.hpp): over the drawn world, before the HUD. alpha > 0 draws the
+    // captured previous scene over `color` (in `state`) with that alpha; capture then copies the frame into the captured
+    // scene. `color` is left in `after`. Nothing requested records nothing and returns true; false when a requested part
+    // could not be recorded (FrameFade::capture_failed on a failed capture).
+    bool apply_frame_fade(rhi::Frame& frame, VkCommandBuffer cmd, VkImage color, VkImageView view, VkFormat format,
+                          VkExtent2D extent, rhi::ImageState state, rhi::ImageState after, float alpha, bool capture);
 
     // ---- Models.
     bool upload_model(std::shared_ptr<const assets::ModelAsset> model, const TextureSource& textures, GpuModel& out,

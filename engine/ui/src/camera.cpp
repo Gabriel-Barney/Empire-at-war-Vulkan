@@ -477,6 +477,7 @@ void TacticalCameraController::set_overview(int32_t level) {
     if (level == ov_level_) return;
     ov_from_ = effective_pose();
     ov_level_ = level;
+    ++ov_changes_;
     ov_t_ = t_.overview_blend_time > 0.0f ? 0.0f : 1.0f;
     ov_clicks_ = 0.0f;
 }

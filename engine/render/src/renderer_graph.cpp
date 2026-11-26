@@ -23,6 +23,7 @@
 #include "render_internal.hpp"
 #include "fx2_reader.hpp"
 #include "gamma.hpp"  // [port] output gamma
+#include "frame_fade.hpp"  // #66 FrameEffectAlpha
 #include "fsr.hpp"  // [port] FSR upscaling
 #include "xess.hpp"  // [port] XeSS upscaling
 #include "smaa.hpp"  // [port] SMAA
