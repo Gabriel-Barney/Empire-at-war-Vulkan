@@ -363,9 +363,12 @@ bool parse_environments(std::span<const uint8_t> node, EnvironmentSet& es, Ctx& 
                 }
             }
         } else if ((k.id == 0 || k.id == 1) && !k.has_children) {
-            // #577: the old environment format (0x2734c0 [H], the world reader's case 0x100). Each /0 appends a
-            // default-constructed environment and reads its minis 00-04 (the colours); a /1 sets minis 05-0D (the
-            // intensities, yaws and elevations) of the last one appended. Both use the TEE record's ids and fields.
+            // #577: the old environment format (0x2734c0 [H], the world reader 0x3b8cd0's case 0x100). Each /0 appends a
+            // default-constructed environment (0x271d20) and reads its minis 00-04, 12 bytes each, into env +0x84 / +0x90
+            // / +0x9c / +0x60 / +0x6c (the colours, sun specular, ambient); a /1 sets minis 05-07 (+0x78 / +0x7c / +0x80,
+            // the intensities) and 08-0D (0x276d80(set, light, yaw, elevation)) of the last one appended (count - 1).
+            // The TEE record decoder 0x273b10 stores the same mini ids at the same offsets, so both share
+            // decode_light_mini [H]. Other minis are ignored [H].
             es.legacy_format = true;
             if (!read_minis(k.payload, minis)) return c.fail("old environment 0x100/0 or /1: malformed");
             if (k.id == 0) {
