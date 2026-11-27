@@ -1179,6 +1179,7 @@ void test_world_ability_icons() {
   <CommandBarComponent Name="st_shields"><Type>Bar</Type><Max_Bar_Level>10</Max_Bar_Level><Smooth_Bar>True</Smooth_Bar>
     <Bar_Texture_Name>i_bar_shield_frame.tga</Bar_Texture_Name><Bar_Overlay_Name>i_bar_shield_fill.tga</Bar_Overlay_Name></CommandBarComponent>
   <CommandBarComponent Name="st_ability_icon"><Type>Button</Type><Base_Layer>3</Base_Layer><Icon_Texture_Name>i_button_sa_blank.tga</Icon_Texture_Name></CommandBarComponent>
+  <CommandBarComponent Name="lt_weather_icon"><Type>Icon</Type><Base_Layer>4</Base_Layer></CommandBarComponent>
 </CommandBarComponents>
 )";
     ComponentTable t;
@@ -1193,6 +1194,7 @@ void test_world_ability_icons() {
     atlas.add({"i_bar_shield_fill.tga", 0, 22, 30, 4, true});
     atlas.add({"i_sa_defend_mode.tga", 40, 0, 16, 16, true});
     atlas.add({"i_sa_sprint.tga", 60, 0, 14, 14, true});
+    atlas.add({"i_pa_weather_rain.tga", 80, 0, 12, 12, true});
     auto box = make_box_rasterizer();
     FontCache fonts(*box);
     std::vector<HudTypeInfo> types(1);
@@ -1276,6 +1278,37 @@ void test_world_ability_icons() {
         u.ability_icon[0] = "i_sa_defend_mode.tga";
         const std::vector<Q> qs = run(u);
         CHECK(wh.stats().ability_icons == 0 && !find(qs, 16.0f, 16.0f));
+    }
+    // #296 lt_weather_icon (TACTICAL_COMMANDBAR_COMPONENTS.md "lt_weather_icon", 0x31de70 [H]): the texture name from the
+    // thresholds, then the icon 3 px + half its height above the bar on its own Base_Layer, any owner; beside an ability
+    // icon both move apart by (12 / 2 + 16 / 2) / 2 = 7.
+    CHECK(weather_status_icon("i_encyclopedia_weather_rain.tga", 0.3f, 1.0f, 0.4f, 0.5f) == "i_pa_weather_rain.tga");
+    CHECK(weather_status_icon("i_encyclopedia_weather_rain.tga", 1.0f, 0.45f, 0.4f, 0.5f) == "i_pa_weather_rain.tga");
+    CHECK(weather_status_icon("i_encyclopedia_weather_rain.tga", 0.4f, 0.5f, 0.4f, 0.5f).empty());  // not below either
+    CHECK(weather_status_icon("", 0.1f, 0.1f, 0.4f, 0.5f).empty());                                 // no weather
+    {  // a hostile unit with the weather icon alone: centred above the bar
+        HudUnit u = base;
+        u.owner = 1;
+        u.weather_icon = "i_pa_weather_rain.tga";
+        const std::vector<Q> qs = run(u);
+        const Q* bar = find(qs, 34.0f, 6.0f);
+        const Q* ic = find(qs, 12.0f, 12.0f);
+        CHECK(wh.stats().weather_icons == 1 && bar && ic);
+        if (bar && ic) CHECK(near(ic->x, bar->x) && near(ic->y, bar->y + 3.0f + 3.0f + 6.0f) && ic->layer == 4);
+    }
+    {  // with an ability icon: the ability icon 7 left of the bar's centre, the weather icon 7 right
+        HudUnit u = base;
+        u.weather_icon = "i_pa_weather_rain.tga";
+        u.ability_icon[0] = "i_sa_defend_mode.tga";
+        const std::vector<Q> qs = run(u);
+        const Q* bar = find(qs, 34.0f, 6.0f);
+        const Q* ab = find(qs, 16.0f, 16.0f);
+        const Q* ic = find(qs, 12.0f, 12.0f);
+        CHECK(wh.stats().weather_icons == 1 && wh.stats().ability_icons == 1 && bar && ab && ic);
+        if (bar && ab && ic) {
+            std::printf("  weather icon: bar x %.1f, ability x %.1f, weather x %.1f\n", bar->x, ab->x, ic->x);
+            CHECK(near(ab->x, bar->x - 7.0f) && near(ic->x, bar->x + 7.0f) && near(ab->y, bar->y + 3.0f + 3.0f + 8.0f));
+        }
     }
 }
 

@@ -672,6 +672,7 @@ struct LandRun {
     CrcLog crc;
     uint64_t trace = 0;
     bool fought = false, weather_on = false, weather_advanced = false, forced = false, rain_sight = false;
+    bool rain_hud = false;  // #296 unit_hud_status carries the sight modifier for lt_weather_icon
     bool bombard_started = false, bombard_hit = false, bombard_reset = false;
     bool run_started = false, bombers_flew = false, run_done = false, refused_unavailable = false;
     bool bombard_fed = false, run_fed = false;  // the strike_starts presentation feed
@@ -808,6 +809,8 @@ LandRun run_land(const Data& d, int32_t workers, bool via_command = false) {
         if (f > 1 && b->weather().phase_index() != phase0) out.weather_advanced = true;
         if (b->weather().type() == tactical::combat::WeatherType::Rain && b->weather().intensity() > 0.5f && victim != objects::kNoObjectId)
             out.rain_sight = out.rain_sight || b->weather_sight_modifier(victim) == 0.5f;
+        if (b->weather().type() == tactical::combat::WeatherType::Rain && b->weather().intensity() > 0.5f && victim != objects::kNoObjectId)
+            out.rain_hud = out.rain_hud || b->unit_hud_status(victim).weather_sight == 0.5f;
         if (f == 400) {
             const uint32_t before = b->weather().phase_index();
             out.forced = b->force_weather(host.random().synced()) && b->weather().phase_index() != before;
@@ -956,7 +959,7 @@ void test_land(const Data& d) {
                 "ready again %d; bombing run started %d flew %d done %d; trace %016" PRIx64 "\n",
                 a.fought, a.weather_on, a.weather_advanced, a.forced, a.rain_sight, a.refused_unavailable, a.bombard_started, a.bombard_hit,
                 a.bombard_reset, a.run_started, a.bombers_flew, a.run_done, a.trace);
-    CHECK(a.fought && a.weather_on && a.weather_advanced && a.forced && a.rain_sight);
+    CHECK(a.fought && a.weather_on && a.weather_advanced && a.forced && a.rain_sight && a.rain_hud);
     CHECK(a.refused_unavailable && a.bombard_started && a.bombard_hit && a.bombard_reset);
     CHECK(a.run_started && a.bombers_flew && a.run_done);
     CHECK(a.bombard_fed && a.run_fed);  // strike_starts names the bombardment and the run's first bomber

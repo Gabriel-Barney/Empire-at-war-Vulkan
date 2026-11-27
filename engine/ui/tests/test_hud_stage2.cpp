@@ -866,6 +866,14 @@ void test_buttons() {
         // ledger: verifies GameConstants.CB_Flash_Count
         const data::XmlDocument g5 = data::XmlDocument::parse(std::string_view("<GameConstants><CB_Flash_Count>7</CB_Flash_Count></GameConstants>"));
         CHECK2(h0.cb_flash_count == 4 && hud_constants_from(g5.root()).cb_flash_count == 7);  // CB_Flash_Count (FoC 4)
+        // #296 the lt_weather_icon thresholds (FoC 0.4 / 0.5).
+        // ledger: verifies GameConstants.Min_Accuracy_For_Icon
+        // ledger: verifies GameConstants.Min_Sight_Range_For_Icon
+        const data::XmlDocument g6 = data::XmlDocument::parse(std::string_view(
+            "<GameConstants><Min_Accuracy_For_Icon>0.25</Min_Accuracy_For_Icon><Min_Sight_Range_For_Icon>0.75</Min_Sight_Range_For_Icon></GameConstants>"));
+        const HudConstants h6 = hud_constants_from(g6.root());
+        CHECK2(near2(h0.min_accuracy_for_icon, 0.4f) && near2(h0.min_sight_range_for_icon, 0.5f) &&
+               near2(h6.min_accuracy_for_icon, 0.25f) && near2(h6.min_sight_range_for_icon, 0.75f));
         // mcx4 t14 (legacy docs/re/MCX4_PRES_RE_ANSWERS_2.md Q1): the countdown column - Game_Play_UI_Countdown_Font_Name (default
         // empty), Game_Play_UI_Countdown_Font_Size (12), GUI_Tactical_Countdown_Timers_Screen_X / GUI_Tactical_Countdown_Timers_Screen_Y,
         // GUI_Strategic_Countdown_Timers_Screen_X / GUI_Strategic_Countdown_Timers_Screen_Y and

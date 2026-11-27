@@ -79,6 +79,11 @@ bool unit_icon_centre(const WorldHudContext& ctx, const HudCanvas& cv, const Hud
     return true;
 }
 
+std::string weather_status_icon(std::string_view icon_name, float accuracy, float sight, float min_accuracy, float min_sight) {
+    if (icon_name.empty() || !(accuracy < min_accuracy || sight < min_sight)) return {};
+    return "i_pa" + std::string(icon_name.substr(std::min<size_t>(14, icon_name.size())));
+}
+
 void assign_unit_icons(std::span<HudUnit> units, std::span<const UnitIconLink> links) {
     struct Member {
         uint32_t squad = 0;
@@ -136,6 +141,7 @@ void WorldHud::bind(const ComponentTable& table) {
     garrison_flag_ = table.find("st_garrison_icon");
     garrison_slot_ = table.find("garrison_slot_icon");
     ability_icon_ = table.find("st_ability_icon");
+    weather_icon_ = table.find("lt_weather_icon");
 }
 
 WorldHud::BarBox WorldHud::bars(const WorldHudContext& ctx, const HudUnit& u, BracketSize sz, const UnitScreenBounds& b,
@@ -262,18 +268,37 @@ void WorldHud::ability_icons(const HudUnit& u, bool allied, const BarBox& bar, c
     // Base_Layer. The button is centred on the bar, 3 px plus half the first layer's height above it; the second layer
     // shares that centre. [port] above the top of the bar stack rather than the health bar alone: the port stacks the
     // shield and power bars over the health bar (retail's placement of those is not traced), which the icon would cover.
-    // The lt_weather_icon shift is not ported (no weather icon). The component's own Icon_Texture_Name is not drawn.
-    if (!allied || ability_icon_ < 0 || !table_) return;
-    const CommandBarComponent& c = (*table_)[static_cast<size_t>(ability_icon_)];
+    // The component's own Icon_Texture_Name is not drawn.
+    // #296 lt_weather_icon (0x31de70 [H]): any unit with the status record, its texture HudUnit::weather_icon at its atlas
+    // size x the component's Scale, 3 px plus half its height above the bar, centred on the bar. While the ability icon
+    // shows too, both move apart by (weather_w / 2 + ability_w / 2) / 2: the ability icon left, the weather icon right.
+    const CommandBarComponent* wc = weather_icon_ >= 0 && table_ ? &(*table_)[static_cast<size_t>(weather_icon_)] : nullptr;
+    const AtlasEntry* we = wc && !u.weather_icon.empty() ? atlas.find(u.weather_icon) : nullptr;
+    const CommandBarComponent* ac = allied && ability_icon_ >= 0 && table_ ? &(*table_)[static_cast<size_t>(ability_icon_)] : nullptr;
+    const AtlasEntry* ae = nullptr;  // the ability button's first layer
+    if (ac)
+        for (const std::string& tex : u.ability_icon)
+            if (!ae && !tex.empty()) ae = atlas.find(tex);
+    float shift = 0.0f;  // pixels
+    if (we && ae)
+        shift = 0.5f * (0.5f * static_cast<float>(we->width) * wc->scale + 0.5f * static_cast<float>(ae->width) * ac->scale) /
+                cv.units_per_pixel_x;
+    if (we) {
+        const float h = static_cast<float>(we->height) * wc->scale / cv.units_per_pixel_y;
+        add_atlas_quad(dl, static_cast<uint32_t>(wc->base_layer), HudList::Alpha, atlas, u.weather_icon,
+                       cv.pixel_to_canvas(bar.cx + shift, bar.top - 3.0f - 0.5f * h), {}, wc->scale, Rgba8{});
+        ++stats_.weather_icons;
+    }
+    if (!ac || !ae) return;
     std::optional<Vec2f> centre;
     for (const std::string& tex : u.ability_icon) {
         const AtlasEntry* e = tex.empty() ? nullptr : atlas.find(tex);
         if (!e) continue;
         if (!centre) {
-            const float h = static_cast<float>(e->height) * c.scale / cv.units_per_pixel_y;
-            centre = cv.pixel_to_canvas(bar.cx, bar.top - 3.0f - 0.5f * h);
+            const float h = static_cast<float>(e->height) * ac->scale / cv.units_per_pixel_y;
+            centre = cv.pixel_to_canvas(bar.cx - shift, bar.top - 3.0f - 0.5f * h);
         }
-        add_atlas_quad(dl, static_cast<uint32_t>(c.base_layer), HudList::Alpha, atlas, tex, *centre, {}, c.scale, Rgba8{});
+        add_atlas_quad(dl, static_cast<uint32_t>(ac->base_layer), HudList::Alpha, atlas, tex, *centre, {}, ac->scale, Rgba8{});
         ++stats_.ability_icons;
     }
 }

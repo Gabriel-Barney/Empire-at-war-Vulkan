@@ -343,6 +343,12 @@ HudConstants hud_constants_from(const data::XmlNode& root) {
     parse_rgba8(last("Lose_Message_Color"), c.lose_message_color);
     if (const std::string_view t = last("CB_Flash_Count"); !t.empty())
         c.cb_flash_count = static_cast<int32_t>(data::parse_float_or(t, static_cast<float>(c.cb_flash_count)));
+    // ledger: consumes GameConstants.Min_Accuracy_For_Icon
+    // ledger: consumes GameConstants.Min_Sight_Range_For_Icon
+    if (const std::string_view t = last("Min_Accuracy_For_Icon"); !t.empty())
+        c.min_accuracy_for_icon = data::parse_float_or(t, c.min_accuracy_for_icon);
+    if (const std::string_view t = last("Min_Sight_Range_For_Icon"); !t.empty())
+        c.min_sight_range_for_icon = data::parse_float_or(t, c.min_sight_range_for_icon);
     // ledger: consumes GameConstants.Icons_Per_Column
     if (const std::string_view t = last("Icons_Per_Column"); !t.empty())
         c.icons_per_column = static_cast<int32_t>(data::parse_float_or(t, static_cast<float>(c.icons_per_column)));

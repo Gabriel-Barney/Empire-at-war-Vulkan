@@ -177,6 +177,27 @@ TacticalBattle::UnitHudStatus TacticalBattle::unit_hud_status(objects::ObjectId 
             for (const Unit& m : units_)
                 if (m.container == u->container) s.bombs += combat_->stuck_bombs(m.id);
     }
+    // #296 lt_weather_icon inputs (0x2f9950 [H]): the weapon at obj +0x324 in the type's Projectile_Types (+0xc48), its
+    // Projectile_Category (weapon +0x1fe8) 4 / 6 / 7 -> 0x468750 accuracy; TURRET (behaviour 0x0b) -> category 4's; then
+    // 0x468510 sight. [M] a Weatherproof owner reads 1.0 here, as for weather_sight_modifier.
+    if (l1_weather_.active() && l1_mode_ && catalog_) {
+        const objects::ObjectStore& st = l1_mode_->primary();
+        const objects::ObjectHandle h = st.find(id);
+        if (st.exists(h) && (!abilities_ || abilities_->weather_affected(st.owner(h)))) {
+            const objects::GameObjectTypes& ty = catalog_->types();
+            const auto projs = ty.get(st.type(h), objects::tags::Projectile_Types);
+            const size_t wi = static_cast<size_t>(std::max(0, combat_ ? combat_->weapon_index(id) : 0));
+            if (wi < projs.size())
+                if (const objects::TypeIndex q = ty.resolve_name(ascii_trim(projs[wi])); q != objects::kNone) {
+                    const int32_t cat = ty.get(q, objects::tags::Projectile_Category);
+                    if (cat == 4 || cat == 6 || cat == 7)
+                        s.weather_accuracy = std::min(s.weather_accuracy, l1_weather_.accuracy_modifier(static_cast<uint32_t>(cat)));
+                }
+            constexpr objects::BehaviorTypeId kTurret = 0x0B;  // TURRET (docs/re/WEAPON_CLIP_GATES.md)
+            if (st.has_behavior(h, kTurret)) s.weather_accuracy = std::min(s.weather_accuracy, l1_weather_.accuracy_modifier(4));
+            s.weather_sight = weather_sight_modifier(id);
+        }
+    }
     return s;
 }
 

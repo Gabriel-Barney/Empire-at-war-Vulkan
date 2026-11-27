@@ -1066,6 +1066,11 @@ void App::build_tactical_hud() {
         for (const sim::TacticalBattle::IconLink& l : b->icon_links())
             icons.push_back({static_cast<uint32_t>(l.unit), static_cast<uint32_t>(l.squad)});
         ui::assign_unit_icons(units, icons);
+        // #478 skirmish_upgrade: the local player's and its allies' upgrades (TacticalBattle::sidebar_feed); its weather
+        // icon name is #296's lt_weather_icon source too.
+        sim::TacticalBattle::SidebarFeed feed;
+        b->sidebar_feed(local_player(), feed);
+        const std::string feed_weather_icon = feed.weather_icon;
         // #475: the overhead status icons of the units WorldHud draws a record for (selected or hovered).
         for (ui::HudUnit& u : units) {
             if (!u.selected && !u.hovered) continue;
@@ -1075,15 +1080,14 @@ void App::build_tactical_hud() {
             u.garrison_flag = s.garrison_flag;
             u.garrison_slots = static_cast<uint8_t>(std::clamp(s.garrison_slots, 0, 255));
             u.garrison_used = static_cast<uint8_t>(std::clamp(s.garrison_used, 0, 255));
+            u.weather_icon = ui::weather_status_icon(feed_weather_icon, s.weather_accuracy, s.weather_sight,
+                                                     hud_consts_.min_accuracy_for_icon, hud_consts_.min_sight_range_for_icon);
 #ifdef ALAMO_UI_HAVE_ABILITIES
             // #476: st_ability_icon, the active abilities of slots 0 / 1 (WorldHud draws them for allied units only).
             ui::overhead_ability_icons(b->abilities(), u.id, b->frame(), u.ability_icon);
 #endif
         }
         hf.garrison_respawn = b->garrison_respawn(local_player());  // #474: the local player's re-delivery fill, -1 = none
-        // #478 skirmish_upgrade: the local player's and its allies' upgrades (TacticalBattle::sidebar_feed).
-        sim::TacticalBattle::SidebarFeed feed;
-        b->sidebar_feed(local_player(), feed);
         sidebar_in_.completed.assign(feed.completed.begin(), feed.completed.end());
         sidebar_in_.building.clear();
         for (const auto& [t, p] : feed.building) sidebar_in_.building.push_back({static_cast<int32_t>(t), p});
