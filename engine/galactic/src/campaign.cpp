@@ -2410,6 +2410,7 @@ std::string_view galactic_event_name(GalacticEventKind kind) {
     case GalacticEventKind::HeroNeutralized: return "HeroNeutralized";
     case GalacticEventKind::NeutralizeDialog: return "NeutralizeDialog";
     case GalacticEventKind::NeutralizeVigilance: return "NeutralizeVigilance";
+    case GalacticEventKind::SpecialPresented: return "SpecialPresented";
     case GalacticEventKind::Count: break;
     }
     return "?";

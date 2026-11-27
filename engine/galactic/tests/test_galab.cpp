@@ -302,6 +302,8 @@ void test_death_star() {
         clear_orbit(s, rC, pUnd);
         CHECK(s.ground_activated_trigger(ds, rC) && w.planet(rC).destroyed && s.victory_claims().empty());
         CHECK(w.count(GalacticEventKind::SpecialApplied) == 0 && w.count(GalacticEventKind::PlanetDestroyed) == 1);
+        // #330 (0x707670 -> 0x48e4d0): one activation presentation for the shot, none for the refused one; no story event
+        CHECK(w.count(GalacticEventKind::SpecialPresented) == 1);
         CHECK(!s.planet_destruction_accepts(pEmp, rC));  // already destroyed
         CHECK(w.store.alive(ds));
     }

@@ -1,6 +1,7 @@
 // Conversations: scripted sequences of speech and SFX lines played one after another (hero clash
-// exchanges, advisor briefings, unit-to-unit chatter scripted by the game). legacy docs/re/AUDIO.md §8 lists the
-// original's SFX/speech conversation managers as not read, so the sequencing rules here are [port],
+// exchanges, advisor briefings, unit-to-unit chatter scripted by the game). #330 (docs/re/AUDIO_BINARY_ANSWERS.md §1):
+// retail's speech conversation manager only plays the hero clash's fixed line pairs, and its SFX one is a stub, so
+// there are no retail queue or priority rules to follow: the sequencing rules here are [port],
 // built only from the documented primitives:
 //   * a Speech line goes through the speech FIFO (AudioSystem::queue_speech, §3.1) and is finished when
 //     its queue entry is gone; while it plays the usual speech rules apply (SFX capped at 0.3, HUD VO

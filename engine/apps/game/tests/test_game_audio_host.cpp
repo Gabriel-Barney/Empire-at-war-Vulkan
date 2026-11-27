@@ -1025,18 +1025,20 @@ void test_galactic_activate_t06() {
     using C = galactic::SpecialAbilityClass;
     for (const bool local : {false, true}) {
         CHECK(H::galactic_activation_presented(C::Sabotage, local) && H::galactic_activation_presented(C::Hack, local) &&
-              H::galactic_activation_presented(C::SystemSpy, local) && H::galactic_activation_presented(C::SiphonCredits, local));
+              H::galactic_activation_presented(C::SystemSpy, local) && H::galactic_activation_presented(C::SiphonCredits, local) &&
+              H::galactic_activation_presented(C::PlanetDestruction, local));  // #330 0x707670
         CHECK(!H::galactic_activation_presented(C::BlackMarket, local) && !H::galactic_activation_presented(C::Slicer, local) &&
               !H::galactic_activation_presented(C::Corruption, local) && !H::galactic_activation_presented(C::NeutralizeHero, local) &&
-              !H::galactic_activation_presented(C::PlanetDestruction, local) && !H::galactic_activation_presented(C::Other, local));
+              !H::galactic_activation_presented(C::Other, local));
     }
     CHECK(H::galactic_activation_presented(C::RemoveCorruption, true) && !H::galactic_activation_presented(C::RemoveCorruption, false));
-    // One batch (local player 0): ability refs 0..4 = Sabotage, RemoveCorruption, Corruption, SystemSpy, Hack.
+    // One batch (local player 0): ability refs 0..5 = Sabotage, RemoveCorruption, Corruption, SystemSpy, Hack,
+    // PlanetDestruction.
     {
         using K = galactic::GalacticEventKind;
         const auto class_of = [](uint32_t ref) {
-            constexpr C kClass[] = {C::Sabotage, C::RemoveCorruption, C::Corruption, C::SystemSpy, C::Hack};
-            return ref < 5 ? kClass[ref] : C::Other;
+            constexpr C kClass[] = {C::Sabotage, C::RemoveCorruption, C::Corruption, C::SystemSpy, C::Hack, C::PlanetDestruction};
+            return ref < 6 ? kClass[ref] : C::Other;
         };
         auto ev = [](K k, int32_t player, int32_t hero, int32_t ability, uint32_t planet) {
             galactic::GalacticEvent e;
@@ -1057,10 +1059,12 @@ void test_galactic_activate_t06() {
             ev(K::SpecialApplied, 1, 14, 2, 5),     // Corruption_Ability: never
             ev(K::SpecialApplied, 1, 15, 3, 6),     // the AI's system spy: presents
             ev(K::SpecialError, 0, 16, 4, 6),       // other kinds: ignored
+            ev(K::SpecialPresented, 1, 17, 5, 7),   // #330 the AI's Death Star shot: presents (no SpecialApplied for it)
         };
         const std::vector<H::GalacticActivation> a = H::galactic_activations(batch, class_of, 0);
-        CHECK(a.size() == 3);
-        if (a.size() == 3) {
+        CHECK(a.size() == 4);
+        if (a.size() == 4) {
+            CHECK(a[3].hero == 17 && a[3].ability == 5 && a[3].planet == 7);
             CHECK(a[0].hero == 10 && a[0].ability == 0 && a[0].planet == 2 && a[0].type == 7);
             CHECK(a[1].hero == 13 && a[1].ability == 1 && a[1].planet == 4);
             CHECK(a[2].hero == 15 && a[2].ability == 3 && a[2].planet == 6);
