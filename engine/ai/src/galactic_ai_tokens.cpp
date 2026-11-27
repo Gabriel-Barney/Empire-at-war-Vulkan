@@ -757,6 +757,12 @@ void GalacticSimTokenResolver::clear_cache() {
     cache_.clear();
 }
 
+namespace {
+thread_local bool t_cache_uncounted = false;  // GalacticSimTokenResolver::Uncounted
+}  // namespace
+GalacticSimTokenResolver::Uncounted::Uncounted() : prev_(t_cache_uncounted) { t_cache_uncounted = true; }
+GalacticSimTokenResolver::Uncounted::~Uncounted() { t_cache_uncounted = prev_; }
+
 uint64_t GalacticSimTokenResolver::cache_hits() const {
     std::lock_guard<std::mutex> lock(mu_);
     return hits_;
@@ -1099,7 +1105,7 @@ struct GalacticSimTokenResolver::Impl {
                     (life == kLifeForever ||
                      static_cast<int64_t>(r.frame_) <= static_cast<int64_t>(it->second.stamp) + static_cast<int64_t>(life) * kAiFps)) {
                     out = it->second.value;
-                    ++r.hits_;
+                    if (!t_cache_uncounted) ++r.hits_;
                     return true;
                 }
             }

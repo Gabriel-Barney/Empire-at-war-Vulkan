@@ -163,18 +163,22 @@ public:
     virtual int32_t quota_players() = 0;               // players - active humans
     // OPT2 t03, batched values (header comment). Default: none, every candidate is evaluated in place.
     virtual const ParallelFor* candidate_pf() { return nullptr; }
-    // Serial, before the batch. True: `function` may be evaluated by evaluate_prepared() on any thread.
-    virtual bool prepare_evaluation(const std::string& function) {
-        (void)function;
+    // Serial, before the batch. True: `function` (resolve_function's `equation`) may be evaluated by evaluate_prepared()
+    // on any thread.
+    virtual bool prepare_evaluation(uint32_t equation, const std::string& function) {
+        (void)equation, (void)function;
         return false;
     }
     // Concurrent const evaluation of a prepared function (the same value evaluate() gives at this point of the slice).
-    virtual bool evaluate_prepared(const std::string& function, int32_t target, double& out) const {
-        (void)function, (void)target, (void)out;
+    virtual bool evaluate_prepared(uint32_t equation, const std::string& function, int32_t target, double& out) const {
+        (void)equation, (void)function, (void)target, (void)out;
         return false;
     }
-    // Serial, in visit order, once per prepared candidate: the bookkeeping evaluate() does for itself.
-    virtual void evaluated(const std::string& function) { (void)function; }
+    // Serial, in visit order, once per prepared candidate: the bookkeeping evaluate() does for itself (#635: with the
+    // candidate's result, evaluate_prepared's answer and value).
+    virtual void evaluated(uint32_t equation, const std::string& function, int32_t target, bool ok, double value) {
+        (void)equation, (void)function, (void)target, (void)ok, (void)value;
+    }
     // brackets each proposal slice (every slot 10 of the slice runs in between), so a mode may share host
     // answers between the slice's solves. Default: nothing.
     virtual void slice_begin() {}

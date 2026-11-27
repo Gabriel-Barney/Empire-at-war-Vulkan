@@ -776,13 +776,13 @@ void test_goal_batched_values() {
             return f != "B" || t != 3;
         }
         const ParallelFor* candidate_pf() override { return pf; }
-        bool prepare_evaluation(const std::string& f) override { return f != "S"; }
-        bool evaluate_prepared(const std::string& f, int32_t t, double& out) const override {
+        bool prepare_evaluation(uint32_t, const std::string& f) override { return f != "S"; }
+        bool evaluate_prepared(uint32_t, const std::string& f, int32_t t, double& out) const override {
             prepared.fetch_add(1, std::memory_order_relaxed);
             out = value(f, t);
             return f != "B" || t != 3;
         }
-        void evaluated(const std::string& f) override {
+        void evaluated(uint32_t, const std::string& f, int32_t, bool, double) override {
             bracket_ok = bracket_ok && open;
             ++counted;
             trace.push_back("eval " + f);
@@ -1315,6 +1315,8 @@ CampaignResult run_synthetic(unsigned threads, int32_t frames, bool script_targe
     GalacticAiConfig cfg;
     cfg.players = {{0, "SynEmpire", 1}, {1, "SynRebel", 1}};
     cfg.difficulties = {{"Normal_Default", 1.1f, 0.0f}};
+    cfg.pf = thread_pf(threads);  // #635: the batched goal values (and the S2 perception) on the run's threads
+    cfg.path_pf = thread_pf(threads);
     const SimRng synced_before_world = rng.synced();
     GalacticAiWorld world(sim, store, &types, &files, rng, defs, eqs, tinfo,
                           [&sim](uint8_t p, const commands::EventData& ev) { return sim.execute(p, ev); }, cfg);
@@ -1346,6 +1348,7 @@ CampaignResult run_synthetic(unsigned threads, int32_t frames, bool script_targe
     out.orders = world.orders_issued();
     out.rejected = world.orders_rejected();
     out.conflicts = conflicts.log().size();
+    out.batched = world.batched_evaluations();
     char buf[512];
     std::snprintf(buf, sizeof buf, "frames %d planets E=%d R=%d N=%d credits E=%.0f R=%.0f orders %llu rejected %llu conflicts %llu plans running %zu",
                   frames, out.owned[0], out.owned[1], out.owned[2], static_cast<double>(sim.credits(0)),
@@ -1473,6 +1476,8 @@ void test_synthetic_campaign() {
     CHECK(base.errors.empty());
     CHECK(base.orders > 0 && base.rejected * 4 < base.orders + 1);
     CHECK(base.owned.size() == 3 && base.owned[0] + base.owned[1] > 4);  // the AIs expanded
+    CHECK(base.batched > 0);  // #635: scored candidate sets ran through the batched values
+    std::printf("  batched goal values: %llu\n", static_cast<unsigned long long>(base.batched));
     for (const unsigned t : {2u, 4u, 15u}) {
         const CampaignResult r = run_synthetic(t, frames);
         size_t first = r.crc.size() == base.crc.size() ? r.crc.size() : 0;
@@ -1482,7 +1487,7 @@ void test_synthetic_campaign() {
                 break;
             }
         std::printf("  threads %u vs 1: %s\n", t, first == r.crc.size() ? "identical" : ("DIVERGED at frame " + std::to_string(first + 1)).c_str());
-        CHECK(first == r.crc.size() && r.decisions == base.decisions);
+        CHECK(first == r.crc.size() && r.decisions == base.decisions && r.batched == base.batched);
     }
     const std::string text = golden_text(base);
     const std::string path = ai_golden_dir() + "/ai_galactic_synthetic_crc.txt";

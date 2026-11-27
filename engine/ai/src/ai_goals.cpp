@@ -138,7 +138,7 @@ bool GoalSystem::proposal_slice(int64_t now) {
         ++evals_pass_;
         double v = 0.0;
         if (batched && batched->prepared) {
-            hooks_->evaluated(s.function);
+            hooks_->evaluated(s.equation, s.function, target, batched->ok != 0, batched->value);
             if (!batched->ok) return;
             v = batched->value;
         } else {
@@ -191,13 +191,14 @@ bool GoalSystem::proposal_slice(int64_t now) {
         if (batch_.empty()) return;
         uint32_t prepared = 0;
         for (Candidate& c : batch_) {
-            c.prepared = pf && hooks_->prepare_evaluation(sources_[c.source].function) ? 1 : 0;
+            c.prepared = pf && hooks_->prepare_evaluation(sources_[c.source].equation, sources_[c.source].function) ? 1 : 0;
             prepared += c.prepared;
         }
         const auto values = [this](uint32_t b, uint32_t e) {
             for (uint32_t i = b; i < e; ++i) {
                 Candidate& c = batch_[i];
-                if (c.prepared) c.ok = hooks_->evaluate_prepared(sources_[c.source].function, c.target, c.value) ? 1 : 0;
+                const GoalSource& s = sources_[c.source];
+                if (c.prepared) c.ok = hooks_->evaluate_prepared(s.equation, s.function, c.target, c.value) ? 1 : 0;
             }
         };
         // Fewer than kMinFanOut prepared values run in place: waking helpers costs about what they take (a space battle's

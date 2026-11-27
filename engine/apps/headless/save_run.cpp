@@ -680,6 +680,7 @@ public:
         sim::SimHost* hp = &host;
         ai::GalacticAiConfig wcfg = gcfg_;
         wcfg.lua_gc_pf = host.parallel_for();  // scheduled Lua collections on the host's job system
+        wcfg.pf = wcfg.path_pf = host.parallel_for();  // #635: batched goal values, the S2 perception, the path recomputes
         wcfg.background = jobs::make_background_start(host.jobs());  // background path recomputes
         s->world = std::make_unique<ai::GalacticAiWorld>(
             *s->gs, host.galactic_mode()->primary(), &types_, files_.get(), host.random(), defs_, eqs_, tinfo_,

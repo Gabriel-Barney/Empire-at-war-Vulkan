@@ -335,6 +335,7 @@ struct CampaignResult {
     std::vector<std::string> errors;
     std::vector<int32_t> owned;
     uint64_t orders = 0, rejected = 0, conflicts = 0;
+    uint64_t batched = 0;  // #635: goal values evaluated in the batch (GalacticAiWorld::batched_evaluations)
 };
 CampaignResult run_synthetic(unsigned threads, int32_t frames, bool script_target = false);
 std::string golden_text(const CampaignResult& r);
