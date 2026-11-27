@@ -449,7 +449,9 @@ GloryLoader App::glory_loader() const {
 // #572 0x39bdb0 -> 0x2cc940 [H]: a death clone appears (the object's death) while the battle cam runs (state 3), at
 // most one glory shot every FPS x 5 frames, and its type has Glory_Cinematics: the running shot stops, one file is
 // drawn and loaded; a loaded one plays on the clone (+0x360 = the clone), a failed one leaves the cam stopped. [port]
-// A clone counts once, as it first shows in the drawn frame; the +0x34c and DAT_140b15490 gates are not modelled.
+// (tier 1, presentation) A clone counts once, as it first shows in the drawn frame; the +0x34c and DAT_140b15490
+// gates, the cursor re-baseline and +0x34a are not modelled; the first glory shot of a battle is not gated (+0x3a0's
+// start value is not traced [M]).
 void App::glory_death_path() {
     const sim::TacticalBattle* b = battle();
     if (!b || !bview_.active()) return;
@@ -467,9 +469,8 @@ void App::glory_death_path() {
         io.half_extents = shot_half_extents(o.type);
         io.frame = frame;
         io.type_name = data_.types.name(o.type);
-        const auto pick = static_cast<size_t>(cine_.rng.range(0, static_cast<int32_t>(files.size()) - 1));
         GloryCinematic g;
-        const bool ok = glory_loader()(files[pick], g);
+        const bool ok = glory_pick(files, cine_.rng, glory_loader(), g);
         cine_.cam.death_glory(ok ? std::optional<BattleCamShot>(glory_shot(io, g)) : std::nullopt);
         if (ok) {
             cine_.interesting.current = static_cast<uint32_t>(o.id);

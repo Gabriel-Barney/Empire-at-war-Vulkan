@@ -576,11 +576,12 @@ each of these is a known gap rather than an accepted difference:
   - the first live bomber with a live marker is framed, where retail takes the record's first and fails if it is dying;
   - a lead bomber shot down mid-run stops the cam (the framed object is gone), where retail runs on until the record ends.
 - The glory files (#572):
-  - a death clone counts once, as it first shows in the drawn frame; the +0x34c and `DAT_140b15490` gates are not
-    modelled;
+  - a death clone counts once, as it first shows in the drawn frame; the +0x34c and `DAT_140b15490` gates, the cursor
+    re-baseline and +0x34a are not modelled; the first glory shot of a battle is not gated (+0x3a0's start value is not
+    traced [M]);
+  - the key tangent (mini 0x02) and tangent scale (0x06) are read past: the port's attached keys interpolate linearly;
   - each `Glory_Cinematics` entry is split on commas and trimmed [M];
-  - an unknown key mode reads as a spline; FOV / roll keys out of frame order hold the later value (retail divides by
-    the gap);
+  - an unknown key mode reads as a spline (the shipped files are frame-sorted, which the retail test checks);
   - chunk 8 is read and dropped [L: fog or depth settings], and so are key minis 0x05 / 0x07 / 0x08 (use not traced);
   - the attached spline between keys is linear, as for every attached key in the port.
 - The hardpoint shot (#571):

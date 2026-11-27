@@ -1255,7 +1255,7 @@ void test_glory_controller() {
     cam.death_glory(glory);
     CHECK(cam.state() == State::Movie && cam.shot().target == 42 && cam.fov().keys().size() == 3);
     cam.death_glory(std::nullopt);
-    CHECK(!cam.active());
+    CHECK(!cam.active() && !cam.terrain_clamp());  // +0x315 = 0 even when the file fails
 }
 
 // #572 on the installed game (ALAMO_FOC_DATA): every shipped death clone's Glory_Cinematics file loads through the VFS
@@ -1282,6 +1282,11 @@ void test_glory_shipped(const char* foc) {
             GloryCinematic g;
             const bool read = data.files->read(glory_file_path(n), bytes);
             CHECK(read && parse_glory_cinematic(bytes, g) && !g.eye.empty() && !g.look.empty() && !g.fov.empty());
+            // The keys go in in file order, so the files must be frame-sorted.
+            for (const auto* keys : {&g.eye, &g.look})
+                for (size_t i = 1; i < keys->size(); ++i) CHECK((*keys)[i - 1].frame < (*keys)[i].frame);
+            for (const auto* keys : {&g.fov, &g.roll})
+                for (size_t i = 1; i < keys->size(); ++i) CHECK((*keys)[i - 1].frame < (*keys)[i].frame);
             if (!read) std::printf("  not read: %s\n", n.c_str());
             ++files;
         }

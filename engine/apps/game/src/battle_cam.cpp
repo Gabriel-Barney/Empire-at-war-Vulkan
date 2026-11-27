@@ -169,6 +169,7 @@ void BattleCam::start(State s, BattleCamShot shot) {
 
 void BattleCam::death_glory(std::optional<BattleCamShot> shot) {
     stop();  // 0x2cbb80: the running shot stops first, so a file that fails leaves the cam stopped
+    terrain_clamp_ = false;  // 0x4a3b40 sets +0x315 = 0 first, even when the file then fails
     if (shot) start(State::Movie, std::move(*shot));
 }
 
@@ -352,7 +353,6 @@ float fov_keys_value(std::span<const FovKey> keys, int32_t frame, float before) 
     const FovKey& a = keys[k];
     const FovKey& b = keys[k + 1];
     if (a.hold) return a.degrees;
-    if (b.frame <= a.frame) return b.degrees;  // [port] out-of-order file keys (retail divides by the gap)
     const float t = static_cast<float>(frame - a.frame) / static_cast<float>(b.frame - a.frame);
     return a.degrees + shot_accel(t, a.ease_out, b.ease_in) * (b.degrees - a.degrees);
 }
@@ -934,7 +934,8 @@ bool read_glory_key(std::span<const uint8_t> b, const Chunk& c, ShotKey& k) {
             case 0x03:
                 if (word) {
                     const uint32_t m = read_u32(b, at);  // 0 spline, 1 linear, 2 hold, 3 orbit
-                    k.segment = m <= 3 ? static_cast<ShotKey::Segment>(m) : ShotKey::Segment::Spline;  // [port] others: spline
+                    // [port] (tier 1, presentation) an unknown mode reads as a spline
+                    k.segment = m <= 3 ? static_cast<ShotKey::Segment>(m) : ShotKey::Segment::Spline;
                 }
                 break;
             case 0x0a:
@@ -1029,6 +1030,12 @@ std::vector<std::string> glory_file_names(std::span<const std::string_view> entr
     return out;
 }
 
+bool glory_pick(std::span<const std::string> files, UnsyncedRandom& rng, const GloryLoader& load, GloryCinematic& out) {
+    if (files.empty()) return false;
+    const auto i = static_cast<size_t>(rng.range(0, static_cast<int32_t>(files.size()) - 1));  // before the open
+    return load && load(files[i], out);
+}
+
 std::string glory_file_path(std::string_view name) { return "Data\\Art\\Cinematics\\" + std::string(name); }
 
 BattleCamShot glory_shot(const InterestingObject& o, const GloryCinematic& c) {
@@ -1067,12 +1074,9 @@ bool interesting_shot(const InterestingObject& o, bool space, const InterestingC
     // Steps 1 - 3 (docs/re/BATTLE_CAM.md "The dispatcher"). Step 1, the glory files (#572, 0x4a3b40): the pick is drawn
     // before the file is opened, so a file that fails still costs the draw. Step 2 (the terrain clamp) is
     // BattleCam::start's; step 3 is the hardpoint shot (#571).
-    if (!o.glory_files.empty()) {
-        const auto i = static_cast<size_t>(rng.range(0, static_cast<int32_t>(o.glory_files.size()) - 1));
-        if (GloryCinematic g; load_glory && load_glory(o.glory_files[i], g)) {
-            out = glory_shot(o, g);
-            return true;
-        }
+    if (GloryCinematic g; glory_pick(o.glory_files, rng, load_glory, g)) {
+        out = glory_shot(o, g);
+        return true;
     }
     if (o.hardpoint >= 0 && hardpoint_shot(o, rng, out)) return true;
     if ((o.category & c.fighter) != 0) {  // step 4

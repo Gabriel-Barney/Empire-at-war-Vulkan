@@ -272,8 +272,8 @@ public:
     // #572 0x49cd00 [H]: the roll keys' value at shot clock `clock`, in degrees (0 before the first key and without keys).
     float shot_roll(int32_t clock) const { return fov_keys_value(shot_.roll_keys, clock, 0.0f); }
     // #572 0x2cc940, the death path (a death clone whose type has Glory_Cinematics, while the battle cam runs): the running
-    // shot stops (0x2cbb80); `shot` set = the glory shot loaded, which then runs in state 3. Without it the cam stays
-    // stopped, as retail's.
+    // shot stops (0x2cbb80) and the terrain clamp clears (+0x315 = 0); `shot` set = the glory shot loaded, which then
+    // runs in state 3. Without it the cam stays stopped, as retail's.
     void death_glory(std::optional<BattleCamShot> shot);
 
 private:
@@ -376,10 +376,14 @@ struct InterestingObject {
 // #572: a type's Glory_Cinematics entries as file names: each entry split on commas and trimmed [M] (the AT-AT clones
 // list three files in one entry), empty names dropped.
 std::vector<std::string> glory_file_names(std::span<const std::string_view> entries);
-// #572: the path 0x4a3b40 opens for file `name`: ".\Data\Art\Cinematics\" + the name as written.
+// #572: the path 0x4a3b40 opens for file `name`: "Data\Art\Cinematics\" + the name as written (retail's leading ".\"
+// is the working directory, which the VFS root stands for).
 std::string glory_file_path(std::string_view name);
 // #572: reads and parses Glory_Cinematics file `name` (under Data\Art\Cinematics\); false when it does not open or parse.
 using GloryLoader = std::function<bool(std::string_view name, GloryCinematic& out)>;
+// #572 0x4a3b40 [H]: rand(0, n - 1) picks one of `files`, drawn before the open (a failed open still costs it), then
+// `load` reads it. False for no files, no loader or a file that fails.
+bool glory_pick(std::span<const std::string> files, UnsyncedRandom& rng, const GloryLoader& load, GloryCinematic& out);
 // GameObjectCategoryType values the dispatcher tests (the enum file's; [H] defaults).
 struct InterestingCategories {
     uint64_t fighter = 0x1, bomber = 0x2, corvette = 0x8, frigate = 0x10, infantry = 0x80, vehicle = 0x100;
