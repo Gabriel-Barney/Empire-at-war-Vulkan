@@ -73,13 +73,17 @@ struct CampaignSetInfo {
     std::vector<CampaignChoice> factions;  // data order
 };
 struct CampaignMenu {
-    std::vector<CampaignSetInfo> story;      // Supports_Custom_Settings false (New Campaign)
-    std::vector<CampaignSetInfo> custom;     // Supports_Custom_Settings true (Custom Campaign / galactic conquest)
+    std::vector<CampaignSetInfo> story;      // Supports_Custom_Settings false (New Campaign) [port]
+    std::vector<CampaignSetInfo> custom;     // every listed single-player set (Custom Campaign / galactic conquest staging)
     std::vector<CampaignSetInfo> tutorials;  // Campaign_Set "Tutorial*"
 };
-// [port] rules: campaigns without Starting_Active_Player (multiplayer sets) are skipped; Campaign_Set starting with
-// "Tutorial" -> tutorials; else story / custom by Supports_Custom_Settings; sets ordered by Sort_Order then first
-// appearance (GameDatabase::campaigns_by_sort_order), factions in data order.
+// Rules: campaigns without Starting_Active_Player or with Is_Multiplayer (multiplayer sets) are skipped; Campaign_Set
+// starting with "Tutorial" -> tutorials [port]; else:
+// - custom = every Is_Listed campaign set (#695: the staging dialog 0x943c0 fills IDC_STAGING_MAP_LIST through 0xfb950,
+//   which takes 0x478f90(single player, listed only; one campaign per Campaign_Set) and skips Tutorial campaigns; neither
+//   reads Supports_Custom_Settings [H]), so a mod whose conquests all say Supports_Custom_Settings False still lists them;
+// - story = Supports_Custom_Settings false [port: retail starts its story campaigns by name from their own menus].
+// Sets are ordered by Sort_Order then first appearance (GameDatabase::campaigns_by_sort_order), factions in data order.
 CampaignMenu build_campaign_menu(const data::GameDatabase& db);
 CampaignMenu build_campaign_menu(std::span<const data::CampaignDef* const> sorted);
 
