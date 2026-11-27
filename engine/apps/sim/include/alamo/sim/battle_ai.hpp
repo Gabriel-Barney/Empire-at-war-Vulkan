@@ -77,8 +77,9 @@ AiLaneDefaults& ai_lane_defaults();
 uint64_t ai_lane_live_reads(const char** first = nullptr);
 // #634: process-wide, the battles run with the AI lane on, the lane applies whose result differed from the prediction
 // (BattleAi::lane_mismatches) and the Spawn_Unit calls refused in lane code. alamo_headless prints them after a lane run.
+// #752: and the lane jobs run on the lane's own thread or inline (0 workers, or a battle whose galactic context evaluates).
 struct AiLaneCounts {
-    uint64_t battles = 0, mismatches = 0, refused_spawns = 0;
+    uint64_t battles = 0, mismatches = 0, refused_spawns = 0, threaded_jobs = 0, inline_jobs = 0;
 };
 AiLaneCounts ai_lane_counts();
 // #634: `inner` whose bodies run with the calling thread's AI-lane context (the AI whose lane code it runs, the facts'

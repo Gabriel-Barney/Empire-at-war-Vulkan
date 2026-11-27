@@ -580,6 +580,17 @@ if(_alamo_sim)
     alamo_add_worker_count_check(alamo_headless_skirmish_ai_foc_ai_lane
         COMMAND alamo_headless --skirmish-ai foc --ticks 3000 --quiet --ai-lane
         TIMEOUT 1800 SLOW)
+    # #752: a map skirmish (no parent galaxy) runs think() on the lane's own thread with workers: the worker-count check
+    # of the threaded lane (foc / foc-land are campaign invasions: their galactic context keeps the lane inline, #636),
+    # and a check that its jobs did run on the thread.
+    alamo_add_worker_count_check(alamo_headless_skirmish_ai_geonosis_ai_lane
+        COMMAND alamo_headless --skirmish-ai skirmish --map _MP_SPACE_GEONOSIS --human Empire --ticks 3000 --quiet --ai-lane
+        TIMEOUT 1800 SLOW)
+    add_test(NAME alamo_headless_skirmish_ai_geonosis_ai_lane_thread
+             COMMAND alamo_headless --skirmish-ai skirmish --map _MP_SPACE_GEONOSIS --human Empire --ticks 900 --quiet --ai-lane
+                     --workers 4)
+    set_tests_properties(alamo_headless_skirmish_ai_geonosis_ai_lane_thread PROPERTIES TIMEOUT 900
+                         PASS_REGULAR_EXPRESSION "AI lane: [0-9]+ battle\\(s\\).* [1-9][0-9]* job\\(s\\) on the lane thread, 0 inline")
     if(TARGET alamo_anim)
       # A battle with the animation on (anim worlds of the galaxy and the battle mode).
       add_test(NAME alamo_headless_save_skirmish_anim

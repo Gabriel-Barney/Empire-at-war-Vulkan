@@ -2199,8 +2199,10 @@ void CampaignBattles::story_landings(SimHost& host) {
 // 0x28aa50: the parent's head conflict; a map battle has none). Releases (0x6147d0 [H]) draw on the player's land credit
 // transfer: amount < 0 or not below what is left (saved - released) = all of it; Add_Credits with aiGain 0 (no
 // Credit_Multiplier); released += amount, capped at saved. [port] A player without a transfer releases nothing.
+// #752: none in a skirmish battle. Retail evaluates only in a tactical mode spawned from a campaign (elsewhere the call
+// warns, bind_players.cpp g_evaluate_in_galactic_context [H]); the port's skirmish galaxy is not a parent galaxy.
 void CampaignBattles::galactic_context_begin(ModeKind kind) {
-    if (!ai_ || !opt_.tactical_ai || !opt_.galactic_resolver) return;
+    if (!ai_ || !opt_.tactical_ai || !opt_.galactic_resolver || opt_.battle.skirmish) return;
     const ai::TokenResolver* res = opt_.galactic_resolver();
     GalacticMode* g = host_->galactic_mode();
     if (!res || !g || !g->sim()) return;
