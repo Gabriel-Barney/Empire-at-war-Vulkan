@@ -2015,6 +2015,15 @@ void TacticalBattle::finish(int32_t winner, uint8_t victory, int32_t retreated) 
         if (p.starbase) result_.starbase_destroyed = true;
         else result_.destroyed.push_back(p.galactic);
     }
+    // #757: contents lost with a host that died after its side's retreat (a Pending one too: the battle ends before the
+    // next release pass). Inside and Pending records otherwise keep their galactic unit; Released ones are participants.
+    for (ContainedUnit& c : contained_) {
+        if (c.state == ContainedState::Pending && contents_swept(c)) c.state = ContainedState::Lost;
+        if (c.state != ContainedState::Lost) continue;
+        const objects::ObjectHandle g = galaxy_->store().find(c.galactic);
+        if (galaxy_->store().alive(g) && std::find(result_.destroyed.begin(), result_.destroyed.end(), g) == result_.destroyed.end())
+            result_.destroyed.push_back(g);
+    }
     bt_battle_end();  // battle host: lead object / super-weapon step 4 (TACTICAL_GAPS §4.8)
     // battle host: every unit / container still on the map (or retreated) leaves the mode alive, ascending id.
     for (const Unit& u : units_)

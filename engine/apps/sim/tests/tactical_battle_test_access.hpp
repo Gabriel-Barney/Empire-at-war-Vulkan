@@ -25,6 +25,10 @@ struct TacticalBattleTestAccess {
         b.combat_->kill_unit(id, tactical::combat::kNoObject, tactical::combat::kKindNormal, b.frame_);
         if (b.bt_rng_) b.consume_kill_events(mode, *b.bt_rng_);
     }
+    // #757: the host of contained record `i` died now at its last transform (its contents turn Pending), as on a jump-out
+    static void contents_host_died(TacticalBattle& b, size_t i) {
+        if (i < b.contained_.size()) b.contents_host_died(b.contained_[i].flagship, b.contained_[i].at, b.contained_[i].face);
+    }
     // #491: the land formation records, mutable (a test puts a block flag no port writer sets, 0x40).
     static std::vector<LandFormationRecord>& land_formations(TacticalBattle& b) { return b.lformations_; }
     // #44 t01: a unit's DEPLOY_TROOPERS attachment (the walker and the bone index; kNoObjectId / -1 when free). False for

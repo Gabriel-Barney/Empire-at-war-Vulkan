@@ -4447,11 +4447,22 @@ struct FlagshipRun {
     bool hero_alive = false;      // the Underworld hero team after the battle (the galactic object)
     bool hero_in_fleet = false;   // ... in an Underworld fleet
     uint32_t record_state_end = 0;  // the Underworld record's state on the battle's last frame
-    bool retreat_done = false;      // the battle's post-retreat ran (retreat_completed)
+    // #757 (jump_death): the Underworld lead's host death is reported on the frame its side's post-retreat ran
+    bool jump_marked = false;
+    bool retreat_done = false;  // the battle's post-retreat ran (retreat_completed)
+    uint32_t fleet_killed = 0;  // kill_fleet: the Underworld battle units killed at frame 20 (5: one ship is a reserve)
 };
-// kill_lead: #755 (the Underworld lead dies at frame 20; without `retreat` its released hero then dies too).
-// retreat: #756 (the Underworld retreats).
-FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false, bool retreat = false) {
+// One scenario of the flagship test (the Underworld side's events; all off: the #754 run, to frame 300).
+struct FlagshipCase {
+    bool on = false;          // ConflictConfig::attach_to_flagship
+    bool kill_lead = false;   // #755: the lead dies at frame 20; without `retreat` its released hero then dies too
+    bool retreat = false;     // #756: the Underworld retreats (asked from frame 30); the run goes on until the galaxy is back
+    bool to_end = false;      // #757: the run goes on until the galaxy is back (the battle's time limit)
+    bool jump_death = false;  // #757, with `retreat`: the lead's death is reported after the side's post-retreat
+    bool kill_fleet = false;  // #757: every Underworld battle unit (the lead too) dies at frame 20; the run goes to the end
+};
+FlagshipRun flagship_run(const Data& d, const FlagshipCase& k) {
+    const bool on = k.on, kill_lead = k.kill_lead, retreat = k.retreat, to_end = k.to_end || k.kill_fleet, jump_death = k.jump_death;
     FlagshipRun out;
     jobs::JobSystem js(jobs::JobSystemConfig{0});
     SimConfig cfg;
@@ -4505,7 +4516,7 @@ FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false, bool re
     objects::ObjectId hero_obj = objects::kNoObjectId;
     for (uint64_t t = 0; t < 30000; ++t) {
         host.tick_once();
-        if (retreat && out.battle && host.modes().depth() == 1) {
+        if ((retreat || to_end) && out.battle && host.modes().depth() == 1) {
             out.back = true;
             break;
         }
@@ -4530,6 +4541,13 @@ FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false, bool re
         for (const objects::ObjectHandle o : st.all_objects()) {
             const auto ty = static_cast<uint32_t>(st.type(o));
             out.hero_objects += inside && st.alive(o) && (ty == hero || ty == team) ? 1u : 0u;
+        }
+        if (k.kill_fleet && b->frame() == 20) {
+            std::vector<objects::ObjectId> ids;  // collected first: each kill removes an object
+            for (const objects::ObjectHandle o : st.all_objects())
+                if (st.alive(o) && st.owner(o) == 1 && b->combat().has_unit(st.id(o)) && b->combat().alive(st.id(o))) ids.push_back(st.id(o));
+            for (const objects::ObjectId id : ids) TacticalBattleTestAccess::kill(*b, *tm, id);
+            out.fleet_killed = static_cast<uint32_t>(ids.size());
         }
         if (kill_lead) {
             size_t ri = b->contained().size();
@@ -4566,15 +4584,18 @@ FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false, bool re
             }
             out.record_state = static_cast<uint32_t>(b->contained()[ri].state);
         }
-        if (retreat) {
-            if (out.retreat_frame < 0 && b->frame() >= 30 && b->request_retreat(1)) out.retreat_frame = static_cast<int32_t>(b->frame());
-            for (size_t i = 0; i < b->contained().size(); ++i) {
-                if (b->contained()[i].owner != 1) continue;
-                out.record_state_end = static_cast<uint32_t>(b->contained()[i].state);
+        if (retreat && out.retreat_frame < 0 && b->frame() >= 30 && b->request_retreat(1))
+            out.retreat_frame = static_cast<int32_t>(b->frame());
+        for (size_t i = 0; i < b->contained().size(); ++i) {
+            if (b->contained()[i].owner != 1) continue;
+            if (jump_death && !out.jump_marked && b->retreat_completed()) {
+                TacticalBattleTestAccess::contents_host_died(*b, i);
+                out.jump_marked = true;
             }
-            out.retreat_done = out.retreat_done || b->retreat_completed();
-            continue;
+            out.record_state_end = static_cast<uint32_t>(b->contained()[i].state);
         }
+        out.retreat_done = out.retreat_done || b->retreat_completed();
+        if (retreat || to_end) continue;
         if (b->frame() >= 300 || b->finished()) break;
     }
     out.hero_alive = gs->store().alive(hero_h);
@@ -4592,7 +4613,7 @@ void test_flagship_contents() {
     g_temp_prefix = "alamo_sim_battle_tests_flagship";
     {
         auto d = make_data();
-        const FlagshipRun off = flagship_run(*d, false), on = flagship_run(*d, true);
+        const FlagshipRun off = flagship_run(*d, {}), on = flagship_run(*d, {.on = true});
         std::printf("  attach to flagship off: battle %d, contained %zu, hero objects %u, objects %u\n", off.battle ? 1 : 0, off.contained,
                     off.hero_objects, off.objects);
         std::printf("  attach to flagship on: battle %d, contained %zu (records %d %d, hosts the leads %d %d), hero objects %u, objects %u\n",
@@ -4603,7 +4624,7 @@ void test_flagship_contents() {
               on.hero_objects == 0);
         CHECK(on.objects == off.objects);
         // #755: the lead's death releases its hero at the lead's transform, a live combat unit that dies again on Die.
-        const FlagshipRun rel = flagship_run(*d, true, true);
+        const FlagshipRun rel = flagship_run(*d, {.on = true, .kill_lead = true});
         std::printf("  lead killed at frame 20: pending %d, hero object at frame %d, %.2f from the lead, facing %d, targetable %d, "
                     "killed %d, record state %u\n",
                     rel.pending ? 1 : 0, rel.released_frame, static_cast<double>(rel.release_offset), rel.facing_ok ? 1 : 0,
@@ -4613,7 +4634,8 @@ void test_flagship_contents() {
         // #756: a hero inside its retreating flagship leaves with it and is alive in its fleet after the battle. One released
         // by the flagship's death before the retreat is an ordinary battle unit that cannot jump out (no space locomotor),
         // so the retreat kills it and its galactic team is a battle loss.
-        const FlagshipRun ret = flagship_run(*d, true, false, true), ret_rel = flagship_run(*d, true, true, true);
+        const FlagshipRun ret = flagship_run(*d, {.on = true, .retreat = true});
+        const FlagshipRun ret_rel = flagship_run(*d, {.on = true, .kill_lead = true, .retreat = true});
         std::printf("  retreat with the hero inside: retreat at frame %d, back %d, retreat done %d, record state %u, hero alive %d, in a fleet %d\n",
                     ret.retreat_frame, ret.back ? 1 : 0, ret.retreat_done ? 1 : 0, ret.record_state_end, ret.hero_alive ? 1 : 0, ret.hero_in_fleet ? 1 : 0);
         std::printf("  retreat after the release: released at frame %d, retreat at frame %d, back %d, retreat done %d, hero alive %d, in a fleet %d\n",
@@ -4622,6 +4644,32 @@ void test_flagship_contents() {
         CHECK(ret.retreat_frame >= 30 && ret.back && ret.retreat_done && ret.record_state_end == 0 && ret.hero_alive && ret.hero_in_fleet);
         CHECK(ret_rel.released_frame == 21 && ret_rel.retreat_frame >= 30 && ret_rel.back && ret_rel.retreat_done && !ret_rel.hero_alive &&
               !ret_rel.hero_in_fleet);
+        // #757, the galactic survivors at the battle end (max_frames 600; the lasers do no damage):
+        //   inside a surviving flagship: the hero team lives on in its fleet;
+        //   released and killed: a battle loss, gone from the galaxy;
+        //   the side loses its whole fleet (the lead too) and its released hero lives to the end: the existing cargo rule,
+        //   the galactic team stays in the side's fleet (the loser's fleets retreat with what they carry, retreat_fleets);
+        //   its host died after the side's post-retreat: not created, a battle loss.
+        const FlagshipRun end_in = flagship_run(*d, {.on = true, .to_end = true});
+        const FlagshipRun end_dead = flagship_run(*d, {.on = true, .kill_lead = true, .to_end = true});
+        const FlagshipRun end_fleet = flagship_run(*d, {.on = true, .kill_fleet = true});
+        const FlagshipRun end_jump = flagship_run(*d, {.on = true, .retreat = true, .jump_death = true});
+        std::printf("  battle end, hero inside: back %d, record state %u, hero alive %d, in a fleet %d\n", end_in.back ? 1 : 0,
+                    end_in.record_state_end, end_in.hero_alive ? 1 : 0, end_in.hero_in_fleet ? 1 : 0);
+        std::printf("  battle end, released hero killed: back %d, killed %d, hero alive %d\n", end_dead.back ? 1 : 0, end_dead.killed ? 1 : 0,
+                    end_dead.hero_alive ? 1 : 0);
+        std::printf("  battle end, host died after the post-retreat: back %d, retreat done %d, marked %d, record state %u, hero alive %d\n",
+                    end_jump.back ? 1 : 0, end_jump.retreat_done ? 1 : 0, end_jump.jump_marked ? 1 : 0, end_jump.record_state_end, end_jump.hero_alive ? 1 : 0);
+        std::printf("  battle end, whole fleet killed: back %d, killed %u, record state %u, hero alive %d, in a fleet %d\n",
+                    end_fleet.back ? 1 : 0, end_fleet.fleet_killed, end_fleet.record_state_end, end_fleet.hero_alive ? 1 : 0,
+                    end_fleet.hero_in_fleet ? 1 : 0);
+        using CS = TacticalBattle::ContainedState;
+        CHECK(end_in.back && end_in.record_state_end == static_cast<uint32_t>(CS::Inside) && end_in.hero_alive && end_in.hero_in_fleet);
+        CHECK(end_dead.back && end_dead.killed && !end_dead.hero_alive);
+        CHECK(end_fleet.back && end_fleet.fleet_killed >= 5 && end_fleet.record_state_end == static_cast<uint32_t>(CS::Released) &&
+              end_fleet.hero_alive && end_fleet.hero_in_fleet);
+        CHECK(end_jump.back && end_jump.retreat_done && end_jump.jump_marked && end_jump.record_state_end == static_cast<uint32_t>(CS::Lost) &&
+              !end_jump.hero_alive);
     }
     g_types_patch = nullptr;
     g_constants_extra = constants;
