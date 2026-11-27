@@ -350,6 +350,7 @@ void GuiManager::close(std::string_view name) {
             press_dialog_ = nullptr;
             press_control_ = -1;
             slider_drag_ = false;
+            slider_thumb_ = false;
         }
         stack_.erase(stack_.begin() + static_cast<std::ptrdiff_t>(i));
         return;
@@ -361,6 +362,7 @@ void GuiManager::close_all() {
     hover_dialog_ = press_dialog_ = nullptr;
     hover_control_ = press_control_ = -1;
     slider_drag_ = false;
+    slider_thumb_ = false;
 }
 
 GuiDialog* GuiManager::find(std::string_view name) {
@@ -1100,6 +1102,7 @@ void GuiManager::update(const InputFrame& raw, const RoutedInput& routed, double
                     case GuiGadgetType::TrackbarSlider:
                         sfx("GUI_Common_Dialog_Button_Press", hc);
                         slider_drag_ = true;
+                        slider_thumb_ = slider_thumb(*target, i).contains(cursor_);  // #576: before the value moves
                         slider_from_cursor(*target, i);
                         break;
                     case GuiGadgetType::ComboBox:
@@ -1150,7 +1153,7 @@ void GuiManager::update(const InputFrame& raw, const RoutedInput& routed, double
             }
         }
     }
-    if (slider_drag_ && press_dialog_ && press_control_ >= 0 && (raw.buttons_down & lb) != 0)
+    if (slider_drag_ && slider_thumb_ && press_dialog_ && press_control_ >= 0 && (raw.buttons_down & lb) != 0)  // #576
         slider_from_cursor(*press_dialog_, static_cast<size_t>(press_control_));
     if (scroll_part_ != ScrollPart::None && (raw.buttons_down & lb) != 0) scroll_held(now);
     if (edit_drag_ && press_dialog_ && press_control_ >= 0 && (raw.buttons_down & lb) != 0 && !pressed) {
@@ -1165,9 +1168,13 @@ void GuiManager::update(const InputFrame& raw, const RoutedInput& routed, double
     }
     if (released && press_dialog_) {
         // #62 t01 (trackbar 0x1d6290 [H]): the mouse-up of a slider drag sends the release (retail event 5) after the value.
-        // #62 t01: the original sends event 5 only when its drag flag (+0x90) is set, which looks like a press on the thumb
-    // [M]; the port's slider has no separate thumb or arrow parts, so any press on it ends in a release here.
-    if (slider_drag_ && press_control_ >= 0 && static_cast<size_t>(press_control_) < press_dialog_->controls_.size())
+        // #576: only for a drag that started on the thumb: the original sends event 5 only when its drag flag (+0x90) is
+        // set, which is a press on the thumb [M] (the hit test is the drawn tab quad +0xf8). Only a thumb drag follows the
+        // cursor (0x1d7cf0 runs on +0x90 alone). [port] A press on the track sets the value at the cursor once, as #576's
+        // maintainer decision asks; retail's track press (+0xb0) changes only its art states and moves nothing. Options
+        // menu presentation, no sim state: tier 3, kept by that decision.
+        if (slider_drag_ && slider_thumb_ && press_control_ >= 0 &&
+            static_cast<size_t>(press_control_) < press_dialog_->controls_.size())
             events.push_back(make_event(GuiEvent::Kind::SliderReleased, *press_dialog_, press_control_,
                                         press_dialog_->controls_[static_cast<size_t>(press_control_)].value));
         if (press_dialog_ == hover_dialog_ && press_control_ == hover_control_ && press_control_ >= 0 && !slider_drag_ &&
@@ -1176,6 +1183,7 @@ void GuiManager::update(const InputFrame& raw, const RoutedInput& routed, double
         press_dialog_ = nullptr;
         press_control_ = -1;
         slider_drag_ = false;
+        slider_thumb_ = false;
     }
     if (released || (raw.buttons_down & lb) == 0) {
         scroll_part_ = ScrollPart::None;
@@ -1207,6 +1215,19 @@ void GuiManager::update(const InputFrame& raw, const RoutedInput& routed, double
 }
 
 // ---- Drawing ------------------------------------------------------------------------------------------------
+GuiRect GuiManager::slider_thumb(const GuiDialog& d, size_t i) const {
+    const GuiControl& c = d[i];
+    const GuiRect r = d.control_rect(i);
+    const float t = c.range_max > c.range_min
+                        ? static_cast<float>(c.value - c.range_min) / static_cast<float>(c.range_max - c.range_min)
+                        : 0.0f;
+    const GuiImage tab = skin_ ? image(skin_->texture(d.name(), c.id(), "Dial_Tab")) : GuiImage{};
+    const Vec2f ts = tab.valid ? Vec2f{std::min(tab.size.x, r.height()), std::min(tab.size.y, r.height())} : Vec2f{6.0f, r.height()};
+    const float x = r.min.x + 0.5f * ts.x + (r.width() - ts.x) * t;
+    const float cy = 0.5f * (r.min.y + r.max.y);
+    return {{x - 0.5f * ts.x, cy - 0.5f * ts.y}, {x + 0.5f * ts.x, cy + 0.5f * ts.y}};
+}
+
 GuiImage GuiManager::image(std::string_view texture) const {
     GuiImage img;
     if (texture.empty()) return img;
@@ -1690,14 +1711,7 @@ void GuiManager::draw_control(HudDrawList& dl, uint32_t layer, const GuiDialog& 
             const GuiRect track{{r.min.x, cy - 0.5f * th}, {r.max.x, cy + 0.5f * th}};
             if (mid.valid) three_piece(dl, layer, d, id, "Dial_Left", "Dial_Middle", "Dial_Right", track);
             else if (style_.fallback_art) fill(dl, layer, track, {60, 66, 80, 255});
-            const float t = c.range_max > c.range_min
-                                ? static_cast<float>(c.value - c.range_min) / static_cast<float>(c.range_max - c.range_min)
-                                : 0.0f;
-            const GuiImage tab = image(skin_->texture(dn, id, "Dial_Tab"));
-            const Vec2f ts = tab.valid ? Vec2f{std::min(tab.size.x, r.height()), std::min(tab.size.y, r.height())}
-                                       : Vec2f{6.0f, r.height()};
-            const float x = r.min.x + 0.5f * ts.x + (r.width() - ts.x) * t;
-            const GuiRect tr{{x - 0.5f * ts.x, cy - 0.5f * ts.y}, {x + 0.5f * ts.x, cy + 0.5f * ts.y}};
+            const GuiRect tr = slider_thumb(d, i);
             if (!quad(dl, layer, skin_->texture(dn, id, "Dial_Tab"), tr) && style_.fallback_art)
                 fill(dl, layer, tr, hot ? style_.fallback_button_hot : Rgba8{200, 190, 120, 255});
             if (focused) fill(dl, layer, r, style_.focus);
