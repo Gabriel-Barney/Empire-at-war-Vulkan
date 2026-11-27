@@ -971,6 +971,7 @@ void test_magic_spawn_hyperspace_veto();
 void test_magic_spawn_space_model_info();
 void test_ground_structure_slots();
 void test_fleet_distance_tokens();
+void test_average_base_and_is_building_tokens();  // #692
 void test_isconnectedto_trade_route_attenuation();  // #436
 void test_anti_stealth_effectiveness();  // #245
 void test_connectivity_tokens();

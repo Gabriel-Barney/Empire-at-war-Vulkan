@@ -71,6 +71,7 @@ int main(int argc, char** argv) {
     test_magic_spawn_space_model_info();  // gai1 t01
     test_ground_structure_slots();
     test_fleet_distance_tokens();
+    test_average_base_and_is_building_tokens();  // #692
     test_isconnectedto_trade_route_attenuation();  // #436
     test_anti_stealth_effectiveness();  // #245
     test_connectivity_tokens();

@@ -5,10 +5,13 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "alamo/game/game_data.hpp"
 #include "alamo/game/mod_check.hpp"
+#include "../src/mod_check_detail.hpp"  // check_token_coverage (#692)
 #include "alamo/test/support.hpp"
 
 namespace fs = std::filesystem;
@@ -338,9 +341,36 @@ void test_shipped_data() {
     if (r.error_count()) std::fputs(alamo::game::format_mod_report(r).c_str(), stdout);
 }
 
+// #692: token coverage. AverageStarbase / AverageGroundbase / IsBuilding are evaluated (no token_missing), and
+// Location.Force, which retail's location evaluators do not register, is retail-equivalent rather than a port gap.
+void test_token_coverage_location_leaf() {
+#ifdef ALAMO_GAME_HAVE_GALACTIC_AI
+    alamo::game::GameData d;
+    d.ai = std::make_shared<alamo::game::AiData>();
+    alamo::ai::EquationSet& e = d.ai->equations;
+    e.add("Unit_Isolation_Location",
+          "Variable_Target.Location.Force / (Variable_Target.Location.EnemyForce + Variable_Target.Location.Force)");
+    e.add("GCInfrastructureBudget", "(1 - Variable_Self.AverageGroundbase) + (1 - Variable_Self.AverageStarbase)");
+    e.add("Is_Building", "Variable_Target.IsBuilding");
+    e.link();
+    alamo::game::ModCheckReport r;
+    alamo::game::mod_check_detail::check_token_coverage(d, r);
+    CHECK(r.token_coverage.checked && r.token_coverage.equations == 3);
+    for (const alamo::game::TokenGap& g : r.token_coverage.missing) std::printf("token gap: %s\n", g.token.c_str());
+    CHECK(r.token_coverage.missing.empty());
+    size_t location = 0;
+    for (const alamo::game::RetailEquivalentFinding& f : r.retail_equivalent) {
+        CHECK(f.subject == "Variable_Target.Location.Force");
+        location += f.kind == "unregistered_token" && f.uses == 1 ? 1u : 0u;
+    }
+    CHECK(location == 1 && r.retail_equivalent.size() == 1);  // Location.EnemyForce is evaluated: no finding
+#endif
+}
+
 }  // namespace
 
 int main() {
+    test_token_coverage_location_leaf();
     test_fake_install();
     test_shipped_data();
     std::printf(g_fail ? "alamo_game_mod_check_tests: %d FAILED\n" : "alamo_game_mod_check_tests: OK\n", g_fail);
