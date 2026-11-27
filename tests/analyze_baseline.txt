@@ -11,7 +11,6 @@ C28251	engine/tactical/combat/tests/test_combat.cpp	new
 C28251	engine/tactical/tests/test_tactical.cpp	new
 C28251	engine/tactical/tests/test_tactical.cpp	new[]
 C6011	engine/ai/tests/test_ai_galactic_part1.cpp	run_path_world
-C6011	engine/apps/sim/src/battle_ai.cpp	alamo::sim::BattleAi::capture_l1
 C6011	engine/audio/tests/test_audio.cpp	`anonymous-namespace'::test_draws
 C6011	engine/audio/tests/test_game_audio.cpp	`anonymous-namespace'::test_data
 C6011	engine/galactic/tests/test_conflicts.cpp	`anonymous-namespace'::test_company_survivors
