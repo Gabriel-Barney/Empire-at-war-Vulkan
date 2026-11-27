@@ -1746,10 +1746,9 @@ public:
     const tactical::hangar::TacticalProduction* production() const { return production_.get(); }
     // Every battle, land or space (#660; legacy docs/re/SKIRMISH_SETUP.md §3: one build manager per player; 0x35cb10 -> 0x4d9df0 -> 0x285760 gives each player a production manager in a tactical mode [H]; the check
     // 0x497140 and the service 0x498170 have no mode test [H]).
+    // #662: the tactical AI's facts (builders, can-build, prices) too; its Produce_Force buys in a skirmish only
+    // (AI_GALACTIC_3 §1.11 [H branch], tactical_ai.cpp).
     bool production_enabled() const { return production_ != nullptr; }
-    // The tactical AI's production (BattleAi's facts, builders and checks): skirmish only until #662 (the AI's campaign
-    // builds) prices the campaign lists.
-    bool ai_production_enabled() const { return production_enabled() && cfg_.skirmish; }
     // ref2 t02 (presentation_events.hpp): the presentation events since the last drain. Off until a host turns emission on;
     // not hashed, not saved, never read by the sim.
     void set_emit_presentation(bool on) { emit_presentation_ = on; }
