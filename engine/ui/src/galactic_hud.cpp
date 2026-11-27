@@ -1131,6 +1131,20 @@ bool GalacticHud::takes_button(int32_t component, Button b) const {
     return true;
 }
 
+// #722 (docs/re/COMMAND_BAR_DRAG.md "Snapping" [H]: the drag icon's move 0x352650, which the command bar's mouse move
+// 0x2f6c30 calls with the component under the cursor): the icon sits at the cursor, or on the component under it when the
+// dragged pad has Snap_Drag and that component has Snap_Location. Retail puts it on that component's bone; the port's
+// placement centre is that bone's position. Base FoC: Pad_00..09 and every q1 / q2 / q3 pad have both.
+Vec2f GalacticHud::drag_icon_position() const {
+    const Vec2f cursor = canvas_.pixel_to_canvas(drag_.cursor_px.x, drag_.cursor_px.y);
+    if (drag_.component < 0 || drag_.over_component < 0 || static_cast<size_t>(drag_.over_component) >= table_->size()) return cursor;
+    const CommandBarComponent& from = (*table_)[static_cast<size_t>(drag_.component)];
+    const CommandBarComponent& over = (*table_)[static_cast<size_t>(drag_.over_component)];
+    if (!data::parse_flag_char(from.raw_value("SNAP_DRAG")) || !data::parse_flag_char(over.raw_value("SNAP_LOCATION"))) return cursor;
+    const ComponentPlacement& p = layout_.placement(static_cast<uint32_t>(drag_.over_component));
+    return p.placed ? p.center : cursor;
+}
+
 bool GalacticHud::draggable(int32_t component) const {
     const PadSlot* p = pad_of(component);
     if (p) return p->draggable;
@@ -1822,19 +1836,19 @@ void GalacticHud::build(const GalacticHudFrame& f) {
     // The dragged pad's icon follows the cursor (Should_Render_At_Drag_Pos), topmost HUD layer.
     if (drag_.active && drag_.component >= 0) {
         const CommandBarComponent& c = (*table_)[static_cast<size_t>(drag_.component)];
+        const Vec2f at = drag_icon_position();
         std::string icon = drag_.icon;
         // Drag_Back ("show the pancakes while dragging"): a map fleet's stack under its icon.
         const std::string_view db = c.raw_value("DRAG_BACK");
         if (drag_.fleet_index == kMapFleetIndex && data::parse_flag_char(db))
             if (const std::string* b = pick(c.blank_texture, drag_.layers)) {
-                add_atlas_quad(dl_, kHudLayers - 1, HudList::Alpha, *atlas_, *b, canvas_.pixel_to_canvas(drag_.cursor_px.x, drag_.cursor_px.y), {},
-                               c.scale, Rgba8{drag_.tint.r, drag_.tint.g, drag_.tint.b, 200});  // the stack keeps its owner tint
+                add_atlas_quad(dl_, kHudLayers - 1, HudList::Alpha, *atlas_, *b, at, {}, c.scale,
+                               Rgba8{drag_.tint.r, drag_.tint.g, drag_.tint.b, 200});  // the stack keeps its owner tint
             }
         if (icon.empty())
             if (const std::string* a = pick(c.icon_alternate_texture, f.faction_alt)) icon = *a;
         if (!icon.empty())
-            add_atlas_quad(dl_, kHudLayers - 1, HudList::Alpha, *atlas_, icon, canvas_.pixel_to_canvas(drag_.cursor_px.x, drag_.cursor_px.y),
-                           {}, c.scale, Rgba8{255, 255, 255, 200}, {32, 32});
+            add_atlas_quad(dl_, kHudLayers - 1, HudList::Alpha, *atlas_, icon, at, {}, c.scale, Rgba8{255, 255, 255, 200}, {32, 32});
     }
     // #71 t06 (legacy docs/re/HUD_GAPS.md §2.1 [H]): no component tooltip while a HUD modal is up (HUD +0x26a0 > 0: the
     // battle-pending shells).

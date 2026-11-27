@@ -648,6 +648,8 @@ public:
     const GalacticDrag& drag() const { return drag_; }
     // A draggable pad of the last build (cursor CAN_GRAB).
     bool draggable(int32_t component) const;
+    // #722 where the dragged pad's icon is drawn (canvas units): the cursor, or the Snap_Location component under it.
+    Vec2f drag_icon_position() const;
     // the g_planet_fleet / g_planet_land_forces button under pixel (px, py) of the last build: its fleet id (0 =
     // none or an empty slot) and whether it is the land-forces button.
     uint32_t stack_under(float px, float py, bool& land) const;
