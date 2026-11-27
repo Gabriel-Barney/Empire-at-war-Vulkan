@@ -1021,6 +1021,103 @@ void test_tactical_bounty() {
     CHECK(second.empty() && bounties == 1);
 }
 
+// ---- #542: a non-fighting player's corruption upgrade pays its kill bounty (0x2a1eb0 / 0x392600 [H]) ----
+// A fourth galactic player of the Underworld faction is allied with the invading Underworld (player 1) by faction. It is
+// not in the battle, and its corruption upgrade S10_UW_Salvage (DUMMY_UPGRADE, Underworld, a Bounty_On_Faction 1.0 on
+// the Empire) reaches the battle as an absent upgrade (CampaignBattles' list for the non-fighting players), so no object
+// exists for it. When player 1 kills an Empire trooper (Override_Bounty_SP 10), player 3 is paid 10. Player 1 holds no
+// ability and is not paid. Without the absent upgrade, nobody is paid; held by the Neutral player (not allied with the
+// killer), it pays nothing.
+// [port] The galactic side has no way to give a fourth player a per-planet list in this fixture: completed corruption
+// credits first_corruption_player() (reveal.cpp), which is player 1 here. So the test sets the battle's list directly.
+std::string absent_bounty_patch(std::string t) {
+    const std::string at = "<GroundInfantry Name=\"S10_Trooper\">";
+    if (const size_t p = t.find(at); p != std::string::npos) t.insert(p + at.size(), "<Override_Bounty_SP>10</Override_Bounty_SP>");
+    if (const size_t e = t.find("</S10>"); e != std::string::npos)
+        t.insert(e, " <UpgradeObject Name=\"S10_UW_Salvage\"><Behavior>DUMMY_UPGRADE</Behavior><Affiliation>Underworld</Affiliation>"
+                    "<Abilities SubObjectList=\"Yes\"><Bounty_On_Faction_Ability Name=\"UW_Salvage\">"
+                    "<Bounty_Percentage_Amount>1.0</Bounty_Percentage_Amount><Stacking_Category>1</Stacking_Category>"
+                    "<Target_Faction_Names>Empire</Target_Faction_Names></Bounty_On_Faction_Ability></Abilities></UpgradeObject>\n");
+    return t;
+}
+
+void test_absent_player_bounty() {
+    g_temp_prefix = "alamo_sim_r3g_tests_absent_bounty";
+    g_types_patch = absent_bounty_patch;
+    auto d = make_data();
+    g_types_patch = nullptr;
+    const objects::TypeIndex trooper = d->types.resolve_name("S10_Trooper"), salvage = d->types.resolve_name("S10_UW_Salvage");
+    CHECK(trooper != objects::kNone && salvage != objects::kNone);
+    std::vector<std::pair<int32_t, float>> paid, without, with, enemy;
+    int stage = 0;
+    size_t salvage_objects = 0;
+    objects::ObjectId victims[3] = {objects::kNoObjectId, objects::kNoObjectId, objects::kNoObjectId};
+    objects::ObjectId killer = objects::kNoObjectId;
+    land_battle(
+        *d, nullptr, 600,
+        [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+            if (b.frame() < 2) return true;
+            objects::ObjectStore& st = tm.primary();
+            if (stage == 0) {  // a kill with no absent upgrade
+                b.set_credit_hooks([](int32_t) { return 0.0f; }, [&paid](int32_t p, float x) { paid.push_back({p, x}); });
+                for (const objects::ObjectHandle h : st.all_objects()) {
+                    if (!st.alive(h)) continue;
+                    if (st.type(h) == salvage) ++salvage_objects;
+                    const objects::ObjectId id = st.id(h);
+                    if (!b.combat().has_unit(id) || !b.combat().alive(id)) continue;
+                    if (st.owner(h) == 0 && st.type(h) == trooper) {
+                        for (objects::ObjectId& v : victims)
+                            if (v == objects::kNoObjectId) {
+                                v = id;
+                                break;
+                            }
+                    }
+                    if (st.owner(h) == 1 && killer == objects::kNoObjectId) killer = id;
+                }
+                CHECK(victims[2] != objects::kNoObjectId && killer != objects::kNoObjectId);
+                if (victims[2] == objects::kNoObjectId || killer == objects::kNoObjectId) return false;
+                paid.clear();
+                CHECK(alamo::sim::TacticalBattleTestAccess::crush(b, killer, victims[0]));
+                stage = 1;
+                return true;
+            }
+            if (stage == 1) {  // then player 3's absent upgrade, and a second kill
+                without = paid;
+                paid.clear();
+                b.set_absent_upgrades({{3, static_cast<uint32_t>(salvage)}});
+                CHECK(alamo::sim::TacticalBattleTestAccess::crush(b, killer, victims[1]));
+                stage = 2;
+                return true;
+            }
+            if (stage == 2) {  // the same upgrade held by the Neutral player (2), not allied with the killer: nothing
+                with = paid;
+                paid.clear();
+                b.set_absent_upgrades({{2, static_cast<uint32_t>(salvage)}});
+                CHECK(alamo::sim::TacticalBattleTestAccess::crush(b, killer, victims[2]));
+                stage = 3;
+                return true;
+            }
+            enemy = paid;
+            stage = 4;
+            return false;
+        },
+        false,
+        [](galactic::GalacticSetup& s) {
+            galactic::PlayerSetup u2 = s.players[1];  // a second Underworld player, not in the battle
+            u2.ai = false;
+            s.players.push_back(u2);
+        });
+    std::printf("  #542 absent bounty: salvage objects in the battle %zu; payments without the absent upgrade %zu, with it %zu%s, "
+                "held by a player not allied with the killer %zu\n",
+                salvage_objects, without.size(), with.size(),
+                with.size() == 1 && with[0].first == 3 && with[0].second == 10.0f ? " (player 3 +10)" : "", enemy.size());
+    CHECK(stage == 4);
+    CHECK(enemy.empty());
+    CHECK(salvage_objects == 0);  // no object for a player who is not fighting
+    CHECK(without.empty());
+    CHECK(with.size() == 1 && with[0].first == 3 && with[0].second == 10.0f);
+}
+
 // ---- #44 t01: the animation-timed abilities in a land battle ----
 // R3J_Walker: a DEPLOY_TROOPERS walker (S10_Squad, bones B_Trooper_00 / _01) with a skeleton model (bones 20 above its
 // origin, 10 to either side) and a Damage_Cable_Attack death clone (CA_DIE); R3J_Speeder: a FLYING_LOCOMOTOR speeder with
@@ -1321,6 +1418,8 @@ int main() {
     test_income_streams();
     std::printf("#574: the tactical kill bounty (Bounty_On_Faction_Ability)\n");
     test_tactical_bounty();
+    std::printf("#542: a non-fighting player's corruption upgrade pays its kill bounty\n");
+    test_absent_player_bounty();
     std::printf("#44 t01: DEPLOY_TROOPERS in a land battle\n");
     test_deploy_troopers_battle();
     std::printf("#44 t01: a cable trip in a land battle\n");

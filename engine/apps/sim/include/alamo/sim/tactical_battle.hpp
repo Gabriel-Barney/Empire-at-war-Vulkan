@@ -1542,6 +1542,11 @@ public:
     // set_galactic_upgrades ones, each at the origin for its player, with no level or ownership test. The spawn flag of
     // set_galactic_upgrades applies (a battle rebuilt by a save load adds the types and spawns nothing).
     void set_corruption_upgrades(std::vector<std::pair<int32_t, uint32_t>> upgrades) { corruption_upgrades_ = std::move(upgrades); }
+    // #542 (0x2a1eb0 [H] walks every galactic player): the per-planet corruption upgrades, {player, type}, of the galactic
+    // players who are not fighting (the same filter as set_corruption_upgrades). Retail creates their objects too; [port]
+    // the battle has no place for a third player's objects, so none is created: their Bounty_On_Faction abilities count in
+    // the kill bounty (pay_kill_bounty) as those objects' would. Set before setup(), on a new battle and on a rebuild.
+    void set_absent_upgrades(std::vector<std::pair<int32_t, uint32_t>> upgrades) { absent_upgrades_ = std::move(upgrades); }
     using PadRecord = galactic::PersistedBuiltObject;
     void set_pad_persistence(std::vector<PadRecord>* records, bool restore = true) {
         pad_records_ = records;
@@ -3488,6 +3493,7 @@ private:
     std::vector<std::pair<int32_t, uint32_t>> ga_upgrades_;   // galab: {player, upgrade type} to spawn at setup (not saved)
     bool ga_spawn_ = true;                                    // galab: false for a battle rebuilt by a save load (types only)
     std::vector<std::pair<int32_t, uint32_t>> corruption_upgrades_;   // #68: {player, corruption upgrade type} to spawn (not saved)
+    std::vector<std::pair<int32_t, uint32_t>> absent_upgrades_;       // #542: {player, type} of non-fighting players (not saved)
     std::vector<objects::ObjectId> hg_orphans_;               // contents of a removed container: removed next frame
     bool prod_used_ = false;
     std::unique_ptr<tactical::hangar::HangarSystem> hangars_;

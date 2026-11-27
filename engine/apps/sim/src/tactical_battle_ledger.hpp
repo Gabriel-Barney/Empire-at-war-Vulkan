@@ -261,6 +261,7 @@
     REBUILT(ga_upgrades_, "set by the host that starts the battle, the same on a rebuild (a rebuild keeps the saved objects)") \
     REBUILT(ga_spawn_, "set by the host: on for a new battle, off for a rebuild; read only by setup()") \
     REBUILT(corruption_upgrades_, "#68: set by the host that starts the battle, the same on a rebuild (spawned only with ga_spawn_)") \
+    REBUILT(absent_upgrades_, "#542: set by the host that starts the battle, the same on a rebuild (bounty holders, no objects)") \
     SAVED(hg_orphans_, state) \
     SAVED(prod_used_, state) \
     SAVED(hangars_, part) \
