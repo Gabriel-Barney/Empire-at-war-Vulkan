@@ -686,7 +686,7 @@
 {"GameObjectType", "Always_Side_With_Invader", 0x0, LedgerState::Stored, "", 0, 1},
 {"GameObjectType", "Death_Persistence_Duration", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 133, 1},
 {"GameObjectType", "Death_Fade_Time", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 97, 1},
-{"GameObjectType", "Glory_Cinematics", 0x1b, LedgerState::Stored, "docs/re/xml_reference_index.md", 10, 1},
+{"GameObjectType", "Glory_Cinematics", 0x1b, LedgerState::Verified, "docs/re/xml_reference_index.md", 10, 1},
 {"GameObjectType", "Starting_Spawned_Units_Tech_0", 0x46, LedgerState::Consumed, "docs/re/xml_reference_index.md", 105, 1},
 {"GameObjectType", "Reserve_Spawned_Units_Tech_0", 0x46, LedgerState::Consumed, "", 102, 1},
 {"GameObjectType", "Starting_Spawned_Units_Tech_1", 0x46, LedgerState::Consumed, "", 0, 1},

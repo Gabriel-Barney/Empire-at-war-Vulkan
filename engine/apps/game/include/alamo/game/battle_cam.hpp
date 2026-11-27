@@ -11,14 +11,15 @@
 // Presentation only. Nothing here is written into the sim, and the orbit direction is an unsynced draw.
 // Ported shots: Cinematic View, the hero clash orbit, and the interesting-object shot with its orbit, fly-past and
 // static templates (#568), its push-in, drive-by and land flying shots (#569), and its structure, attack-run and
-// fighter shots (#570), the hardpoint shot with its FOV zoom (#571), and the land bombing run (0x49f370, #563). [port]
-// The glory files (#572) are not ported yet: that step fails, and the dispatcher goes on, as retail does on a failure.
+// fighter shots (#570), the hardpoint shot with its FOV zoom (#571), the type's Glory_Cinematics files with their FOV,
+// roll and shake keys (#572), and the land bombing run (0x49f370, #563).
 #pragma once
 
 #include <cstdint>
 #include <functional>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -43,6 +44,10 @@ struct FovKey {
     float ease_out = 0.0f, ease_in = 0.0f;
 };
 
+// #571 / #572 0x49bdf0 [H]: the value of FOV (or roll) keys at `frame`: `before` until the first key, the last key's from
+// it on, and between keys a and b a.degrees + accel(t, a.ease_out, b.ease_in) (b - a), or a.degrees after a hold key.
+float fov_keys_value(std::span<const FovKey> keys, int32_t frame, float before);
+
 // #571 0x49bdf0 [H] (docs/re/BATTLE_CAM.md "The FOV zoom"): the battle cam's FOV keys and zoom trigger. With keys, the
 // value is F0 before the first key, the last key's from it on, and between keys a and b a.degrees + accel(t,
 // a.ease_out, b.ease_in) (b - a) (a hold keeps a). With no keys, an armed trigger fires when the shot frame is past
@@ -56,6 +61,7 @@ public:
     static constexpr float kFitTolerance = 10.0f, kMinFov = 25.0f, kMaxFov = 55.0f, kMidShare = 0.75f, kEase = 0.1f;
     void arm(const ZoomTrigger& t) { trigger_ = t; }  // the hardpoint template (mode 0 disarms)
     void clear_keys() { keys_.clear(); }              // 0x4a7a90, every shot start; the trigger is kept
+    void set_keys(std::vector<FovKey> k) { keys_ = std::move(k); }  // #572 a glory file's FOV keys
     void clear() { keys_.clear(); trigger_ = {}; }    // End_Cinematic_Mode 0x49b5c0
     uint32_t target() const { return trigger_.mode != 0 ? trigger_.target : 0; }  // +0x324 while armed
     const std::vector<FovKey>& keys() const { return keys_; }
@@ -69,6 +75,27 @@ private:
     ZoomTrigger trigger_;
     std::vector<FovKey> keys_;
 };
+
+// #572 a shake key of a glory file (chunk 6, child 7; 0x49fd70 [H]): from shot frame `start` for `duration` frames, a
+// CameraShakeEffect with Frequency = duration x frequency / 1000, the amplitudes and the eases.
+struct GloryShake {
+    int32_t start = 0, duration = 150;
+    float frequency = 1.0f, y_amplitude = 1.0f, x_amplitude = 1.0f, ease_out = 0.25f, ease_in = 0.25f;
+};
+ShakeEffect glory_shake_effect(const GloryShake& k);
+
+// #572 a Glory_Cinematics .tec file as 0x4a7ce0 reads it [H] (docs/re/BATTLE_CAM.md "The Glory_Cinematics files"): eye
+// keys (chunk 0), look keys (1), FOV keys (2) and roll keys (3) in degrees, and shake keys (6), each list in file order.
+// The eye / look keys hold the file's offset (`where`), frame, mode, eases and orbit fields; chunk 8 is read and dropped.
+struct GloryCinematic {
+    std::vector<ShotKey> eye, look;
+    std::vector<FovKey> fov, roll;
+    std::vector<GloryShake> shake;
+};
+// 0x4a7ce0 [H]: chunks of (u32 id, u32 size; bit 31 = a container) back to back; the key children are mini-chunks (u8 id,
+// u8 size). False when no chunk 0 / 1 / 2 / 3 / 6 / 8 is in the file (the shot then fails). A key child whose 3-float
+// reads do not all fit is dropped; a child of the wrong id ends its list.
+bool parse_glory_cinematic(std::span<const uint8_t> file, GloryCinematic& out);
 
 // A battle-cam shot: eye and look keys attached to one object; shot clock 0 = the frame it started.
 struct BattleCamShot {
@@ -90,6 +117,10 @@ struct BattleCamShot {
     std::optional<bool> look_filter;
     int32_t hardpoint = -1;  // #571: the hardpoint of `target` the keys with `on_hardpoint` sit on (-1 = none)
     std::optional<ZoomTrigger> zoom;  // #571: the zoom trigger the shot sets at its start (unset: left as it was)
+    // #572 a glory file's FOV and roll keys (degrees) and shake keys; the host starts the shakes with the shot.
+    std::vector<FovKey> fov_keys, roll_keys;
+    std::vector<GloryShake> shakes;
+    std::optional<bool> terrain_clamp;  // #572 +0x315 as the shot sets it (the glory shot: 0); unset = the usual rule
 };
 
 // #671 0x4a96d0 [H] (seeded by 0x49ff50 when a shot's first look key goes in): a lag-compensated moving average of the
@@ -238,6 +269,12 @@ public:
     const ShotFov& fov() const { return fov_; }
     // This shot frame's FOV in degrees (ShotFov::step with the frames left of a shot with a length, else 0).
     float shot_fov(int32_t clock, float base_deg, std::optional<float> target_radius, float distance);
+    // #572 0x49cd00 [H]: the roll keys' value at shot clock `clock`, in degrees (0 before the first key and without keys).
+    float shot_roll(int32_t clock) const { return fov_keys_value(shot_.roll_keys, clock, 0.0f); }
+    // #572 0x2cc940, the death path (a death clone whose type has Glory_Cinematics, while the battle cam runs): the running
+    // shot stops (0x2cbb80); `shot` set = the glory shot loaded, which then runs in state 3. Without it the cam stays
+    // stopped, as retail's.
+    void death_glory(std::optional<BattleCamShot> shot);
 
 private:
     void start(State s, BattleCamShot shot);
@@ -333,7 +370,16 @@ struct InterestingObject {
     int32_t hardpoint = -1;
     uint32_t hardpoint_target = 0;
     bool hardpoint_target_shown = false;
+    // #572: the type's Glory_Cinematics file names (type +0x21b8, each entry split on commas and trimmed [M]).
+    std::vector<std::string> glory_files;
 };
+// #572: a type's Glory_Cinematics entries as file names: each entry split on commas and trimmed [M] (the AT-AT clones
+// list three files in one entry), empty names dropped.
+std::vector<std::string> glory_file_names(std::span<const std::string_view> entries);
+// #572: the path 0x4a3b40 opens for file `name`: ".\Data\Art\Cinematics\" + the name as written.
+std::string glory_file_path(std::string_view name);
+// #572: reads and parses Glory_Cinematics file `name` (under Data\Art\Cinematics\); false when it does not open or parse.
+using GloryLoader = std::function<bool(std::string_view name, GloryCinematic& out)>;
 // GameObjectCategoryType values the dispatcher tests (the enum file's; [H] defaults).
 struct InterestingCategories {
     uint64_t fighter = 0x1, bomber = 0x2, corvette = 0x8, frigate = 0x10, infantry = 0x80, vehicle = 0x100;
@@ -380,10 +426,15 @@ ObjectFrame hardpoint_eye_frame(const tactical::Vec3& attach, const tactical::Ve
 // length (int)(FPS x n / FPS), handheld noise 2n, smoothing 0.9, no letterbox call, +0x1bd inherited. z arms the FOV
 // zoom on the target: none, after n / 2, or the two-step after n / 2 - 5. The gates fail before any draw.
 bool hardpoint_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out);
-// 0x4a53f0 [H]: the templates in retail's order by category, with retail's draws: step 3 is the hardpoint shot (#571).
-// [port] Step 1, the glory files (#572), is not ported: it fails, and the dispatcher falls through to the next test,
-// as retail does when a template fails.
+// #572 0x4a3b40 [H], after a file parsed: every eye and look key goes on the object, translate-only, its offset turned
+// once by the object's rotation at the start (R0, `o.frame`'s axes; the identity without a model). FOV, roll and shake
+// keys as read. Length (int)(FPS x max / FPS), max = the last eye / look key frame; smoothing 0, the raw look (+0x1bd =
+// 0), no handheld noise, no terrain clamp (+0x315 = 0), the engine loop on the object.
+BattleCamShot glory_shot(const InterestingObject& o, const GloryCinematic& c);
+// 0x4a53f0 [H]: the templates in retail's order by category, with retail's draws. Step 1 is the glory files (#572): with
+// any, rand(0, n - 1) picks one before it is opened; a file that does not load falls through. Step 3 is the hardpoint
+// shot (#571).
 bool interesting_shot(const InterestingObject& o, bool space, const InterestingCategories& c, UnsyncedRandom& rng,
-                      BattleCamShot& out);
+                      BattleCamShot& out, const GloryLoader& load_glory = {});
 
 }  // namespace alamo::game

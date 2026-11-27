@@ -30,6 +30,7 @@ alamo_galactic_galab_tests               synthetic retail
 alamo_galactic_save_tests                synthetic retail
 alamo_galactic_special_tests             synthetic retail
 alamo_galactic_visibility_tests          synthetic retail
+alamo_game_battle_cam_tests              synthetic retail
 alamo_game_battle_summary_tests          synthetic retail
 alamo_game_mod_check_tests               synthetic retail
 alamo_game_mod_faction_tests             synthetic retail
