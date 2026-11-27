@@ -570,7 +570,10 @@ void TacticalPerceptionGrid::danger_layers(const PerceptionWorld& w, std::vector
     const uint32_t cells = cell_count();
     for (uint32_t p = 0; p < players_; ++p)
         for (uint32_t c = 0; c < cells; ++c) {
-            const float layer = cell_visible(w, static_cast<int32_t>(p), c) ? threat_[p][c] : snapshot_[p][c];
+            const float t = threat_[p][c], s = snapshot_[p][c];
+            // the visibility test only where it picks between two different values (most cells: both 0)
+            const bool same = std::bit_cast<uint32_t>(t) == std::bit_cast<uint32_t>(s);
+            const float layer = same || cell_visible(w, static_cast<int32_t>(p), c) ? t : s;
             if (std::bit_cast<uint32_t>(layer) != 0) out.emplace_back(p * cells + c, layer);
         }
 }

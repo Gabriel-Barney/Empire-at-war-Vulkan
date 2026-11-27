@@ -1113,6 +1113,7 @@ void BattleAi::lane_collect() {
 }
 
 void BattleAi::lane_publish_copies() {
+    ALAMO_PROFILE_SCOPE("ai.lane.publish_copies");
     world_->danger_layers(lane_danger_);
     lane_prevent_answer_.resize(host_->players());
     for (uint32_t p = 0; p < host_->players(); ++p) lane_prevent_answer_[p] = world_->prevent_ai_answer(static_cast<int32_t>(p));
