@@ -495,7 +495,7 @@ void test_radar_parity() {
             CHECK(o[k].acts.size() == 1 && o[k].acts[0].kind == HudAction::Kind::RadarCameraJump && o[k].acts[0].x == want.x &&
                   o[k].acts[0].y == want.y && o[k].acts[0].name == "radar_galactic" && o[k].cmds.empty());
             const Vec2f p0 = canvas.pixel_to_canvas(0.0f, 0.0f), p1 = canvas.pixel_to_canvas(1.0f, 1.0f);
-            world_per_px = std::max({world_per_px, std::abs(p1.x - p0.x) * 2.0f * fit.half / size.x, std::abs(p1.y - p0.y) * 2.0f * fit.half / size.y});
+            world_per_px = std::max({world_per_px, std::abs(p1.x - p0.x) * 2.0f * fit.half_x / size.x, std::abs(p1.y - p0.y) * 2.0f * fit.half_y / size.y});
         }
         CHECK(same(o[0], o[1]));
         CHECK(o[0].acts.size() == 1 && o[1].acts.size() == 1 && std::abs(o[0].acts[0].x - o[1].acts[0].x) <= 1.5f * world_per_px &&

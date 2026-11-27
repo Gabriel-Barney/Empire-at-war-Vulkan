@@ -2224,6 +2224,24 @@ void test_galactic_hud() {
         CHECK(text_of("Text_Credits") == U"$ 13,000" && text_of("Text_Day_Credits") == U"$ 1,668");
         CHECK(text_of("Text_Day_Counter") == U"Day: 1" && text_of("Text_Tech_Level") == U"Tech: 3");
         CHECK(h2.stats().radar_blips == 2 && h2.stats().radar_view);
+        {  // #575 (0x3d1260): retail's fixed +-380 x +-460 extent, whatever the planets' spread, for the blips and the click
+            const GalacticRadarFit fx = galactic_radar_fit(g.planets);
+            CHECK(fx.half_x == 380.0f && fx.half_y == 460.0f);
+            const Vec2f on = fx.to_canvas({10.0f, 20.0f}, {200.0f, 100.0f}, 190.0f, -230.0f);
+            CHECK(on.x == 60.0f && on.y == -5.0f);  // half the half-width right, half the half-height down
+            HudAction a;
+            CHECK(galactic_radar_click(fx, {0.0f, 0.0f}, {200.0f, 200.0f}, {50.0f, -100.0f}, 7, "radar_galactic", Button::Left, a) &&
+                  a.kind == HudAction::Kind::RadarCameraJump && a.x == 190.0f && a.y == -460.0f);
+            CHECK(!galactic_radar_click(GalacticRadarFit{}, {0.0f, 0.0f}, {200.0f, 200.0f}, {50.0f, -100.0f}, 7, "radar_galactic",
+                                        Button::Left, a));  // no planets: no mapping
+            std::vector<GalacticPlanetInfo> moved(g.planets.begin(), g.planets.end());  // a planet past the extent has no blip
+            moved[0].position.x = 500.0f;
+            GalacticHudFrame far = g;
+            far.planets = moved;
+            h2.build(far);
+            CHECK(h2.stats().radar_blips == 1);
+            h2.build(g);
+        }
         // Playtest: an opaque radar rectangle on layer 0 (under the shells) so the world (trade routes) never shows
         // through the radar box; drawn even with no planets.
         {
