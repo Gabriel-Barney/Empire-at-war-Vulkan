@@ -105,7 +105,8 @@ enum FleetOp : uint8_t {
 
 // SetGUIIndex (id 56) payload field "index" (Bits 12): Pathfinder_Slot_Index, the GameConstants default 999 (0x2c91c0;
 // vanilla sets no other), marks the unit as its fleet's lead (legacy docs/re/UI.md §7.4). kNoGuiIndex is the port's "-1":
-// how retail packs -1 into the 12-bit field is not traced [port].
+// how retail packs -1 into the 12-bit field is not traced [port: any value other than 999 clears the lead in the port
+// and in retail's execute, so the packing does not change behaviour; tier 3, save format only].
 inline constexpr uint32_t kPathfinderGuiIndex = 999;
 inline constexpr uint32_t kNoGuiIndex = 0xFFF;
 

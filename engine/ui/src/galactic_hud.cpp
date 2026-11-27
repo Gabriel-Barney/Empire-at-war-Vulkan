@@ -927,7 +927,8 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         // legacy docs/re/UI.md §7.4 (#515): q{n}_0000 ("Fleet PF", the pathfinder) is the header pad, not a unit pad; the unit pads
         // are q{n}_0001 upward. It is always shown: the pane's first lead unit (stack builder 0x3cac60: that unit leaves its
         // stack), else empty (its blank texture). An own pane's header pad is a drop target (lead_drop); a filled one drags
-        // its unit like any unit pad. [port] a further lead in the pane is drawn in its stack (retail resets it to -1 here).
+        // its unit like any unit pad. [port] a further lead in the pane is drawn in its stack (retail resets it to -1 here):
+        // lead_drop clears every other lead of the pane, so only a merge of two led fleets leaves one; presentation, tier 3.
         const GalacticFleet* lead_fleet = nullptr;
         const GalacticFleetSlot* lead = nullptr;
         for (const GalacticFleet* gf : in_pane)
@@ -1365,8 +1366,9 @@ bool GalacticHud::drop(std::vector<commands::EventData>* out, std::vector<HudAct
 // #515 (legacy docs/re/UI.md §7.4, header-pad drop 0x3d63f0): a unit dragged from an own pane onto an own pane's header pad
 // becomes that fleet's lead. From another pane it first merges into the pad's fleet (0x3d0790); then every lead of the
 // pad's pane is cleared (0x3ccdd0: GUI index 999 -> -1) and the unit gets index 999 (SetGUIIndex). Refused: a unit whose
-// type has the always-deployed property (retail: a HUD message and sound; [port] no message), a whole fleet, a land or map
-// drag, the pad's own lead, and [port] a pane without a fleet.
+// type has the always-deployed property (retail: a HUD message and sound; [port] no message: presentation only, the drop
+// is refused either way, tier 3), a whole fleet, a land or map drag, the pad's own lead, and [port] a pane without a fleet
+// (retail's empty header pad is not traced as a target; there is no fleet to lead, so no state changes).
 bool GalacticHud::lead_drop(int32_t over_component, std::vector<commands::EventData>* out) const {
     const PadSlot* over = pad_of(over_component);
     if (!over || !over->lead_pad || over->foreign || over->fleet == 0) return false;

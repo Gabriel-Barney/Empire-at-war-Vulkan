@@ -802,7 +802,7 @@ void test_set_marker_id() {
 
 // #515 (COMMANDS kind 56 SetGUIIndex, execute 0x5b12a0; legacy docs/re/UI.md §7.4): index 999 (Pathfinder_Slot_Index) makes
 // the issuer's unit a fleet lead, any other index clears it; another player's unit is refused [port]. The flag is hashed
-// and saved (v13) for live units only, and moving units into a fleet that already has a lead clears the moved units' flags.
+// and saved (v17) for live units only, and moving units into a fleet that already has a lead clears the moved units' flags.
 void test_set_gui_index() {
     std::printf("  SetGUIIndex (fleet lead)\n");
     const GalacticRules rules = make_rules();
@@ -860,6 +860,11 @@ void test_set_gui_index() {
     CHECK(s.execute(pEmpire, commands::fleet_management_event(commands::kFleetMerge, id(s.fleets()[f1].object), id(s.fleets()[f2].object), id(a))) ==
           RejectReason::None);
     CHECK(s.fleet_containing(a) == f1 && !s.pathfinder(a) && s.pathfinder(b));
+
+    // A lead that leaves its fleet (here detached into a fleet of its own) loses its flag; the other lead keeps its own.
+    CHECK(s.execute(pEmpire, commands::ev::set_gui_index(id(a), commands::kPathfinderGuiIndex)) == RejectReason::None);
+    CHECK(s.execute(pEmpire, commands::fleet_management_event(commands::kFleetDetach, id(pa), id(s.fleets()[f1].object), id(a))) == RejectReason::None);
+    CHECK(s.fleet_containing(a) != f1 && !s.pathfinder(a) && s.pathfinder(b));
 
     // A dead lead is dropped from the save and the hash.
     CHECK(s.destroy_object(b) && !s.pathfinder(b));
@@ -1006,6 +1011,17 @@ void test_queue_phases() {
         v16[0] = 16;
         ByteReader r16(v16);
         CHECK(o.read(r16) && o.pathfinders().empty() && sim_bytes(o) == bytes);
+        {  // a v17 image whose lead list is malformed is refused: an id of no live object, then two ids not ascending
+            const auto with_leads = [&bytes](std::initializer_list<uint32_t> words) {
+                std::vector<uint8_t> img(bytes.begin(), bytes.end() - 4);
+                for (const uint32_t v : words)
+                    for (int i = 0; i < 4; ++i) img.push_back(static_cast<uint8_t>(v >> (8 * i)));
+                return img;
+            };
+            const std::vector<uint8_t> dead = with_leads({1, 0x7FFFFFFFu}), repeated = with_leads({2, 1, 1});
+            ByteReader rd(dead), rn(repeated);
+            CHECK(!o.read(rd) && !o.read(rn));
+        }
         std::vector<uint8_t> v15(v16.begin(), v16.end() - 4);
         v15[0] = 15;
         ByteReader r15(v15);

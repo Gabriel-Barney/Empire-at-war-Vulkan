@@ -2306,7 +2306,11 @@ void GalacticSim::keep_one_lead(uint32_t fleet, const std::vector<ObjectHandle>&
     if (pathfinders_.empty() || fleet >= fleets_.size()) return;
     bool has = false;
     for (const ObjectHandle m : fleets_[fleet].contents) has = has || pathfinder(m);
-    if (!has) return;
+    if (has) leave_leads(moved);
+}
+
+void GalacticSim::leave_leads(const std::vector<ObjectHandle>& moved) {
+    if (pathfinders_.empty()) return;
     for (const ObjectHandle m : moved)
         if (store_->alive(m)) set_pathfinder(store_->id(m), false);
 }

@@ -316,6 +316,7 @@ RejectReason GalacticSim::fleet_management(int32_t player, const commands::Event
             std::vector<ObjectHandle> moved;
             std::vector<uint8_t> carried;
             take(from, unit, moved, carried);
+            leave_leads(moved);  // #515
             for (const ObjectHandle m : moved) planets_[land_at].surface.push_back(m);
             return RejectReason::None;
         }
@@ -363,6 +364,7 @@ RejectReason GalacticSim::fleet_management(int32_t player, const commands::Event
         } else {
             return RejectReason::InvalidUnit;
         }
+        leave_leads(moved);  // #515
         const uint32_t nf = create_fleet(player, p);
         fleets_[nf].contents = std::move(moved);
         for (const ObjectHandle u : fleets_[nf].contents) fleet_member_joined(nf, u);  // mcx4 t20
@@ -482,6 +484,7 @@ RejectReason GalacticSim::fleet_management(int32_t player, const commands::Event
         std::vector<ObjectHandle> moved;
         std::vector<uint8_t> carried;
         take(from, unit, moved, carried);
+        leave_leads(moved);  // #515
         const uint32_t nf = create_fleet(player, p);
         fleets_[nf].contents = std::move(moved);
         for (const ObjectHandle u : fleets_[nf].contents) fleet_member_joined(nf, u);  // mcx4 t20
@@ -505,6 +508,7 @@ RejectReason GalacticSim::fleet_management(int32_t player, const commands::Event
             std::vector<ObjectHandle> moved;
             std::vector<uint8_t> carried;
             take(src, h, moved, carried);
+            leave_leads(moved);  // #515
             for (const ObjectHandle m : moved) planets_[p].surface.push_back(m);
             if (!fleets_[src].alive) break;
         }
