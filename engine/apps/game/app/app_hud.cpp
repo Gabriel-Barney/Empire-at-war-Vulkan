@@ -1395,8 +1395,8 @@ void App::build_tactical_hud() {
         hf.bombard = bombard_switch(!bview_.space(), tb->bombardment_shown(local_player()), tb->bombardment_available(local_player()),
                                     tb->bombardment_recharge(local_player()));
         const objects::ObjectId tsw = tb->special_weapons().first_tsw();
-        hf.tsw = tsw_switch(bview_.space(), space_weapon_faction_icon(local_faction()) == 1,
-                            tsw == tactical::abilities::kNoObject ? -1 : tb->tsw_state(tsw), tsw_pressed_);
+        hf.tsw = tsw_switch(bview_.space(), space_weapon_faction_icon(local_faction()) == 1, tsw != objects::kNoObjectId,
+                            tsw != objects::kNoObjectId && tb->tsw_state(tsw) == tactical::abilities::kTswReady, tsw_pressed_);
         if (bview_.space()) {  // ui1 t04 (HUD_GAPS §9.1): the space special-weapon button
             int32_t icon = -1;
             float ready = 0.0f;

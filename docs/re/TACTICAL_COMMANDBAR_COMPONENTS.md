@@ -253,7 +253,7 @@ The human player's tactical super weapon button in space (#718). A TextButton wi
 Port: `TacticalBattle::tsw_planet_ok`, `SpecialWeaponSystem::first_tsw`, the TacticalSuperWeapon handler in
 `handle_command` (op 1 is refused: the port's TSW is in state 0 only before its first service and after its release),
 `ui::HudTswSwitch` (`TacticalHud::apply_tsw_switch`), `game::tsw_switch` and `App::tsw_press`, which acts at once instead
-of after the switch's animation.
+of after the switch's animation and sends op 2 only (state 0 takes the refusal path, for the reason above).
 
 ## 2. Port today and changes, ranked (smallest and most certain first)
 

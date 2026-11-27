@@ -2654,12 +2654,12 @@ void hud_feeds_test(const game::GameData& data, const game::SessionSpec& spec) {
         const ui::HudBombardSwitch ready = game::bombard_switch(true, true, true, 1.0f);
         CHECK(ready.shown && ready.ready && ready.recharge == 1.0f);
     }
-    {  // #718 (0x31acd0): deathstar_switch - space, the Empire, a TSW; ready = state 4; the latch passes through.
-        CHECK(game::tsw_switch(false, true, 4, false).present && !game::tsw_switch(false, true, 4, false).shown);
-        CHECK(!game::tsw_switch(true, false, 4, false).shown && !game::tsw_switch(true, true, -1, false).shown);
-        const ui::HudTswSwitch arming = game::tsw_switch(true, true, 3, false);
+    {  // #718 (0x31acd0): deathstar_switch - space, the Empire, a TSW; ready only when shown; the latch passes through.
+        CHECK(game::tsw_switch(false, true, true, true, false).present && !game::tsw_switch(false, true, true, true, false).shown);
+        CHECK(!game::tsw_switch(true, false, true, true, false).shown && !game::tsw_switch(true, true, false, true, false).ready);
+        const ui::HudTswSwitch arming = game::tsw_switch(true, true, true, false, false);
         CHECK(arming.shown && !arming.ready);
-        const ui::HudTswSwitch ready = game::tsw_switch(true, true, 4, true);
+        const ui::HudTswSwitch ready = game::tsw_switch(true, true, true, true, true);
         CHECK(ready.shown && ready.ready && ready.pressed);
     }
     // §1: HardPointType names (reticle table keys) and the yaw-rotated attachment point.

@@ -304,6 +304,7 @@ struct Run {
     bool tsw_ready = false, tsw_fired = false, planet_destroyed = false;
     // #718 (via_command): command 38 from the Empire (not its weapon), op 1, and op 2 again once fired are refused.
     bool tsw_cmd_other = false, tsw_cmd_op1 = false, tsw_cmd_again = false, tsw_first = false, tsw_gate = false;
+    bool tsw_gate_after = true;  // the planet gate once the planet is destroyed
     bool jumped_out = false, away_died = false, engines_off = false, engines_back = false, teleported = false;
     int32_t increment = -1;
     float ground = 0.0f;
@@ -588,6 +589,7 @@ Run run(const Data& d, int32_t workers, int follow = 0, bool via_command = false
         if (b->tsw_planet_destroyed() && !out.planet_destroyed) {
             out.planet_destroyed = true;
             out.allowed_after = b->special_weapons_allowed(0);
+            out.tsw_gate_after = b->tsw_planet_ok();
         }
         trace.u32(f);
         trace.f32(b->sw_readiness(weapon));
@@ -622,7 +624,7 @@ void test_battle(const Data& d) {
         // #718: command 38 op 2 from the TSW's owner fires it as the direct call (same CRC log and trace); another
         // player's command is InvalidUnit, op 1 and a second Fire NotAllowed; the HUD's first TSW and planet gate.
         CHECK(c.tsw_fired && c.planet_destroyed && c.tsw_cmd_other && c.tsw_cmd_op1 && c.tsw_cmd_again);
-        CHECK(a.tsw_first && a.tsw_gate);
+        CHECK(a.tsw_first && a.tsw_gate && !a.tsw_gate_after);  // the gate closes with the planet's destruction
     }
     {  // #460: command 25 fires with another of the owner's special weapons aimed; a refused command still sweeps
         const auto dv = make_data("alamo_sim_l1_sw460", kSw460Types);

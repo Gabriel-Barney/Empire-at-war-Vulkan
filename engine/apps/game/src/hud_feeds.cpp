@@ -108,11 +108,11 @@ ui::HudBombardSwitch bombard_switch(bool land, bool shown, bool available, float
     return s;
 }
 
-ui::HudTswSwitch tsw_switch(bool space, bool empire, int32_t tsw_state, bool pressed) {
+ui::HudTswSwitch tsw_switch(bool space, bool empire, bool has_tsw, bool ready, bool pressed) {
     ui::HudTswSwitch s;
     s.present = true;
-    s.shown = space && empire && tsw_state >= 0;
-    s.ready = s.shown && tsw_state == 4;  // tactical::abilities::kTswReady
+    s.shown = space && empire && has_tsw;
+    s.ready = s.shown && ready;
     s.pressed = pressed;
     return s;
 }
