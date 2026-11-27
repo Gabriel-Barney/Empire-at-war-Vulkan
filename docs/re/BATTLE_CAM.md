@@ -300,7 +300,7 @@ End_Cinematic_Mode zeroes it. The hero clash sets none, so a clash chained after
 The look filter flag +0x1bd that the push-in and the land flying shot set selects the filtered look (`0x4a96d0`):
 `0x49cd00` passes `+0x1bd == 0` as the filter's "raw" argument (`0x49d17f`), and the filter is seeded on every
 shot's first look key (`0x499dd0` → `0x49ff50`) [H, lane-c 2026-11-26; this corrects an earlier "only after a glory
-shot"]. A glory shot sets 0 (raw). The filter is not ported yet (#671).
+shot"]. A glory shot and the fighter chase set 0 (raw). The filter is not ported yet (#671).
 
 - **Structure `0x49f880`** (no locomotor): n = rand(60, 90), then sx and sy (each zero = +1). The eye pulls back from
   (sx Ex, sy Ey, 2 Ez) to (2 sx Ex, 2 sy Ey, 3 Ez) over n, eases 0.25 / 0.25. The look holds on the structure; when it
@@ -425,7 +425,7 @@ each of these is a known gap rather than an accepted difference:
   shot only takes a drawn target, where retail takes any.
 - The look-filter flag +0x1bd (set by the attack run, the push-in, the land flying shot and the fly-past) is not kept.
   In retail it makes those shots use the filtered look, a lag-compensated moving average of the look (`0x4a96d0`),
-  which the port does not have yet (#671) [port: the raw look; presentation only, tier 3].
+  which the port does not have yet: the port uses the raw look, a tier-1 known gap (camera feel), tracked as #671.
 - The interesting object's fields, read from the port's objects: "in the world, not hidden" (+0x39f, +0x3a0 & 0x40) is
   drawn and not dying or contained; "a model" is drawable; fogged is hidden from the local player by the FOW; the
   ObjBox and the ModelBox are one box; the health is the drawn health; the speed is the movement's current speed; a
