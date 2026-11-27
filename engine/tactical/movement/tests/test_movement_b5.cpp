@@ -817,6 +817,62 @@ void test_scene_air_lead() {
         }
 }
 
+// #648 (#482 slice 1, 0x417520's type-2 branch [H]): behind MovementConfig::air_formation_approach, two flying attackers
+// ordered onto a standing unit 1000 away (half extents 5) and then re-planned (LandAttack::replan: the formation update that
+// follows, reason >= 2) both get the formation goal P = G + unit(C - lead) x max(hx, hy) = C + (5, 0), clamped to the
+// land air box, and re-plan. Flag off (the default): the re-plan sets no type-2 goal (the goals before #648).
+void test_scene_air_type2() {
+    ::alamo::test::section("scene_air_type2");
+    for (const bool on : {false, true}) {
+        MovementConfig cfg;
+        cfg.air_formation_approach = on;
+        MovementSystem sys{cfg};
+        scene_system(sys);
+        UnitDesc a = attacker(10, kO);
+        UnitDesc b = attacker(11, kO + V2{0.0f, 50.0f});
+        a.locomotor = b.locomotor = LocomotorKind::Flying;
+        CHECK(sys.add_unit(a));
+        CHECK(sys.add_unit(b));
+        const V2 c = kO + V2{1000.0f, 0.0f};
+        UnitDesc t = attacker(900, c, 5.0f);
+        t.owner = 2;
+        CHECK(sys.add_unit(t));
+        geometric_fire(sys, c, 300.0f);
+        SimRng rng(7);
+        sys.move(attack_order({10, 11}, 900, c, 5.0f, 300.0f), rng, 1);
+        CHECK(sys.stats().air_formation_goals == 0);  // the order itself (reason 1): no type-2 goal
+        MoveOrder re = attack_order({10, 11}, 900, c, 5.0f, 300.0f);
+        re.attack.replan = true;
+        sys.move(re, rng, 2);
+        const V2 lead = sys.view(10).pos;
+        const V2 d = c - lead;
+        const float len = std::sqrt(d.x * d.x + d.y * d.y);
+        const V2 p = c + V2{d.x * 5.0f / len, d.y * 5.0f / len};
+        const UnitView v10 = sys.view(10), v11 = sys.view(11);
+        const bool at_p = v10.has_goal && v11.has_goal && distance(v10.goal, p) < 1e-3f && distance(v11.goal, p) < 1e-3f;
+        if (on)
+            CHECK(sys.stats().air_formation_goals == 1 && at_p);
+        else
+            CHECK(sys.stats().air_formation_goals == 0 && !at_p);
+        if (on) {  // a staged G (the host's 0x40e260, G != C): P = G + unit(C - lead) x 5 (G the base, C the direction)
+            MoveOrder st = attack_order({10, 11}, 900, c, 5.0f, 300.0f);
+            st.attack.replan = true;
+            st.attack.g = c + V2{-200.0f, 120.0f};
+            sys.move(st, rng, 2);
+            const V2 ps = st.attack.g + V2{d.x * 5.0f / len, d.y * 5.0f / len};
+            CHECK(distance(sys.view(10).goal, ps) < 1e-3f && distance(sys.view(11).goal, ps) < 1e-3f);
+        }
+        if (on) {  // the members re-plan on the land air path and fly toward P
+            const uint64_t planned = sys.stats().paths_planned;
+            const float d0 = distance(v10.pos, p);
+            for (uint32_t f = 2; f < 300; ++f) sys.tick(f, rng);
+            CHECK(sys.stats().paths_planned > planned && distance(sys.view(10).pos, p) < d0 - 100.0f);
+        }
+        std::printf("flying pair re-planned, air_formation_approach %d: type-2 goals %u, both at P (%.1f, %.1f) %d\n", on ? 1 : 0,
+                    sys.stats().air_formation_goals, static_cast<double>(p.x), static_cast<double>(p.y), at_p ? 1 : 0);
+    }
+}
+
 // s78n t26 review round 3 (FIGHTER_FLYING §4.11 G 5 [H]): "with a non-guard object top, a member that is in max range
 // (slot 44), not inside min range (slot 45) and not moving (locomotor vf +0x1c0(0) false) keeps its own path" when the
 // moving formation re-paths (0x4192b0 step 4). Two vehicles 50 apart, one attack formation, 1500 from the target; after 60
@@ -1206,6 +1262,7 @@ int main() {
     test_scene_workers();
     test_scene_unseen();  // s78n t26 review round 3
     test_scene_air_lead();  // #89
+    test_scene_air_type2();  // #648
     test_scene_repath_keep();
     return ::alamo::test::report("alamo_tactical_movement_b5_tests");
 }

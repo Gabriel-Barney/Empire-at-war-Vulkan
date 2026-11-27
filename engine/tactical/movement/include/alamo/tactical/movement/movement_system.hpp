@@ -162,6 +162,10 @@ struct MovementConfig {
     MoveMode mode = MoveMode::Land;
     MovementConstants constants;
     MovementClassTable classes;
+    // #648 (#482 slice 1; docs/SIMULATION.md tier 2, off until the retail probe agrees): an air-led land attack formation
+    // (formation type 2) takes 0x417520's type-2 goal at the re-plans that follow the order (attack_plan, reason >= 2).
+    // Off: an air lead keeps the plain move the slot loop gave (the behaviour before #648).
+    bool air_formation_approach = false;
 };
 
 // s78n t25.2 (MOVEMENT §4.3.2 items 1, 2, 6 and 7): one unit of a land attack order. range = its raw attack range
@@ -372,6 +376,7 @@ struct MovementStats {
     uint32_t attack_orders = 0, attack_replans = 0, attack_slotted = 0, attack_unslotted = 0, attack_unslotted_cell = 0;
     uint32_t attack_in_range = 0, attack_stops = 0, attack_trims = 0, attack_trims_first = 0, attack_legs = 0, attack_leg_refused = 0;
     float attack_trim_sum = 0.0f;
+    uint32_t air_formation_goals = 0;  // #648: type-2 formation goals set at a re-plan (flag on)
     // s78n t26.3 (MOVEMENT §3.5.2 D): the corner-speed pass's corners written with fraction 0 / with a fraction in (0, 1),
     // and its probe step-downs (v /= 1.5).
     uint32_t corner_zero = 0, corner_slowed = 0, corner_stepdowns = 0;
@@ -1925,6 +1930,9 @@ private:
     bool attack_path(const Unit& lead, uint32_t mask, V2 centroid, V2& g, std::vector<V2>& path) const;
     void attack_slots(const MoveOrder& order, const std::vector<uint32_t>& idx, const std::vector<LandForm>& forms);
     bool arc_slot_test(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f, float hx, float hy, V2 p) const;
+    // #648: the type-2 (air-led) formation's goal at a re-plan, behind MovementConfig::air_formation_approach
+    void air_formation_goal(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f,
+                            const std::vector<uint8_t>& kept);
     // `kept` (indexed like idx): the members a re-path leaves on their own path (LandAttack::repath, G 5). `snap`
     // (indexed like idx) = each member as it was before this order's set-up; a failed plan restores it. True: failed.
     bool attack_plan(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f, uint32_t frame,
