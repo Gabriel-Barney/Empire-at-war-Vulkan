@@ -96,6 +96,11 @@ MovementConstants MovementConstants::from_game_constants(const data::GameConstan
         gc.get_bool("ShouldInfantryTeamsSplitAcrossFormations", c.should_infantry_teams_split_across_formations);
     // ledger: consumes GameConstants.ShouldSkipLandFormup (#715: the lead-in path and the queued delay gate)
     c.should_skip_land_formup = gc.get_bool("ShouldSkipLandFormup", c.should_skip_land_formup);
+    // ledger: consumes GameConstants.ShouldUseSpaceIdleMovement (#714: the space idle drift gate)
+    c.should_use_space_idle_movement = gc.get_bool("ShouldUseSpaceIdleMovement", c.should_use_space_idle_movement);
+    // ledger: consumes GameConstants.IdleMovementFrames (#714: the drift wait and distance)
+    c.idle_movement_frames = gc.get_float("IdleMovementFrames", c.idle_movement_frames);
+    c.space_idle_movement_speed = gc.get_float("SpaceIdleMovementSpeed", c.space_idle_movement_speed);  // #714
     c.space_static_obstacle_avoidance_bonus_distance = static_cast<float>(gc.get_int(
         "SpaceStaticObstacleAvoidanceBonusDistance", static_cast<int32_t>(c.space_static_obstacle_avoidance_bonus_distance)));
     c.space_locomotor_facing_lookahead_acc =

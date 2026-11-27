@@ -1196,6 +1196,10 @@ private:
         float z = 0.0f;
         float conform_pitch = 0.0f, conform_roll = 0.0f;  // the land conform's attitude, degrees (saved, v33)
         bool has_goal = false, need_path = false, arrived = false, failed = false;
+        // #714 (ShouldUseSpaceIdleMovement): the frame the idle drift is due (-1: no wait running), and whether the
+        // current move is a drift (its speed floored at SpaceIdleMovementSpeed). Saved (v40).
+        int32_t idle_due = -1;
+        bool idle_drift = false;
         V2 goal;
         float facing = kNoFacing;
         float final_facing = kNoFacing;  // MoveOrder::final_facing_deg of the current land move (saved)
@@ -1687,6 +1691,7 @@ private:
                ((v.d.squashable_by_supercrusher && c.d.supercrusher) || v.d.squashable);
     }
     void tick_space(uint32_t frame, const ParallelFor& pf);
+    void idle_drift_pass(uint32_t frame, SimRng& rng);  // #714: after tick_space, serial, ascending index
     void plan_land(uint32_t frame, const ParallelFor& pf);
     // S7 collision layer (TACTICAL_GAPS §6.7)
     void detect_collisions(uint32_t frame);

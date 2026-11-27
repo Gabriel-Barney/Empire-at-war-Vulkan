@@ -681,6 +681,11 @@ void MovementSystem::move(const MoveOrder& order, SimRng& rng, uint32_t frame) {
         std::erase_if(idx, [this](uint32_t i) { return deployed_d(units_[i]) && !auto_deployer(units_[i]); });
     if (!fform_internal_) fform_waypoint(order, idx);  // fighters with a formation append the block instead
     if (idx.empty()) return;
+    if (!fform_internal_)  // #714: an order cancels the idle wait and ends a drift
+        for (uint32_t i : idx) {
+            units_[i].idle_due = -1;
+            units_[i].idle_drift = false;
+        }
     if (order.switch_locomotor)  // MOVEMENT §6.2: multi-locomotor units swap first (others ignore the bit)
         for (uint32_t i : idx) swap_locomotor(units_[i], true);
     std::vector<uint32_t> delays(idx.size(), 0);
@@ -1856,6 +1861,44 @@ void MovementSystem::tick(uint32_t frame, SimRng& rng, const ParallelFor& pf) {
     else {
         fform_tick(frame, rng);  // the fighter formations' step (plan, arrival, 0x4192b0, 0x410a60)
         tick_space(frame, pf);
+        if (cfg_.constants.should_use_space_idle_movement) idle_drift_pass(frame, rng);  // #714 (FoC: off)
+    }
+}
+
+void MovementSystem::idle_drift_pass(uint32_t frame, SimRng& rng) {
+    // #714 (0x420a40, MCX4_T11_T12_RE_ANSWERS B4): retail's one-block space formation whose lead is idle; [port] the
+    // port's space ships move without formation objects, so each arrived, idle non-fighter ship with a locomotor is its
+    // own one-ship formation. The wait's draw is taken when the ship turns idle; the drift is a move of its own (no
+    // composition, as a formation's own re-path), and any other move cancels the wait.
+    const MovementConstants& k = cfg_.constants;
+    const float f = k.idle_movement_frames;
+    for (Unit& u : units_) {
+        if (is_fighter(u) || u.hidden || !(u.lp.max_speed > 0.0f)) continue;
+        const bool idle = u.arrived && !u.has_goal && !u.following && !u.turning;
+        if (!idle) continue;
+        if (u.idle_due < 0) {
+            u.idle_due = static_cast<int32_t>(frame) + static_cast<int32_t>(f + rng.range_float(0.0f, f / 2.0f) + 0.5f);
+            continue;
+        }
+        if (static_cast<int32_t>(frame) < u.idle_due) continue;
+        V2 dest = u.m.pos + dir_from_deg(u.m.yaw) * f;
+        if (space_.has_box()) {  // inside the map less 300
+            const V2 lo = space_.box_min(), hi = space_.box_max();
+            dest.x = lo.x + 300.0f <= hi.x - 300.0f ? std::clamp(dest.x, lo.x + 300.0f, hi.x - 300.0f) : 0.5f * (lo.x + hi.x);
+            dest.y = lo.y + 300.0f <= hi.y - 300.0f ? std::clamp(dest.y, lo.y + 300.0f, hi.y - 300.0f) : 0.5f * (lo.y + hi.y);
+        }
+        MoveOrder mo;
+        mo.units = {u.d.id};
+        mo.destination = dest;
+        const ObjectId id = u.d.id;
+        const bool was = fform_internal_;
+        fform_internal_ = true;  // a formation's own move: no new coordinator, no fighter formation
+        move(mo, rng, frame);
+        fform_internal_ = was;
+        if (Unit* w = unit_ptr(id)) {
+            w->idle_due = -1;
+            w->idle_drift = w->has_goal;
+        }
     }
 }
 
