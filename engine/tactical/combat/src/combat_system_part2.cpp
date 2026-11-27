@@ -1715,8 +1715,9 @@ void CombatSystem::infection_service(Unit& u, uint32_t frame, SimRng& rng) {
     // draw like any other and then suspends it (expiry) before any damage or spread.
     if (!u.infect_attached || u.infect_suspend != 0 || (u.flags & kUnitDead)) return;
     if (u.flags & kUnitContained) return;  // nothing while garrisoned (+0x3a7)
-    // Coughing SFX: on frames with frame % 60 == 0 one synced Get_Int(0, 4), the sound on 0 (presentation).
-    if (frame % 60u == 0u) (void)rng.range_int(0, 4);
+    // Coughing SFX: on frames with frame % 60 == 0 one synced Get_Int(0, 4), the sound on 0 (presentation: #688, the
+    // host plays the type's SFXEvent_Cough_Override, else Unit_Infantry_Coughing, at the unit).
+    if (frame % 60u == 0u && rng.range_int(0, 4) == 0) cough_events_.push_back(u.id);
     // Frames left -= 1; at <= 0 the behaviour suspends itself (the cure: expiry) and its particle goes.
     if (--u.infect_left <= 0 || u.infect_desc < 0) {  // an empty pack: no DPS, no mask (nothing to damage or spread)
         if (u.infect_left <= 0) suspend_infection(u.id);
@@ -2235,6 +2236,7 @@ void CombatSystem::tick(uint32_t frame, const TreeSet& trees, SimRng& rng, const
     smoke_events_.clear();
     damage_events_.clear();
     hit_events_.clear();  // S10-int
+    cough_events_.clear();  // #688
     shot_events_.clear();  // OI fog
     lob_events_.clear();   // S8 t30
     attack_events_.clear();  // s78f t08 (signal 0x1E)

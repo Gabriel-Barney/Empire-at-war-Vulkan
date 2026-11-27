@@ -94,6 +94,7 @@ struct GameAudioStats {
     uint64_t sighting_lines = 0;                                                   // mcx4 t13 batch N
     uint64_t unit_lost_lines = 0;                                                  // #50 t01: SFXEvent_Unit_Lost started
     uint64_t land_damage_sfx = 0;                                                  // mcx4 t13 batch O
+    uint64_t coughs = 0;                                                           // #688 infection coughs played
     uint64_t death_ends = 0;                                                       // #61: Death_SFXEvent_End_Die started
     uint64_t pad_lines = 0;                                                        // mcx4 t13 batch P
     uint64_t ability_lines = 0;                                                    // mcx4 t13 batch R
@@ -649,6 +650,9 @@ public:
     // fraction = the last Land_Damage_Thresholds entry k (list order) with fraction <= t_k, -1 when none. When a hit
     // changes it, Land_Damage_SFX[k] plays attached to the object unless it is "NULL" [M on the compare].
     static int32_t land_damage_stage(std::span<const std::string_view> thresholds, float fraction);
+    // #688 (0x636e80 [H]): an infected unit's cough event: its type's SFXEvent_Cough_Override (trimmed), else the event
+    // named Unit_Infantry_Coughing.
+    static std::string_view cough_event(std::string_view cough_override);
     // "Faction.SFXEvent_Tactical_Object_Building_Started family" (0x42dbd0 / 0x42e890 / 0x5248b0 [H]): the lines of a build
     // pad start, completion or sale. `type_tags` = the event type's 2D line (first set entry wins), heard only by a local
     // builder / seller (`local`; a start also needs its build command's sfx flag); `faction_tag` = the owner's faction

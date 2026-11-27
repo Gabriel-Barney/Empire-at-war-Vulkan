@@ -148,6 +148,11 @@ std::string_view GameAudioHost::nth_field(std::span<const std::pair<std::string,
     return {};
 }
 
+std::string_view GameAudioHost::cough_event(std::string_view cough_override) {
+    const std::string_view o = ascii_trim(cough_override);
+    return o.empty() ? std::string_view("Unit_Infantry_Coughing") : o;
+}
+
 std::string_view GameAudioHost::base_shield_line(bool online, bool friendly) {
     // ledger: consumes Faction.SFXEvent_HUD_Base_Shield_Online
     // ledger: consumes Faction.SFXEvent_HUD_Enemy_Base_Shield_Online
@@ -1297,6 +1302,15 @@ void GameAudioHost::cue_lines(const sim::TacticalBattle& battle, const objects::
         const std::string_view ev = ascii_trim(sfx[static_cast<size_t>(stage)]);
         if (ev.empty() || ascii_iequals(ev, "NULL")) continue;
         if (game_->impact(ev, position_of(static_cast<uint64_t>(d.victim)))) ++stats_.land_damage_sfx;
+    }
+    // #688 (0x636e80 [H]): an infected unit's cough: the type's SFXEvent_Cough_Override (0x2d5320), else the event
+    // Unit_Infantry_Coughing by name (0x2d50e0), at the unit (3D), any owner.
+    for (const objects::ObjectId id : cs.cough_events()) {
+        const objects::TypeIndex t = type_of(static_cast<int64_t>(id));
+        if (t == objects::kNone) continue;
+        // ledger: consumes GameObjectType.SFXEvent_Cough_Override
+        const std::string_view ev = cough_event(types.get_string(t, "SFXEvent_Cough_Override"));
+        if (game_->impact(ev, position_of(static_cast<uint64_t>(id)))) ++stats_.coughs;
     }
     // Sightings (MCX4_T13_RE_ANSWERS "GameObjectType.Play_SFXEvent_On_Sighting", HideWhenFogged 0x53ddc0): the first tick
     // a unit of another player is visible to the local player. A Play_SFXEvent_On_Sighting type not yet announced this

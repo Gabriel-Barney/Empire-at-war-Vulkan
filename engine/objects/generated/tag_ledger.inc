@@ -458,7 +458,7 @@
 {"GameObjectType", "SFXEvent_Ambient_Moving_Max_Delay_Seconds", 0x5, LedgerState::Consumed, "", 56, 1},
 {"GameObjectType", "SFXEvent_Draw_Weapon", 0x1f, LedgerState::Consumed, "docs/re/xml_reference_index.md", 7, 1},
 {"GameObjectType", "SFXEvent_Holster_Weapon", 0x1f, LedgerState::Consumed, "docs/re/xml_reference_index.md", 7, 1},
-{"GameObjectType", "SFXEvent_Cough_Override", 0x1f, LedgerState::Stored, "docs/re/xml_reference_index.md", 1, 1},
+{"GameObjectType", "SFXEvent_Cough_Override", 0x1f, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameObjectType", "SFXEvent_Select_With_Non_Hero_Ability", 0x1f, LedgerState::Consumed, "", 0, 1},
 {"GameObjectType", "SFXEvent_Attack_With_Non_Hero_Ability", 0x1f, LedgerState::Consumed, "", 1, 1},
 {"GameObjectType", "SFXEvent_Move_With_Non_Hero_Ability", 0x1f, LedgerState::Consumed, "", 0, 1},

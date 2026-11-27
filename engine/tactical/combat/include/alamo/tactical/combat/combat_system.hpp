@@ -1557,6 +1557,9 @@ public:
     // shield it straddles (base_shield_straddled), with the dome's outward normal there; false when it straddles none.
     bool base_shield_contact(ObjectId id, Vec3& point, Vec3& normal) const;
     std::span<const SmokeEvent> smoke_events() const { return smoke_events_; }      // this tick
+    // #688 (presentation; 0x636e80 [H]): the infected units whose coughing sound plays this tick (the INFECTION
+    // service's frame % 60 Get_Int(0, 4) came up 0). Not saved; cleared at each tick start and by a load.
+    std::span<const ObjectId> cough_events() const { return cough_events_; }
     std::span<const DamageEvent> damage_events() const { return damage_events_; }   // this tick (A1 AI)
     std::span<const HitEvent> hit_events() const { return hit_events_; }            // this tick (S10-int, R4)
     std::span<const ShotEvent> shot_events() const { return shot_events_; }         // this tick (OI fog)
@@ -2317,6 +2320,7 @@ private:
     std::vector<SmokeEvent> smoke_events_;
     std::vector<DamageEvent> damage_events_;
     std::vector<HitEvent> hit_events_;  // S10-int
+    std::vector<ObjectId> cough_events_;  // #688 presentation only
     std::vector<ShotEvent> shot_events_;  // OI fog
     std::vector<LobEvent> lob_events_;    // S8 t30
     std::vector<AttackStateEvent> attack_events_;  // s78f t08 (signal 0x1E)
