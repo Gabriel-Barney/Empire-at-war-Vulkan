@@ -986,7 +986,7 @@ void BattleAi::capture_lane_view() {
         }
         view_.retreat_ok.assign(np, 0);
         for (int32_t p = 0; p < players; ++p) view_.retreat_ok[static_cast<size_t>(p)] = b_->retreat_block(p) == 0 ? 1 : 0;
-        view_.production = b_->production_enabled();
+        view_.production = b_->ai_production_enabled();
     }
     if (world_->ai_lane()) capture_l1();  // slice 4e (part 2)
     ALAMO_PROFILE_STEP(steps, "tac.cap.units");
@@ -1991,7 +1991,7 @@ void BattleAi::capture_lane_rest() {
     // (the builders and can_build fact tables; can_build only where some builder lists the type).
     {
         std::vector<std::pair<int32_t, int32_t>> keys;
-        if (b_->production_enabled()) {
+        if (b_->ai_production_enabled()) {
             const objects::GameObjectTypes& types = b_->catalog_->types();
             std::vector<int32_t> cand;
             for (const uint32_t t : b_->types_used_)
@@ -2748,7 +2748,7 @@ int32_t BattleAi::replaced_builder_in(const FactEnv& env, int32_t id) const {
 std::vector<int32_t> BattleAi::tactical_builders(int32_t player, int32_t type) {
     std::vector<int32_t> out;
     lane_live_read("tactical_builders");
-    if (!b_->production_enabled() || type < 0) return out;
+    if (!b_->ai_production_enabled() || type < 0) return out;
     const objects::ObjectStore& st = mode_->primary();
     for (const objects::ObjectHandle h : st.owned_by(player)) {
         if (!st.active(h)) continue;
@@ -2764,7 +2764,7 @@ std::vector<int32_t> BattleAi::tactical_builders(int32_t player, int32_t type) {
 // PotentialPlan's own check.
 bool BattleAi::can_build_now(int32_t player, int32_t type) {
     lane_live_read("can_build_now");
-    if (!b_->production_enabled() || type < 0) return false;
+    if (!b_->ai_production_enabled() || type < 0) return false;
     const objects::GameObjectTypes& types = b_->catalog_->types();
     const auto t = static_cast<objects::TypeIndex>(type);
     if (t >= types.size() || types.get(t, objects::tags::Cinematic_Object_Only)) return false;
@@ -2808,7 +2808,7 @@ std::vector<at::TacticalPad> BattleAi::build_pads_in(const FactEnv& env, int32_t
         const Vec3 q = st.position(h);
         p.position = {q.x, q.y, q.z};
         bool in_row = false;
-        for (const std::string_view tok : types.get_list(st.type(h), b_->pad_list_tag())) {
+        for (const std::string_view tok : types.get_list(st.type(h), b_->buildable_list_tag())) {
             const objects::TypeIndex t = types.resolve_name(tok);
             if (t == objects::kNone || t >= types.size()) {
                 in_row = pad_name_equal(tok, faction);

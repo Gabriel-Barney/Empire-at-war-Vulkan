@@ -131,7 +131,8 @@ inline const char* const kHardpoints = R"(<HardPoints>
 
 inline const char* const kFactions = R"(<Factions>
  <Faction Name="Empire"><Is_Playable>Yes</Is_Playable><Basic_AI>BasicEmpire</Basic_AI><Can_Control_Planets>Yes</Can_Control_Planets>
-  <Space_Tactical_Unit_Cap>6</Space_Tactical_Unit_Cap><Space_Retreat_Countdown_Seconds>5</Space_Retreat_Countdown_Seconds></Faction>
+  <Space_Tactical_Unit_Cap>6</Space_Tactical_Unit_Cap><Space_Retreat_Countdown_Seconds>5</Space_Retreat_Countdown_Seconds>
+  <Corruption_Tactical_Production_Time_Multipliers>1.0, 2.0</Corruption_Tactical_Production_Time_Multipliers></Faction>
  <Faction Name="Underworld"><Is_Playable>Yes</Is_Playable><Basic_AI>AI_Player_Underworld</Basic_AI><Can_Control_Planets>Yes</Can_Control_Planets>
   <Space_Tactical_Unit_Cap>6</Space_Tactical_Unit_Cap></Faction>
  <Faction Name="Neutral"><Is_Neutral>Yes</Is_Neutral></Faction>
@@ -601,6 +602,8 @@ inline const char* const kBmItems = R"(<BlackMarketItems>
 // Skirmish_Automatic Starbase_Upgrade_Ability, prerequisite S10_Star_Base_1, limit 1 for all allies) in its Empire row of
 // Tactical_Buildable_Objects_Multiplayer, and upgrades to S10_Star_Base_2. s78n t20 step 5: S10_Trooper (a land unit of
 // both sides) lists S10_Land_Upgrade (DUMMY_UPGRADE, no ability) in its Empire row, for the land production signal test.
+// #660: the star base's Tactical_Buildable_Objects_Campaign Empire row lists S10_Base_Upgrade only (campaign price 40); the
+// Empire faction's Corruption_Tactical_Production_Time_Multipliers is 1.0, 2.0 (kFactions).
 inline std::string prod_types() {
     std::string t = kTypes;
     const std::string trooper = "<GroundInfantry Name=\"S10_Trooper\">";
@@ -610,6 +613,7 @@ inline std::string prod_types() {
     const size_t p = t.find(at);
     if (p != std::string::npos)
         t.insert(p + at.size(), "<SpaceBehavior>DUMMY_STAR_BASE</SpaceBehavior><Tactical_Buildable_Objects_Multiplayer> Empire, S10_Base_Upgrade, S10_Tech_Upgrade, S10_No_Queue_Upgrade </Tactical_Buildable_Objects_Multiplayer>"
+                                "<Tactical_Buildable_Objects_Campaign> Empire, S10_Base_Upgrade </Tactical_Buildable_Objects_Campaign>"
                                 "<Next_Level_Base>S10_Star_Base_2</Next_Level_Base>");
     const size_t end = t.find("</S10>");
     if (end != std::string::npos)
@@ -618,7 +622,8 @@ inline std::string prod_types() {
                       "<Targeting_Max_Attack_Distance>1500</Targeting_Max_Attack_Distance><Behavior>SELECTABLE</Behavior>"
                       "<Collidable_By_Projectile_Living>Yes</Collidable_By_Projectile_Living><SpaceBehavior>DUMMY_STAR_BASE</SpaceBehavior></StarBase>\n"
                       " <UpgradeObject Name=\"S10_Base_Upgrade\"><Behavior>DUMMY_UPGRADE</Behavior><Affiliation>Empire</Affiliation>"
-                      "<Tactical_Build_Cost_Multiplayer>100</Tactical_Build_Cost_Multiplayer><Tactical_Build_Time_Seconds>1</Tactical_Build_Time_Seconds>"
+                      "<Tactical_Build_Cost_Multiplayer>100</Tactical_Build_Cost_Multiplayer><Tactical_Build_Cost_Campaign>40</Tactical_Build_Cost_Campaign>"
+                      "<Tactical_Build_Time_Seconds>1</Tactical_Build_Time_Seconds>"
                       "<Tactical_Production_Queue>Tactical_Units</Tactical_Production_Queue>"
                       "<Tactical_Build_Prerequisites> S10_Star_Base_1 </Tactical_Build_Prerequisites>"
                       "<Build_Limit_Current_For_All_Allies>1</Build_Limit_Current_For_All_Allies>"

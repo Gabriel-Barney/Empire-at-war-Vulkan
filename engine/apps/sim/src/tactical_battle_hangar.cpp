@@ -63,7 +63,6 @@ objects::BehaviorTypeId dummy_upgrade_behavior() {
 bool hg_same(std::string_view a, std::string_view b) {
     return ascii_iequals(ascii_trim(a), ascii_trim(b));
 }
-constexpr const objects::ListTag& kBuildList = objects::tags::Tactical_Buildable_Objects_Multiplayer;
 // Starting / Reserve_Spawned_Units_Tech_0..5, one handle per tech slot.
 constexpr const objects::ListTag* kStartingTech[] = {
     &objects::tags::Starting_Spawned_Units_Tech_0, &objects::tags::Starting_Spawned_Units_Tech_1,
@@ -114,12 +113,12 @@ void TacticalBattle::hg_add_types() {
         const std::vector<uint32_t> now = types_used_;
         for (const uint32_t t : now) {
             const auto ti = static_cast<objects::TypeIndex>(t);
-            // Skirmish (space; land too): the tactical production lists (every faction row) join the tables.
-            if (cfg_.skirmish)
-                for (const std::string_view tok : types.get(ti, kBuildList)) {
-                    const objects::TypeIndex x = types.resolve_name(hg_trim(tok));
-                    if (x != objects::kNone) use_spawnable(static_cast<int32_t>(x));
-                }
+            // The tactical production lists (every faction row; _Multiplayer in a skirmish, _Campaign otherwise, #660)
+            // join the tables.
+            for (const std::string_view tok : types.get(ti, buildable_list_tag())) {
+                const objects::TypeIndex x = types.resolve_name(hg_trim(tok));
+                if (x != objects::kNone) use_spawnable(static_cast<int32_t>(x));
+            }
             if (hg_is_spawner(t))
                 for (const auto* slots : {kStartingTech, kReserveTech})
                     for (uint32_t k = 0; k < th::kTechSlots; ++k) {
@@ -768,13 +767,13 @@ uint8_t TacticalBattle::hg_build_check(const objects::ObjectStore& st, int32_t p
     for (const Unit& u : units_)
         if (u.id == builder) unit = u.alive && !u.retreated;
     if (!unit) return 1;
-    // The builder type's Tactical_Buildable_Objects_Multiplayer row of the player's faction.
+    // The builder type's buildable list (buildable_list_tag, #660), the row of the player's faction.
     std::string faction;
     const uint32_t f = galaxy_->players()[static_cast<size_t>(player)].faction;
     if (f < galaxy_->rules().factions.size()) faction = galaxy_->rules().factions[f].name;
     const std::string name = type < galaxy_->rules().types.size() ? galaxy_->rules().types[type].name : std::string();
     bool listed = false, in_row = false;
-    for (const std::string_view tok : types.get(st.type(bh), kBuildList)) {
+    for (const std::string_view tok : types.get(st.type(bh), buildable_list_tag())) {
         if (types.resolve_name(hg_trim(tok)) == objects::kNone) {
             in_row = hg_same(tok, faction);
             continue;
@@ -854,7 +853,7 @@ std::vector<TacticalBattle::BuildOptionInfo> TacticalBattle::station_build_optio
     if (f < galaxy_->rules().factions.size()) faction = galaxy_->rules().factions[f].name;
     const float credits = credits_get_ ? credits_get_(player) : 0.0f;
     bool in_row = false;
-    for (const std::string_view tok : types.get(st.type(bh), kBuildList)) {
+    for (const std::string_view tok : types.get(st.type(bh), buildable_list_tag())) {
         const objects::TypeIndex t = types.resolve_name(hg_trim(tok));
         if (t == objects::kNone) {
             in_row = hg_same(tok, faction);
@@ -863,7 +862,7 @@ std::vector<TacticalBattle::BuildOptionInfo> TacticalBattle::station_build_optio
         if (!in_row) continue;
         BuildOptionInfo o;
         o.type = static_cast<int32_t>(t);
-        o.cost = std::max(0, types.get(t, objects::tags::Tactical_Build_Cost_Multiplayer));
+        o.cost = static_cast<int32_t>(tactical_price(t));  // #660: 0x496d80 (campaign: _Campaign, else _Multiplayer)
         for (const th::BuildOrder& q : production_->queue(player))
             if (q.builder == builder && q.type == o.type) ++o.queued;
         const uint8_t c = hg_build_check(st, player, builder, t);
@@ -899,7 +898,7 @@ void TacticalBattle::hg_forget(uint32_t order) {
 
 commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode, uint8_t player, const commands::EventData& ev, bool ai) {
     using R = commands::RejectReason;
-    if (!production_enabled()) return R::Unhandled;  // campaign / land battles: no tactical production
+    if (!production_enabled()) return R::Unhandled;
     const objects::GameObjectTypes& types = catalog_->types();
     const objects::ObjectStore& st = mode.primary();
     const uint32_t loc = ev.u("location");
@@ -929,7 +928,7 @@ commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode,
     // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §7.3 item 3): enqueue 0x496a20 tests and takes the full cost only when 0x289050
     // is false (a FoC human); an AI player's entry is not charged here: its plan paid the price at accept into an escrow
     // that this accepted enqueue draws down (tactical_ai.cpp). The entry still keeps the price, for the cancel refund (#222).
-    const float cost = static_cast<float>(std::max(0, types.get(type, objects::tags::Tactical_Build_Cost_Multiplayer)));  // int field
+    const float cost = tactical_price(type);  // #660: 0x496d80 -> 0x3743f0 (the campaign price in a campaign battle)
     if (!ai && cost > 0.0f) {
         const float have = credits_get_ ? credits_get_(p) : 0.0f;
         if (have < cost) return R::CannotAfford;
@@ -939,8 +938,8 @@ commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode,
     // Land_Build_Time_Multiplier, set by BattleAi), in the order of SKIRMISH_SETUP §3 [H]: seconds x GC
     // Tactical_Build_Time_Multiplier (shipped 1.0) x the AI multiplier. [port] The build-time modifiers (list 10)
     // are not applied. mcx4 t07 (Q7.2): in a campaign battle the faction's
-    // Corruption_Tactical_Production_Time_Multipliers entry (planet corrupted ? 1 : 0) multiplies the time; production only
-    // runs in skirmish here (production_enabled), where retail's factor is 1.0. The price factor (0x496d80) applies only
+    // Corruption_Tactical_Production_Time_Multipliers entry (planet corrupted ? 1 : 0) multiplies the time (#660: reached by
+    // a campaign battle's production; a skirmish has no factor). The price factor (0x496d80) applies only
     // while a tactical price modifier is active for the type; the port has no such modifier map, so it is not applied.
     float seconds = static_cast<float>(types.get(type, objects::tags::Tactical_Build_Time_Seconds));  // int field
     seconds = seconds * catalog_->tactical_build_time_multiplier();

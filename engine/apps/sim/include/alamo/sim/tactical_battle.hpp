@@ -1469,6 +1469,9 @@ public:
     // for `player` (>= 0) at a corrupted battle planet (int)((float)cost x the faction's
     // Corruption_Tactical_Build_Pad_Price_Multipliers entry 1) (MCX4_RE_ANSWERS_GALACTIC Q7.2). Skirmish: no factor.
     float build_cost(objects::TypeIndex uc_type, int32_t player = -1) const;
+    // #660 (0x496d80 -> 0x3743f0 [H]): a type's tactical price without the planet factor: Tactical_Build_Cost_Multiplayer in
+    // a skirmish, else Tactical_Build_Cost_Campaign, Tactical_Build_Cost_Multiplayer when that is below 1 (int fields, >= 0).
+    float tactical_price(objects::TypeIndex type) const;
     // b0147: that factor alone (1 in skirmish, for player < 0 and on an uncorrupted planet): the tactical AI's
     // PerceptionPlayerInfo::pad_price_factor, so its Score / Commit price equals build_cost(type, player).
     float pad_price_factor(int32_t player) const;
@@ -1481,8 +1484,10 @@ public:
     // the type of `player`'s first victory-monitor record (0x12..0x16, campaign 0xb..; 0 = none). Tests / diagnostics.
     uint8_t victory_record_type(int32_t player) const;
     // skai t17 (L1_S4_REMAINING §3.6, SKIRMISH_SETUP 0x372c10: "skirmish (0x28afb0)"): every skirmish, land or space, lists
-    // pad builds from _Multiplayer (a space skirmish read _Campaign, which the Mineral_Extractor_Pad does not have).
-    const objects::ListTag& pad_list_tag() const {
+    // pad builds from _Multiplayer (a space skirmish read _Campaign, which the Mineral_Extractor_Pad does not have), any
+    // other battle from _Campaign. #660: the production list is picked the same way (0x497140 reads type +0x9b8 =
+    // _Campaign, +0x9d0 = _Multiplayer only in a skirmish, 0x28afb0 [H]).
+    const objects::ListTag& buildable_list_tag() const {
         return cfg_.skirmish ? objects::tags::Tactical_Buildable_Objects_Multiplayer : objects::tags::Tactical_Buildable_Objects_Campaign;
     }
     // t50: the skirmish slot -> player map [M: slot N = the N-th battle participant by ascending player id]; -1 = none.
@@ -1533,9 +1538,8 @@ public:
     // its station by a station upgrade (the kill-list path of 0x498170 [M]) - calls `track(false, owner, type)` (0x4bb690).
     // The remove is by owner and type, so the planet-bonus upgrades (ga_spawn_upgrades), which share the list but are never
     // added, also clear a matching record, as retail's same-owner-and-type remove would [M].
-    // CampaignBattles installs GalacticSim::add_upgrade_object / remove_upgrade_object for the battle planet. Tactical
-    // production runs in skirmish only today (production_enabled), so the add is reached in a campaign battle once campaign
-    // production exists (#544).
+    // CampaignBattles installs GalacticSim::add_upgrade_object / remove_upgrade_object for the battle planet. Since #660 a
+    // human's campaign-battle production reaches the add (#661 tests it).
     void set_upgrade_tracking(std::function<void(bool add, int32_t owner, uint32_t type)> track) { upgrade_track_ = std::move(track); }
     // #68 (0x2a1eb0 [H]): the per-planet tactical upgrade objects (corruption), {player, type} in spawn order, already
     // filtered (affiliated DUMMY_UPGRADE types: GalacticSim::planet_upgrades). Set before setup(); created after the
@@ -1708,18 +1712,23 @@ public:
     };
     std::span<const StationUpgrade> station_upgrades() const { return hg_upgrades_; }
     int32_t battle_tech_level(int32_t player) const { return hg_tech(player); }  // galactic tech + upgrade bonus
-    // Station contents (DUMMY_UPGRADE objects in their station) and the skirmish tactical production queues (contents.hpp).
-    // Production runs in skirmish space battles only: Production {type_index, location = the builder, cancel, index}
-    // buys Tactical_Buildable_Objects_Multiplayer types of an own builder (the player's faction row) - prerequisites
+    // Station contents (DUMMY_UPGRADE objects in their station) and the tactical production queues (contents.hpp).
+    // Production {type_index, location = the builder, cancel, index} buys the buildable_list_tag() types of an own builder
+    // (the player's faction row: _Multiplayer in a skirmish, _Campaign in any other battle, #660) - prerequisites
     // (Tactical_Build_Prerequisites: every listed type owned alive by the player [port]), Build_Limit_Current_For_All_
-    // Allies (live objects of the player and allies + their queued orders), Tactical_Build_Cost_Multiplayer charged
+    // Allies (live objects of the player and allies + their queued orders), tactical_price() charged
     // through the credit hooks, Tactical_Build_Time_Seconds [port: no difficulty / modifier multipliers]. A cancel
     // (index = the order's position among the player's orders at that builder) and a builder's removal refund the
     // charge. Hashed in "battle.abilities" once anything was queued.
     const tactical::hangar::ContentsSystem* contents() const { return contents_.get(); }
     const tactical::hangar::TacticalProduction* production() const { return production_.get(); }
-    // land skirmish too (legacy docs/re/SKIRMISH_SETUP.md §3: one build manager per player in every skirmish).
-    bool production_enabled() const { return production_ != nullptr && cfg_.skirmish; }
+    // land skirmish too (legacy docs/re/SKIRMISH_SETUP.md §3: one build manager per player in every skirmish). #660: every
+    // battle (0x35cb10 -> 0x4d9df0 -> 0x285760 gives each player a production manager in a tactical mode [H]; the check
+    // 0x497140 and the service 0x498170 have no mode test [H]).
+    bool production_enabled() const { return production_ != nullptr; }
+    // The tactical AI's production (BattleAi's facts, builders and checks): skirmish only until #662 (the AI's campaign
+    // builds) prices the campaign lists.
+    bool ai_production_enabled() const { return production_enabled() && cfg_.skirmish; }
     // ref2 t02 (presentation_events.hpp): the presentation events since the last drain. Off until a host turns emission on;
     // not hashed, not saved, never read by the sim.
     void set_emit_presentation(bool on) { emit_presentation_ = on; }
