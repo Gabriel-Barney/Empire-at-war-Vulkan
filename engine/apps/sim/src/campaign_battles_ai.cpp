@@ -18,10 +18,10 @@ void CampaignBattles::ai_begin(SimHost& host, GameMode& mode) {
     for (std::string& d : diag) log_.push_back("tactical AI: " + d);
     if (ai_) {  // Get_Name in the AI's scripts (the host's ship names)
         SimHost* h = &host;
-        ai_->world().object_bridge().ship_name = [h](objects::ObjectHandle o) {
+        ai_->world().object_bridge().ship_name = ai_->lane_ship_name([h](objects::ObjectHandle o) {  // #634: lane on, captured
             const TacticalMode* tm = h->tactical();
             return tm ? h->ship_name_of(tm->primary(), o) : std::string_view();
-        };
+        });
     }
 #ifdef ALAMO_SIM_HAVE_STORY
     // the story's Suspend_AI / GiveDesireBonus / Purge_Goals reach the tactical AI of the running battle.

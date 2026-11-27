@@ -27,7 +27,6 @@
     SAVED(stale_, unhashed) \
     SAVED(lane_batch_, hashed) \
     DERIVED(view_, "sp3 t02: captured again at the next AI slot (read() invalidates it)") \
-    DERIVED(lane_thinking_, "ref5 t06: scratch, set only while think() runs") \
     DERIVED(lane_abilities_, "sp3 slice 4b: set at each capture, cleared by a load") \
     REBUILT(live_remaining_, "live hook sets, installed again by start()") \
     REBUILT(live_tactical_, "live hook sets, installed again by start()") \
@@ -46,7 +45,14 @@
     SAVED(lane_locks_, hashed) \
     SAVED(lane_job_, unhashed) \
     SAVED(lane_digest_, hashed) \
-    SAVED(lane_seq_, hashed)     SAVED(lane_pushes_, hashed)     SAVED(lane_danger_, unhashed)     SAVED(lane_prevent_answer_, unhashed) \
+    SAVED(lane_seq_, hashed) \
+    SAVED(lane_pushes_, hashed) \
+    SAVED(lane_danger_, unhashed) \
+    SAVED(lane_prevent_answer_, unhashed) \
+    SAVED(lane_attack_pos_, unhashed) \
+    REBUILT(lane_difficulty_, "#634: from the loaded world and the queued difficulty pushes (read) or the world (start)") \
+    REBUILT(lane_hidden_, "#634: presentation copy of the AI bridge's hidden sub-objects, published again at collect and load") \
+    REBUILT(release_credits_live_, "#634: the host's Release_Credits_For_Tactical, set again for every battle") \
     DERIVED(lane_mismatch_, "diagnostic counter") \
     SAVED(executed_, unhashed) \
     SAVED(opp_prev_, hashed) \

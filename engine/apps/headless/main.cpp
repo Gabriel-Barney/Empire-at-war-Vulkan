@@ -1422,6 +1422,11 @@ int main(int argc, char** argv) {
                          static_cast<unsigned long long>(n), first ? first : "?");
             if (rc == 0) rc = 3;
         }
+        // #634: what the lane predicted wrong, and the Spawn_Unit calls it refused
+        if (const alamo::sim::AiLaneCounts c = alamo::sim::ai_lane_counts(); c.battles > 0)
+            std::printf("alamo_headless: AI lane: %llu battle(s), %llu mismatches (applies other than predicted), %llu refused spawns\n",
+                        static_cast<unsigned long long>(c.battles), static_cast<unsigned long long>(c.mismatches),
+                        static_cast<unsigned long long>(c.refused_spawns));
     }
 #endif
     if (alamo::profile::enabled()) {

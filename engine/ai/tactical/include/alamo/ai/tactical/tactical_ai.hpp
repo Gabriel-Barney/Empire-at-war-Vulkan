@@ -452,6 +452,8 @@ public:
     void danger_layers(std::vector<std::pair<uint32_t, float>>& out) const;
     float point_danger_from(std::span<const std::pair<uint32_t, float>> layers, int32_t player, float x, float y) const;
     lua::PreventAiResult prevent_ai_answer(int32_t player) const;
+    // #634 (AI lane): the object ids whose attack-positioning flag is set, ascending (attack_positioning of a copy).
+    void attack_positioning_ids(std::vector<int32_t>& out) const;
     // the UnitAI attack-positioning flag (data pack +0x38) of object `object_id`, set by a land task force's
     // Enable_Attack_Positioning (legacy docs/re/LUA_API.md). The formation re-path veto 0x4f5780 reads it (BattleAi::follow_service).
     bool attack_positioning(int32_t object_id) const;

@@ -220,76 +220,86 @@ public:
     BattleFacts& operator=(const BattleFacts&) = delete;
 
     // ---- mode and version (the host) ----
-    bool snapshot() const { return snapshot_; }
-    void set_snapshot(bool on) { snapshot_ = on; }
+    // #634: the snapshot mode is per thread (the thread running lane code reads the capture, the critical lane the battle
+    // at the same time); a fan-out from lane code carries it to its workers (snapshot_owner / set_snapshot_owner).
+    bool snapshot() const { return t_snapshot_ == this; }
+    void set_snapshot(bool on) {
+        if (on) t_snapshot_ = this;
+        else if (t_snapshot_ == this) t_snapshot_ = nullptr;
+    }
+    static const BattleFacts* snapshot_owner() { return t_snapshot_; }
+    static void set_snapshot_owner(const BattleFacts* f) { t_snapshot_ = f; }
     uint64_t version() const { return version_; }
     void captured() { ++version_; }  // after a capture of the tables (the AI slot of the lane)
     void wrote() { ++version_; }     // at each AI order the host is handed (also queued or refused), release or HIJACK call
 
     // ---- what the AI reads ----
-    std::vector<TacticalReinforcement> reinforcement_pool(int32_t player) const { return pool.get(snapshot_, player); }
-    bool can_reinforce(int32_t player) const { return reinforce_ok.get(snapshot_, player); }  // 0x2b03e0
-    float population_cap(int32_t player) const { return pop_cap.get(snapshot_, player); }           // < 0: no cap
-    float population_used(int32_t player) const { return pop_used.get(snapshot_, player); }
+    std::vector<TacticalReinforcement> reinforcement_pool(int32_t player) const { return pool.get(snapshot(), player); }
+    bool can_reinforce(int32_t player) const { return reinforce_ok.get(snapshot(), player); }  // 0x2b03e0
+    float population_cap(int32_t player) const { return pop_cap.get(snapshot(), player); }           // < 0: no cap
+    float population_used(int32_t player) const { return pop_used.get(snapshot(), player); }
     // space TF.Reinforce ring search (AI_TACTICAL §7.4): the player's entry facing and the playable box (false:
     // facing 0, no box).
     bool space_drop_frame(int32_t player, SpaceDropFrame& out) const {
-        const std::optional<SpaceDropFrame> f = drop_frame.get(snapshot_, player);
+        const std::optional<SpaceDropFrame> f = drop_frame.get(snapshot(), player);
         if (f) out = *f;
         return f.has_value();
     }
     // the unit's movement lock (0x39ad40: ability share, script lock, suspended locomotor; A1_READINGS §28.9): a
     // locked member does not join a SpaceAmbushBlockStatus (AI_TACTICAL §7.3.1).
-    bool movement_locked(int32_t object_id) const { return locked.get(snapshot_, object_id); }
+    bool movement_locked(int32_t object_id) const { return locked.get(snapshot(), object_id); }
     // land TF.Reinforce with a timed landing (ReinforceBlockStatus, A1_READINGS §36): the Reinforce of pool entry
     // `key` just executed for `player` put the company in a landing object that has not finished its unload.
-    bool reinforce_in_flight(int32_t player, int32_t key) const { return in_flight.get(snapshot_, {player, key}); }
+    bool reinforce_in_flight(int32_t player, int32_t key) const { return in_flight.get(snapshot(), {player, key}); }
     // A2 tactical: the free store's builder list (free store +0x120, AI_GALACTIC_3 §1.8 / §1.11 [M]) for `type`: ids of the
     // live objects of `player` whose type lists `type` (PerceptionWorld index) for the owner's faction
     // (Tactical_Buildable_Objects_Multiplayer), in the order Produce_Force tries them [port: ascending object id].
-    std::vector<int32_t> tactical_builders(int32_t player, int32_t type) const { return builders.get(snapshot_, {player, type}); }
+    std::vector<int32_t> tactical_builders(int32_t player, int32_t type) const { return builders.get(snapshot(), {player, type}); }
     // A2 tactical: TacticalBuild for types without TACTICAL_UNDER_CONSTRUCTION - a builder of the player can build `type`
     // now (0x288b80 + 0x497140).
-    bool can_build_now(int32_t player, int32_t type) const { return can_build.get(snapshot_, {player, type}); }
+    bool can_build_now(int32_t player, int32_t type) const { return can_build.get(snapshot(), {player, type}); }
     // skm1 t03 (AI_TACTICAL §7.4, 0x6e8620): in a skirmish a space TF.Reinforce needs a live DUMMY_STAR_BASE owned by `player`
     // or an ally; false = refused ("AI players cannot reinforce after their starbase has been destroyed", nil).
-    bool space_reinforce_base_alive(int32_t player) const { return base_alive.get(snapshot_, player); }
+    bool space_reinforce_base_alive(int32_t player) const { return base_alive.get(snapshot(), player); }
     // A2 tactical: the pads `player` can build on now (ascending id) with their buildable types (TacticalBuild marshaller).
-    std::vector<TacticalPad> build_pads(int32_t player) const { return pads.get(snapshot_, player); }
+    std::vector<TacticalPad> build_pads(int32_t player) const { return pads.get(snapshot(), player); }
     // Build (§7.5): the three refusal checks for (pad, type) of `player`; type = PerceptionWorld type index.
-    PadCheck build_pad_check(int32_t player, int32_t pad, int32_t type) const { return pad_check.get(snapshot_, player, pad, type); }
+    PadCheck build_pad_check(int32_t player, int32_t pad, int32_t type) const { return pad_check.get(snapshot(), player, pad, type); }
     // skai t17 (STATION_HANGARS_SOUND §1.2 steps 7-8, 0x497460): the live object that replaced builder `id` (following
     // repeated station upgrades), -1 when none.
-    int32_t replaced_builder(int32_t id) const { return replaced.get(snapshot_, id); }
+    int32_t replaced_builder(int32_t id) const { return replaced.get(snapshot(), id); }
     // space_prevention_hit (0x4d8d10): `p` lies inside the Reinforcement_Prevention_Radius (2-D, strict) of a
     // live object whose owner is not allied with `player`. space_drop_ok (SpaceMode vf80 0x4d6fd0, force 0): `p` is inside
     // the playable box, not fogged for `player` (force 1), outside every non-allied prevention radius, and the occupancy
     // sweep of pool entry `key`'s type from p - sweep x (cos, sin)(facing) to p over frames [now, now + 115] on its
     // Space_Layer (default 4) and layer 8 is clear.
-    bool space_prevention_hit(int32_t player, const Vec3f& p) const { return prevention.get(snapshot_, player, p); }
+    bool space_prevention_hit(int32_t player, const Vec3f& p) const { return prevention.get(snapshot(), player, p); }
     bool space_drop_ok(int32_t player, int32_t key, const Vec3f& p, float facing_deg, float sweep) const {
-        return space_drop.get(snapshot_, player, key, p, facing_deg, sweep);
+        return space_drop.get(snapshot(), player, key, p, facing_deg, sweep);
     }
     // a1g t04 follow-up - land TF.Reinforce drop validity (LandMode vf80 0x3b5f60 -> 0x3b6170, TACTICAL_GAPS §4.2.1,
     // A1_READINGS §30.7): can pool entry `key` of `player` land at spot `p` (the company layout's centre)? A refused spot
     // sends the unit to the next ring spot.
-    bool land_drop_ok(int32_t player, int32_t key, const Vec3f& p) const { return land_drop.get(snapshot_, player, key, p); }
+    bool land_drop_ok(int32_t player, int32_t key, const Vec3f& p) const { return land_drop.get(snapshot(), player, key, p); }
     // mcx6 t06 (legacy docs/re/LUA_API.md "Attack position 0x4f5390", terrain check 0x4f48a0 [M]): the land terrain line test 0x5a4c10 for
     // the movement class of `object_id` (a TEAM container: its first member's) from `a` to `b`, 2-D.
     bool attack_position_line_clear(int32_t object_id, const Vec3f& a, const Vec3f& b) const {
-        return line_clear.get(snapshot_, object_id, a, b);
+        return line_clear.get(snapshot(), object_id, a, b);
     }
     // the land sight factor 0x3722a0 of land Prepare_Ambush (AI_TACTICAL §7.3.3 item 5): the weather
     // Sight_Range_Modifier for the Weather_Category of `type` (the target's company type), for the object `object_id`; 1.0
     // without strong weather / no entry.
-    float sight_weather_factor(int32_t type, int32_t object_id) const { return weather.get(snapshot_, type, object_id); }
+    float sight_weather_factor(int32_t type, int32_t object_id) const { return weather.get(snapshot(), type, object_id); }
     // The DAMAGE_TRACKING store FindDeadlyEnemy reads (the battle's; snapshot: the copy capture_damage_tracking took).
-    const DamageTrackingStore* damage_tracking() const { return snapshot_ && damage_copy ? damage_copy : damage_live; }
+    const DamageTrackingStore* damage_tracking() const { return snapshot() && damage_copy ? damage_copy : damage_live; }
     const galactic::ContrastTable* contrast() const { return contrast_table; }
     // q6 t19 (A1_READINGS §33.2.2): the object ids the order just executed dropped from its move because their attack order
     // (path A, kTfAttackMoveIssueAttack) was refused, in the order tried. Such a unit stays in the block's all-units list
     // but is neither moved nor pending. The host clears it at every execute.
-    const std::vector<int32_t>& attack_order_refused() const { return order_refused; }
+    const std::vector<int32_t>& attack_order_refused() const { return snapshot() ? order_refused_lane : order_refused; }
+    // #634: the record the host writes for the order this thread executes: lane code (snapshot mode) its own, the
+    // critical lane (the batch's apply, lane off) the live one.
+    std::vector<int32_t>& refused_record() { return snapshot() ? order_refused_lane : order_refused; }
 
     // ---- set by the host: one rule per family (FactTable), or the live / snapshot pair (FactQuery) ----
     // Defaults (no rule): an empty pool, no reinforcing, no cap, nothing used, no drop frame, nothing locked or in flight,
@@ -317,9 +327,10 @@ public:
     const DamageTrackingStore* damage_copy = nullptr;  // the host's capture (snapshot mode); null: damage_live
     const galactic::ContrastTable* contrast_table = nullptr;
     std::vector<int32_t> order_refused;
+    std::vector<int32_t> order_refused_lane;  // #634
 
 private:
-    bool snapshot_ = false;
+    static inline thread_local const BattleFacts* t_snapshot_ = nullptr;
     uint64_t version_ = 0;
 };
 

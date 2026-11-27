@@ -2488,6 +2488,11 @@ bool TacticalAiWorld::attack_positioning(int32_t object_id) const {
     const auto it = impl_->attack_pos.find(object_id);
     return it != impl_->attack_pos.end() && it->second.flag;
 }
+void TacticalAiWorld::attack_positioning_ids(std::vector<int32_t>& out) const {
+    out.clear();
+    for (const auto& [id, e] : impl_->attack_pos)  // ordered map: ascending ids
+        if (e.flag) out.push_back(id);
+}
 
 // ================================================================ plans
 
