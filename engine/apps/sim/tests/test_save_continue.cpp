@@ -5,7 +5,9 @@
 // on, so checkpoints fall in its active time and then in its recharge; #418 a land battle given a BOMBARD_DELAY story
 // reward, TacticalBattle::reward_bombard_delay, at a battle frame; #419 a space battle with a fighter carrier whose
 // launched squadron is killed at a battle frame, so the bay launches it again; #419 a land battle whose defenders are
-// ordered into a bunker, GARRISON_STRUCTURE, at a battle frame) runs twice from the same start:
+// ordered into a bunker, GARRISON_STRUCTURE, at a battle frame; #420 a land battle with a weather scenario running and a
+// space skirmish battle whose Empire buys a tech upgrade at a battle frame; #420 a space battle under a story session
+// whose plot has a story-clock event and the battle's win / lose counters) runs twice from the same start:
 //   continuous   ticked straight through;
 //   reloaded     at every 64-tick checkpoint (the CRC golden checkpoints, ALAMO_CRC 2) the session is saved, a fresh
 //                session is built like a new game, the save is loaded into it (a battle is rebuilt, then its parts are
@@ -19,7 +21,11 @@
 // BOMBARD_DELAY override after a load equals the continuous run's at that checkpoint, and is set at some. #419: every
 // carrier's hangar state (state, entries, live / remaining, next spawn) after a load equals the continuous run's, and the
 // hangar fixture checkpoints both a launched squadron and the re-launch wait; every holder's occupants and walking-in
-// count after a load equal the continuous run's, and the garrison fixture checkpoints a garrisoned bunker. On every running
+// count after a load equal the continuous run's, and the garrison fixture checkpoints a garrisoned bunker. #420: the
+// weather state (scenario, type, intensity, phase) and the skirmish production state (every player's battle tech level and
+// queue) after a load equal the continuous run's; the weather fixture checkpoints rain, the skirmish fixture the bought
+// tech level; the story plot's event states (fired, armed, fire count, count) after a load equal the continuous run's,
+// and the story fixture checkpoints its clock event fired and, after the battle, a battle counter. On every running
 // battle the save ledger self-check holds too
 // (TacticalBattle::check_save_ledger: state_io walks exactly the SAVED members of tactical_battle_ledger.hpp).
 // Modes:
@@ -27,6 +33,7 @@
 //   --workers N [--crc-out F]     every fixture at N workers; --crc-out writes the continuous runs' checkpoint records
 //   [--golden F]                  and --golden compares them with that file (alamo_add_worker_count_check: 0 / 1 / 4)
 #include "battle_test_fixture.hpp"
+#include "alamo/lua/story_model.hpp"  // #420: the story fixture's plot readout
 
 #include <sstream>
 
@@ -45,6 +52,9 @@ struct Fixture {
     float bombard_delay = 0.0f;  // its seconds
     uint64_t hangar_kill_frame = 0;  // #419: fighter data with a carrier; the battle frame its launched units are killed (0: no carrier)
     uint64_t garrison_frame = 0;     // #419: S4 data and a bunker; the battle frame the defenders are ordered into it (0: none)
+    bool weather = false;            // #420: the land map's environment runs the Rain_Test weather scenario
+    uint64_t skirmish_buy_frame = 0; // #420: a skirmish battle (production data); the frame the Empire buys S10_Tech_Upgrade
+    bool story = false;              // #420: a story session (Story_Plots_SC.xml) runs from the start (story CRC on)
 };
 
 const Fixture kFixtures[] = {
@@ -56,7 +66,16 @@ const Fixture kFixtures[] = {
     {"land_bombard_delay", true, 0.0f, false, 3000, 0, 40, 7.5f},
     {"space_hangar", false, 0.0f, false, 2500, 0, 0, 0.0f, 200},
     {"land_garrison", true, 0.0f, false, 3000, 0, 0, 0.0f, 0, 30},
+    {"land_weather", true, 0.0f, false, 3000, 0, 0, 0.0f, 0, 0, true},
+    {"space_skirmish", false, 0.0f, false, 2500, 0, 0, 0.0f, 0, 0, false, 2},
+    {"space_story", false, 0.0f, false, 2500, 0, 0, 0.0f, 0, 0, false, 0, true},
 };
+
+// #420: the story fixture's file provider (made after its plots were written beside the default data)
+std::unique_ptr<DirectoryProvider> g_story_files;
+
+// #420: the weather fixture's tables (the Rain_Test scenario of test_battle_l1: CLEAR 4 s, RAIN 6 s), loaded once.
+std::shared_ptr<const tactical::combat::WeatherData> g_weather;
 
 constexpr auto kPowerToWeapons = static_cast<uint8_t>(tactical::abilities::kPowerToWeapons);
 
@@ -105,6 +124,15 @@ terrain::MapData garrison_map() {
     return m;
 }
 
+// #420: the weather fixture's land map: its one environment runs Rain_Test (as test_battle_l1's land map)
+terrain::MapData weather_map() {
+    terrain::MapData m = land_map();
+    terrain::Environment env;
+    env.weather_effect = "Rain_Test";
+    m.environments.environments.push_back(env);
+    return m;
+}
+
 // map3: the records fixture's extra types - a ground structure (its galactic copy at S10_B gives the land battle base
 // level 1) and a build pad.
 std::string records_types(std::string t) {
@@ -138,25 +166,32 @@ struct Session {
     std::vector<ai::tactical::TacticalBudgetCategory> budget = std::vector<ai::tactical::TacticalBudgetCategory>(1);
 #endif
     bool land = false, invaded = false;
-    uint64_t ability_frame = 0, reward_frame = 0, hangar_kill_frame = 0, garrison_frame = 0;
+    uint64_t ability_frame = 0, reward_frame = 0, hangar_kill_frame = 0, garrison_frame = 0, skirmish_buy_frame = 0;
     float bombard_delay = 0.0f;
     bool ability_sent = false;  // #146: the fixture's POWER_TO_WEAPONS order was given (a loaded session carries it over)
     bool reward_sent = false;   // #418: the BOMBARD_DELAY reward was given (likewise)
     bool hangar_killed = false; // #419: the carrier's launched units were killed (likewise)
     bool garrison_sent = false; // #419: the garrison orders were given (likewise)
+    bool skirmish_bought = false; // #420: the skirmish purchase was ordered (likewise)
     objects::TypeIndex tie_type = objects::kNone;  // #419: S10_TIE (the hangar fixture's data)
+    objects::TypeIndex base_type = objects::kNone, tech_type = objects::kNone;  // #420: S10_Star_Base_1, S10_Tech_Upgrade
     size_t crc_seen = 0;  // records of crc_log() already collected
 
     Session(const Data& d, const Fixture& f, uint32_t workers, bool launch)
         : land(f.land), ability_frame(f.ability_frame), reward_frame(f.reward_frame), hangar_kill_frame(f.hangar_kill_frame),
-          garrison_frame(f.garrison_frame), bombard_delay(f.bombard_delay) {
+          garrison_frame(f.garrison_frame), skirmish_buy_frame(f.skirmish_buy_frame), bombard_delay(f.bombard_delay) {
         js = std::make_unique<jobs::JobSystem>(jobs::JobSystemConfig{static_cast<int32_t>(workers)});
         SimConfig cfg;
         cfg.seed = 2026;
         cfg.players = 4;
+        cfg.story_crc = f.story;  // #420: the story session's state in the checkpoint records
         host = std::make_unique<SimHost>(d.types, *js, cfg);
         galactic::GalacticSetup setup = make_setup(d, f.land);
         if (f.records) setup.forces.push_back({0, 1, type_of(d, "S10_Barracks")});  // map3: battle base level 1
+        if (f.skirmish_buy_frame > 0) {  // #420
+            base_type = static_cast<objects::TypeIndex>(type_of(d, "S10_Star_Base_1"));
+            tech_type = static_cast<objects::TypeIndex>(type_of(d, "S10_Tech_Upgrade"));
+        }
         if (f.hangar_kill_frame > 0) {  // #419: the fighter carrier
             setup.forces.push_back({0, 1, type_of(d, "S10_Carrier")});
             tie_type = static_cast<objects::TypeIndex>(type_of(d, "S10_TIE"));
@@ -165,25 +200,35 @@ struct Session {
         CHECK(gs != nullptr);
         if (!gs) return;
         gs->set_emit_events(true);
+        if (f.story) {  // #420: both sessions start the story (a load then replaces its state)
+            StoryStart st;
+            st.files = g_story_files.get();
+            st.plot_sets = {{0, "Story_Plots_SC.xml"}};
+            CHECK(host->start_story(st));
+        }
         CampaignBattleOptions opt;
         opt.conflict.human_choice = galactic::BattleChoice::Fight;
         opt.battle.max_frames = 6000;
         opt.battle.retreat_ratio = f.retreat_ratio;
         opt.battle.fog = true;
+        if (f.weather) opt.weather = g_weather;           // #420
+        opt.battle.skirmish = f.skirmish_buy_frame > 0;   // #420
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
         battles_budget_hook(opt, budget, *gs);
 #endif
-        const bool records = f.records, bunker = f.garrison_frame > 0;
+        const bool records = f.records, bunker = f.garrison_frame > 0, weather = f.weather;
         battles = std::make_unique<CampaignBattles>(*host, d.crules, *d.catalog,
-                                                    [records, bunker](const std::string& name, terrain::MapData& m) {
+                                                    [records, bunker, weather](const std::string& name, terrain::MapData& m) {
                                                         if (name == "S10_Space_B") m = space_map();
-                                                        else if (name == "S10_Land_B") m = records ? records_map() : bunker ? garrison_map() : land_map();
+                                                        else if (name == "S10_Land_B")
+                                                            m = records ? records_map() : bunker ? garrison_map() : weather ? weather_map() : land_map();
                                                         else return false;
                                                         return true;
                                                     },
                                                     opt);
         CHECK(battles->attach(nullptr));
         if (!launch) return;  // the save holds the galaxy (the caller carries `invaded` over)
+        if (f.skirmish_buy_frame > 0) gs->add_credits(0, 1000.0f, false);  // #420: the purchase's credits
         if (f.land) {
             std::vector<objects::ObjectHandle> up;
             for (objects::ObjectHandle h : gs->planets()[2].surface)
@@ -258,6 +303,19 @@ struct Session {
                     (void)host->execute_direct(0, commands::CommandSource::Player, ev);  // a full bunker refuses the rest
                 }
                 garrison_sent = true;
+            }
+        if (skirmish_buy_frame > 0 && !skirmish_bought)
+            if (TacticalBattle* b = battle(); b && b->frame() >= skirmish_buy_frame) {
+                // #420: the Empire buys S10_Tech_Upgrade (Tactical_Build_Increments_Tech_Level, 2 s) at its star base
+                const objects::ObjectStore& st = host->tactical()->primary();
+                objects::ObjectId station = objects::kNoObjectId;
+                for (const objects::ObjectHandle h : st.owned_by(0))
+                    if (st.alive(h) && st.type(h) == base_type) station = st.id(h);
+                CHECK(station != objects::kNoObjectId);
+                commands::EventData ev(commands::EventType::Production);
+                ev.set("type_index", static_cast<uint32_t>(tech_type)).set("location", static_cast<uint32_t>(station));
+                CHECK(host->execute_direct(0, commands::CommandSource::Player, ev) == commands::RejectReason::None);
+                skirmish_bought = true;
             }
     }
 
@@ -380,12 +438,36 @@ struct RunResult {
     std::map<uint64_t, std::vector<std::string>> hangar;      // #419: checkpoint tick -> every carrier's hangar state (likewise)
     std::map<uint64_t, std::vector<std::string>> garrisons;   // #419: checkpoint tick -> every holder's occupants (likewise)
     bool garrisoned_seen = false;                             // #419: some holder had an occupant
+    std::map<uint64_t, std::string> weather;                  // #420: checkpoint tick -> the weather state (likewise)
+    std::map<uint64_t, std::string> skirmish;                 // #420: checkpoint tick -> tech levels and queues (likewise)
+    std::map<uint64_t, std::vector<std::string>> story;       // #420: checkpoint tick -> the plot's event states (every checkpoint)
+    bool story_clock_seen = false, story_battle_seen = false; // #420: the clock event fired / a battle counter counted
+    bool rain_seen = false, tech_seen = false;                // #420: rain at a checkpoint / the bought tech level
     bool ability_active_seen = false, ability_recharge_seen = false, bombard_delay_seen = false;
     bool hangar_live_seen = false, hangar_wait_seen = false;  // #419: a launched unit alive / a launch pending
     uint32_t battle_checkpoints = 0, reloads = 0, battle_reloads = 0, refused = 0;
     uint32_t ledger_checks = 0;
     bool ledger_ok = true, load_ok = true;
     uint64_t last_tick = 0;
+
+    // #420: the story plot's event states ("plot event fired armed fires count"), at every checkpoint (galactic too)
+    void record_story(uint64_t tick, const SimHost& host) {
+        const StorySession* s = host.story();
+        if (!s || s->plot_set_count() == 0) return;
+        std::vector<std::string> lines;
+        const lua::StoryModel& m = s->model(0);
+        for (uint32_t i = 0; i < m.plot_count(); ++i) {
+            const lua::StoryPlot& p = m.plot(i);
+            for (size_t e = 0; e < p.events.size() && e < p.state.size(); ++e) {
+                const lua::StoryEventState& st = p.state[e];
+                lines.push_back(p.name + " " + p.events[e].name + " " + (st.fired ? "fired" : "-") + " " + (st.armed ? "armed" : "-") + " " +
+                                std::to_string(st.fire_count) + " " + std::to_string(st.count));
+                if (st.fired && p.events[e].name == "Clock") story_clock_seen = true;
+                if (st.count > 0 || (st.fired && p.events[e].name != "Clock")) story_battle_seen = true;
+            }
+        }
+        story[tick] = std::move(lines);
+    }
 
     // the lookup answers and ability readout of a battle at checkpoint `tick`
     void record(uint64_t tick, TacticalBattle& b, const TacticalMode& tm) {
@@ -399,6 +481,27 @@ struct RunResult {
         bombard_delay_seen = bombard_delay_seen || bd > 0.0f;
         hangar[tick] = hangar_readout(b, tm, hangar_live_seen, hangar_wait_seen);
         garrisons[tick] = garrison_readout(b, tm, garrisoned_seen);
+        {  // #420: the weather state, the floats bit-exact
+            const tactical::combat::WeatherSystem& w = b.weather();
+            uint32_t bits = 0;
+            const float in = w.intensity();
+            std::memcpy(&bits, &in, 4);
+            weather[tick] = std::to_string(w.active() ? 1 : 0) + " type " + std::to_string(static_cast<int>(w.type())) + " intensity " +
+                            std::to_string(bits) + " phase " + std::to_string(w.phase_index()) + (w.transitioning() ? " easing" : "");
+            rain_seen = rain_seen || (w.type() == tactical::combat::WeatherType::Rain && in > 0.0f);
+        }
+        {  // #420: every player's battle tech level and production queue
+            std::string line;
+            for (int32_t p = 0; p < 3; ++p) {
+                line += "p" + std::to_string(p) + " tech " + std::to_string(b.battle_tech_level(p));
+                if (b.production())
+                    for (const tactical::hangar::BuildOrder& o : b.production()->queue(p))
+                        line += " [" + std::to_string(o.id) + " " + std::to_string(o.type) + " " + std::to_string(o.builder) + "]";
+                line += "; ";
+            }
+            skirmish[tick] = line;
+            tech_seen = tech_seen || TacticalBattleTestAccess::tech_bonus(b, 0) > 0;  // the upgrade's +1 (no other source here)
+        }
     }
 };
 
@@ -421,6 +524,7 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         const uint64_t tick = s->host->frame();
         r.last_tick = tick;
         if (tick % kCheckpoint != 0) continue;
+        if (!reload) r.record_story(tick, *s->host);  // #420
         TacticalBattle* b = s->battle();
         if (b) {
             ++r.battle_checkpoints;
@@ -446,6 +550,7 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         fresh->reward_sent = s->reward_sent;    // #418: and the reward
         fresh->hangar_killed = s->hangar_killed;  // #419: and the kill
         fresh->garrison_sent = s->garrison_sent;  // #419: and the garrison orders
+        fresh->skirmish_bought = s->skirmish_bought;  // #420: and the purchase
         LoadReport rep;
         if (!fresh->host->load(save, &why, &rep)) {
             std::printf("  %s: load at tick %" PRIu64 " failed: %s\n", f.name, tick, rep.text().c_str());
@@ -455,6 +560,7 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         CHECK(fresh->host->frame() == tick);
         ++r.reloads;
         s = std::move(fresh);
+        r.record_story(tick, *s->host);  // #420: the loaded story state
         if (TacticalBattle* lb = s->battle()) {
             ++r.battle_reloads;
             check_ledger(*lb, r, f.name);
@@ -586,6 +692,44 @@ std::string test_fixture(const Data& d, const Fixture& f, uint32_t workers) {
         CHECK(false);
         break;
     }
+    for (const auto& [tick, want] : a.weather) {  // #420: the weather state a load gives back
+        const auto it = b.weather.find(tick);
+        if (it == b.weather.end() || it->second == want) continue;
+        std::printf("  %s: weather differs after the load at tick %" PRIu64 ": want %s, got %s\n", f.name, tick, want.c_str(),
+                    it->second.c_str());
+        CHECK(false);
+        break;
+    }
+    for (const auto& [tick, want] : a.skirmish) {  // #420: the tech levels and queues a load gives back
+        const auto it = b.skirmish.find(tick);
+        if (it == b.skirmish.end() || it->second == want) continue;
+        std::printf("  %s: skirmish production differs after the load at tick %" PRIu64 ":\n    want %s\n    got  %s\n", f.name, tick,
+                    want.c_str(), it->second.c_str());
+        CHECK(false);
+        break;
+    }
+    for (const auto& [tick, want] : a.story) {  // #420: the plot state a load gives back
+        const auto it = b.story.find(tick);
+        if (it == b.story.end() || it->second == want) continue;
+        std::printf("  %s: story event states differ after the load at tick %" PRIu64 ":\n", f.name, tick);
+        for (size_t i = 0; i < std::max(want.size(), it->second.size()) && i < 4; ++i)
+            std::printf("    want %-48s got %s\n", i < want.size() ? want[i].c_str() : "-", i < it->second.size() ? it->second[i].c_str() : "-");
+        CHECK(false);
+        break;
+    }
+    if (f.story) {
+        std::printf("  %s: story clock event seen %d / %d, a battle counter %d / %d\n", f.name, a.story_clock_seen ? 1 : 0,
+                    b.story_clock_seen ? 1 : 0, a.story_battle_seen ? 1 : 0, b.story_battle_seen ? 1 : 0);
+        CHECK(a.story_clock_seen && b.story_clock_seen && a.story_battle_seen && b.story_battle_seen);
+    }
+    if (f.weather) {
+        std::printf("  %s: rain seen %d / after a load %d\n", f.name, a.rain_seen ? 1 : 0, b.rain_seen ? 1 : 0);
+        CHECK(a.rain_seen && b.rain_seen);
+    }
+    if (f.skirmish_buy_frame > 0) {
+        std::printf("  %s: bought tech level seen %d / after a load %d\n", f.name, a.tech_seen ? 1 : 0, b.tech_seen ? 1 : 0);
+        CHECK(a.tech_seen && b.tech_seen);
+    }
     if (f.garrison_frame > 0) {  // the garrison fixture is saved and loaded with the bunker occupied
         std::printf("  %s: a garrisoned holder seen %d / after a load %d\n", f.name, a.garrisoned_seen ? 1 : 0, b.garrisoned_seen ? 1 : 0);
         CHECK(a.garrisoned_seen && b.garrisoned_seen);
@@ -640,10 +784,46 @@ int main(int argc, char** argv) {
     garrison_prefix = prefix + "_garrison";
     g_temp_prefix = garrison_prefix.c_str();
     auto dg = make_data(false, false, true);
+    // #420: the skirmish fixture's data (station production: the star base lists S10_Tech_Upgrade)
+    static std::string skirmish_prefix;
+    skirmish_prefix = prefix + "_skirmish";
+    g_temp_prefix = skirmish_prefix.c_str();
+    auto dk = make_data(false, false, false, false, true);
     g_temp_prefix = prefix.c_str();
+    {  // #420: the weather tables beside the default data (only the weather fixture's battles get them)
+        const fs::path x = d->root / "Data/XML";
+        write_file(x / "WeatherScenarios.xml",
+                   "<Weather_Scenarios><Weather_Scenario name=\"Rain_Test\"><Phase name=\"CLEAR\"><Emitter_Intensity>0.0</Emitter_Intensity>"
+                   "<Duration>4</Duration><Ease_Out_Duration>2</Ease_Out_Duration></Phase><Phase name=\"RAIN\"><Emitter_Intensity>1.0"
+                   "</Emitter_Intensity><Duration>6</Duration><Ease_Out_Duration>2</Ease_Out_Duration></Phase></Weather_Scenario>"
+                   "</Weather_Scenarios>\n");
+        write_file(x / "WeatherModifiers.xml",
+                   "<WeatherModifies><WeatherModifier name=\"rain\"><Sight_Range_Modifier name=\"Infantry\">0.5f</Sight_Range_Modifier>"
+                   "</WeatherModifier></WeatherModifies>\n");
+        auto wd = std::make_shared<tactical::combat::WeatherData>();
+        const DirectoryProvider files(path_to_utf8(d->root));  // a fresh index: the files were written after make_data
+        CHECK(tactical::combat::load_weather_data(files, *wd));
+        g_weather = std::move(wd);
+        // #420: the story fixture's plot: a story-clock event (5 s) and the space battle's win / lose counters
+        write_file(x / "Story_Plots_SC.xml", "<Story_Mode_Plots><Active_Plot>Story_SC.xml</Active_Plot></Story_Mode_Plots>\n");
+        write_file(x / "Story_SC.xml",
+                   "<Story>\n"
+                   " <Event Name=\"Clock\"><Event_Type>STORY_ELAPSED</Event_Type><Event_Param1>5</Event_Param1></Event>\n"
+                   " <Event Name=\"Won_Space\"><Event_Type>STORY_WIN_BATTLES</Event_Type><Event_Param1>1</Event_Param1>"
+                   "<Event_Param2>SPACE</Event_Param2></Event>\n"
+                   " <Event Name=\"Lost_Space\"><Event_Type>STORY_LOSE_BATTLES</Event_Type><Event_Param1>1</Event_Param1>"
+                   "<Event_Param2>SPACE</Event_Param2></Event>\n"
+                   "</Story>\n");
+        g_story_files = std::make_unique<DirectoryProvider>(path_to_utf8(d->root));
+    }
     std::string text;
     for (const Fixture& f : kFixtures)
-        text += test_fixture(f.records ? *dr : f.hangar_kill_frame > 0 ? *dh : f.garrison_frame > 0 ? *dg : *d, f, workers);
+        text += test_fixture(f.records                ? *dr
+                             : f.hangar_kill_frame > 0  ? *dh
+                             : f.garrison_frame > 0     ? *dg
+                             : f.skirmish_buy_frame > 0 ? *dk
+                                                        : *d,
+                             f, workers);
     if (!out_path.empty()) {
         std::ofstream o(out_path, std::ios::binary | std::ios::trunc);
         o << text;
@@ -664,6 +844,7 @@ int main(int argc, char** argv) {
     remove_all_long(dr->root, ec);
     remove_all_long(dh->root, ec);
     remove_all_long(dg->root, ec);
+    remove_all_long(dk->root, ec);
     if (g_fail) {
         std::printf("%d check(s) FAILED\n", g_fail);
         return 1;

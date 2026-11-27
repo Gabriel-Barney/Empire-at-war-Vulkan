@@ -9,6 +9,10 @@ namespace alamo::sim {
 struct TacticalBattleTestAccess {
     // #661: mark the running battle a sandbox story battle (BattleRequest::sandbox; the pad / upgrade persistence gates).
     static void set_sandbox(TacticalBattle& b, bool sandbox) { b.req_.sandbox = sandbox; }
+    // #420: the battle's tech level bonus of `player` (Tactical_Build_Increments_Tech_Level builds minus destructions)
+    static int32_t tech_bonus(const TacticalBattle& b, int32_t player) {
+        return player >= 0 && static_cast<size_t>(player) < b.hg_tech_bonus_.size() ? b.hg_tech_bonus_[static_cast<size_t>(player)] : 0;
+    }
     // #418: the BOMBARD_DELAY story reward's override (TacticalBattle::reward_bombard_delay; 0 = none)
     static float bombard_delay_override(const TacticalBattle& b) { return b.bombard_delay_override_; }
     static tactical::abilities::AbilitySystem& abilities(TacticalBattle& b) { return *b.abilities_; }
