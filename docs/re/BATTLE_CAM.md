@@ -511,8 +511,12 @@ each of these is a known gap rather than an accepted difference:
   - the bones are the type model's, in the drawn pose (`BattleView::bone_world`). Without a loaded model or the bones,
     the eye sits on the sim's hardpoint position and the object's model X axis, where retail reads (0, 0, 0) and no
     turn;
-  - F0 is the tactical camera's FOV (`fov_deg`), applied through the Hor+ rule (`tactical_fov_x`); a shot with no
-    length has 0 frames left, so it never zooms; D = 0 gives fit = 180° (retail divides by it);
+  - F0 is the tactical camera's FOV (`fov_deg`), and the zoom's value goes through the same Hor+ rule
+    (`tactical_fov_x`), the port's convention for that angle (legacy docs/re/RENDER.md §3.4), where retail applies it as
+    the vertical FOV (`0x261a80`); a shot with no length has 0 frames left, so it never zooms; D = 0 gives fit = 180°
+    (retail divides by it);
+  - the zoom target must be drawn: one that resolves but is no longer drawn leaves the trigger armed, where retail
+    would fit it;
   - the type always has a box in the port (`shot_half_extents`), so the no-box quirk is not reached.
 - The fighter chase leaves out retail's CameraAnimeSpiral wander (parameter slots [M]); its box is the one box, where
   retail reads the ModelBox, or the TEAM box without a model.

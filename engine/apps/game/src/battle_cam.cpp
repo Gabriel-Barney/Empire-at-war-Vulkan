@@ -333,10 +333,10 @@ int32_t BattleCam::tick(int32_t clock, bool tab_held, const BattleCamPicks& p) {
 
 float BattleCam::shot_fov(int32_t clock, float base_deg, std::optional<float> target_radius, float distance) {
     const int32_t remaining = shot_.length > 0 ? shot_.length - clock : 0;  // 0x4ad2e0 [port: 0 with no timer]
-    return fov_.value(clock, remaining, base_deg, target_radius, distance);
+    return fov_.step(clock, remaining, base_deg, target_radius, distance);
 }
 
-float ShotFov::value(int32_t frame, int32_t remaining, float base_deg, std::optional<float> target_radius, float distance) {
+float ShotFov::step(int32_t frame, int32_t remaining, float base_deg, std::optional<float> target_radius, float distance) {
     if (!keys_.empty()) {  // 0x49c40b..0x49c4ec
         if (frame < keys_.front().frame) return base_deg;
         size_t k = 0;
@@ -817,10 +817,9 @@ bool land_flying_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCam
 
 ObjectFrame hardpoint_eye_frame(const Vec3& attach, const Vec3& fire_x) {
     // 0x383af0 -> 0x20acd0: the angles in degrees (yaw + 360 when negative), then 0x20b350 x 0.017453292.
-    constexpr float kRadToDeg = 180.0f / 3.14159265358979f;
-    float yaw = std::atan2(fire_x.y, fire_x.x) * kRadToDeg;
+    float yaw = std::atan2(fire_x.y, fire_x.x) / kDegToRad;
     if (yaw < 0.0f) yaw += 360.0f;
-    const float pitch = -std::atan2(fire_x.z, std::sqrt(fire_x.x * fire_x.x + fire_x.y * fire_x.y)) * kRadToDeg;
+    const float pitch = -std::atan2(fire_x.z, std::sqrt(fire_x.x * fire_x.x + fire_x.y * fire_x.y)) / kDegToRad;
     const float cy = std::cos(yaw * kDegToRad), sy = std::sin(yaw * kDegToRad);
     const float cp = std::cos(pitch * kDegToRad), sp = std::sin(pitch * kDegToRad);
     // M = Rz(yaw) Ry(pitch); M' = M Rz(90) (0x480f0), so M' (x, y, z) = M (-y, x, z).

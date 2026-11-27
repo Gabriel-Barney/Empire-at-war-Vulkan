@@ -996,32 +996,32 @@ void test_fov_zoom() {
     const float fit = 2.0f * std::atan(0.1f) / kDegToRad;  // 11.4: |55 - fit| > 10, T = clamp(fit, 25, 55) = 25
     CHECK(fit < 25.0f);
     ShotFov f;
-    CHECK(near(f.value(5, 100, 55.0f, 10.0f, 100.0f), 55.0f) && f.keys().empty());  // nothing armed
+    CHECK(near(f.step(5, 100, 55.0f, 10.0f, 100.0f), 55.0f) && f.keys().empty());  // nothing armed
     f.arm({1, 77, 60});
     CHECK(f.target() == 77);
-    CHECK(near(f.value(60, 60, 55.0f, 10.0f, 100.0f), 55.0f) && f.keys().empty());         // not past the earliest frame
-    CHECK(near(f.value(61, 35, 55.0f, 10.0f, 100.0f), 55.0f) && f.keys().empty());         // fewer than 36 frames left
-    CHECK(near(f.value(61, 59, 55.0f, std::nullopt, 100.0f), 55.0f) && f.keys().empty());  // the target is gone
-    CHECK(near(f.value(61, 59, 55.0f, 50.0f, 100.0f), 55.0f) && f.keys().empty());         // fit 53.1: within 10 degrees
+    CHECK(near(f.step(60, 60, 55.0f, 10.0f, 100.0f), 55.0f) && f.keys().empty());         // not past the earliest frame
+    CHECK(near(f.step(61, 35, 55.0f, 10.0f, 100.0f), 55.0f) && f.keys().empty());         // fewer than 36 frames left
+    CHECK(near(f.step(61, 59, 55.0f, std::nullopt, 100.0f), 55.0f) && f.keys().empty());  // the target is gone
+    CHECK(near(f.step(61, 59, 55.0f, 50.0f, 100.0f), 55.0f) && f.keys().empty());         // fit 53.1: within 10 degrees
     CHECK(f.target() == 77);  // kept armed: the zoom is re-tried each frame
-    CHECK(near(f.value(61, 59, 55.0f, 10.0f, 100.0f), 55.0f));  // fires: keys (62, 55), (68, 25); F0 this frame
+    CHECK(near(f.step(61, 59, 55.0f, 10.0f, 100.0f), 55.0f));  // fires: keys (62, 55), (68, 25); F0 this frame
     CHECK(f.target() == 0 && f.keys().size() == 2);
     if (f.keys().size() == 2) {
         CHECK(f.keys()[0].frame == 62 && f.keys()[1].frame == 68 && near(f.keys()[0].degrees, 55.0f) &&
               near(f.keys()[1].degrees, 25.0f));
         CHECK(near(f.keys()[0].ease_out, 0.1f) && near(f.keys()[1].ease_in, 0.1f));
     }
-    CHECK(near(f.value(61, 59, 55.0f, 10.0f, 100.0f), 55.0f));  // before the first key: F0
-    CHECK(near(f.value(65, 56, 55.0f, 10.0f, 100.0f), 40.0f));  // half way, symmetric eases
-    CHECK(near(f.value(68, 53, 55.0f, 10.0f, 100.0f), 25.0f) && near(f.value(200, 0, 55.0f, 10.0f, 100.0f), 25.0f));
+    CHECK(near(f.step(61, 59, 55.0f, 10.0f, 100.0f), 55.0f));  // before the first key: F0
+    CHECK(near(f.step(65, 56, 55.0f, 10.0f, 100.0f), 40.0f));  // half way, symmetric eases
+    CHECK(near(f.step(68, 53, 55.0f, 10.0f, 100.0f), 25.0f) && near(f.step(200, 0, 55.0f, 10.0f, 100.0f), 25.0f));
     // z = 2: the slow two-step, mid = F0 + 0.75 (T - F0).
     ShotFov g;
     g.arm({2, 77, 55});
-    CHECK(near(g.value(56, 64, 55.0f, 10.0f, 100.0f), 55.0f) && g.keys().size() == 4);
+    CHECK(near(g.step(56, 64, 55.0f, 10.0f, 100.0f), 55.0f) && g.keys().size() == 4);
     if (g.keys().size() == 4)
         CHECK(g.keys()[1].frame == 63 && near(g.keys()[1].degrees, 32.5f) && g.keys()[2].frame == 78 &&
               near(g.keys()[2].degrees, 32.5f) && g.keys()[3].frame == 84 && near(g.keys()[3].degrees, 25.0f));
-    CHECK(near(g.value(70, 50, 55.0f, 10.0f, 100.0f), 32.5f));
+    CHECK(near(g.step(70, 50, 55.0f, 10.0f, 100.0f), 32.5f));
     // z = 0 disarms; the next shot's start clears the keys, not the trigger; End_Cinematic_Mode clears both.
     g.arm({0, 0, 0});
     CHECK(g.target() == 0 && g.keys().size() == 4);
@@ -1029,7 +1029,7 @@ void test_fov_zoom() {
     CHECK(g.keys().empty());
     g.arm({1, 77, 10});
     g.clear();
-    CHECK(g.target() == 0 && near(g.value(50, 100, 55.0f, 10.0f, 100.0f), 55.0f));
+    CHECK(g.target() == 0 && near(g.step(50, 100, 55.0f, 10.0f, 100.0f), 55.0f));
     // In the controller: a hardpoint shot arms the trigger, the next shot keeps it armed, a stop clears it.
     World w;
     BattleCamGates gates;

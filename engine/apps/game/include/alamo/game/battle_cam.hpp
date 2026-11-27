@@ -59,9 +59,11 @@ public:
     void clear() { keys_.clear(); trigger_ = {}; }    // End_Cinematic_Mode 0x49b5c0
     uint32_t target() const { return trigger_.mode != 0 ? trigger_.target : 0; }  // +0x324 while armed
     const std::vector<FovKey>& keys() const { return keys_; }
-    // This frame's FOV in degrees. `remaining` = the shot timer's frames left (0x4ad2e0); `target_radius` = the trigger
-    // target's |E| (nullopt: it no longer resolves); `distance` = |look - eye| of this frame, before the smoothing.
-    float value(int32_t frame, int32_t remaining, float base_deg, std::optional<float> target_radius, float distance);
+    // This frame's FOV in degrees; an armed trigger that fires appends its keys and disarms (so the call is not const,
+    // but a repeat at the same frame gives the same value). `remaining` = the shot timer's frames left (0x4ad2e0);
+    // `target_radius` = the trigger target's |E| (nullopt: it no longer resolves); `distance` = |look - eye| of this
+    // frame, before the smoothing.
+    float step(int32_t frame, int32_t remaining, float base_deg, std::optional<float> target_radius, float distance);
 
 private:
     ZoomTrigger trigger_;
@@ -234,7 +236,7 @@ public:
     // #571 0x49bdf0: the FOV keys and the zoom trigger. A shot start clears the keys and arms the shot's trigger, if it
     // has one; stop() clears both.
     const ShotFov& fov() const { return fov_; }
-    // This shot frame's FOV in degrees (ShotFov::value with the frames left of a shot with a length, else 0).
+    // This shot frame's FOV in degrees (ShotFov::step with the frames left of a shot with a length, else 0).
     float shot_fov(int32_t clock, float base_deg, std::optional<float> target_radius, float distance);
 
 private:
