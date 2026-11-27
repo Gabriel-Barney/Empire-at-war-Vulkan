@@ -165,6 +165,9 @@ public:
     // #634: Lua Release_Credits_For_Tactical of the AI VMs (lua::TacticalGalacticContext::release_credits): `live` itself
     // with the lane off; with it on, a call from lane code is a batch write applied at the due tick (`live` then).
     std::function<void(int32_t, double)> lane_release_credits(std::function<void(int32_t, double)> live);
+    // #634: Get_Name of the AI VMs (lua::ObjectBridge::ship_name): `live` with the lane off; with it on, lane code reads
+    // the host's ship names as captured.
+    std::function<std::string_view(objects::ObjectHandle)> lane_ship_name(std::function<std::string_view(objects::ObjectHandle)> live);
     // #634: the AI bridge's Hide_Sub_Object lists for presentation: with the lane on, the copy published at collect.
     std::span<const std::string> hidden_sub_objects(objects::ObjectId id) const;
     size_t lane_pushes_pending() const { return lane_pushes_.size(); }  // #633 (tests)
@@ -457,6 +460,7 @@ private:
         bool finished = false;
         std::vector<Vec3> drop_facing;
         std::vector<std::pair<objects::ObjectId, std::string>> map_hints;
+        std::map<objects::ObjectId, std::string> ship_names;  // SimHost::ship_names (copied again when it grew)
     };
     LaneView view_;
     // lane code reads only view_. lane_thinking() holds on the thread running think() (and, lane on, the start scripts)

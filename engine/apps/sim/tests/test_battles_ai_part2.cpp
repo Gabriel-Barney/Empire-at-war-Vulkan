@@ -817,12 +817,19 @@ void test_battle_ai_land_drop(const Data& d) {
                 bool other_thread_live = false;
                 al.run_as_lane([&] {
                     CHECK(al.facts().snapshot());
-                    carried(64, 1, [&](uint32_t b, uint32_t e) {
-                        std::this_thread::sleep_for(std::chrono::microseconds(200));  // long enough for the workers to take items
-                        if (std::this_thread::get_id() == me) return;
-                        away += e - b;
-                        if (al.facts().snapshot()) away_snap += e - b;
-                    });
+                    const lua::ObjectBridge& abr = al.world().object_bridge();  // a captured read: the live record
+                    if (abr.reinforce_facing) {
+                        const Vec3 f = abr.reinforce_facing(1), live = b->player_drop_facing(1);
+                        CHECK(f.x == live.x && f.y == live.y && f.z == live.z);
+                    }
+                    for (int attempt = 0; attempt < 10 && away == 0; ++attempt) {  // until the workers took items
+                        carried(64, 1, [&](uint32_t b, uint32_t e) {
+                            std::this_thread::sleep_for(std::chrono::microseconds(200));  // long enough for the workers to take items
+                            if (std::this_thread::get_id() == me) return;
+                            away += e - b;
+                            if (al.facts().snapshot()) away_snap += e - b;
+                        });
+                    }
                     plain(64, 1, [&](uint32_t b, uint32_t e) {
                         std::this_thread::sleep_for(std::chrono::microseconds(200));
                         if (std::this_thread::get_id() == me) return;

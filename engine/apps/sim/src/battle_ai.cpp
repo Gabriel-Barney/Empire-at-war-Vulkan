@@ -66,21 +66,23 @@ thread_local const BattleAi* t_lane_ai = nullptr;
 struct LaneContext {
     const BattleAi* ai = nullptr;
     const ai::tactical::BattleFacts* snapshot = nullptr;
+    static LaneContext now() { return {t_lane_ai, ai::tactical::BattleFacts::snapshot_owner()}; }
 };
-// a parallel-for whose bodies run with the calling thread's lane context (the AI's goal candidates, its solves)
-ParallelFor lane_context_pf(ParallelFor inner) {
-    return [inner = std::move(inner)](uint32_t n, uint32_t grain, const RangeFn& fn) {
-        const LaneContext ctx{t_lane_ai, ai::tactical::BattleFacts::snapshot_owner()};
-        inner(n, grain, [&ctx, &fn](uint32_t b, uint32_t e) {
-            const LaneContext prev{t_lane_ai, ai::tactical::BattleFacts::snapshot_owner()};
-            t_lane_ai = ctx.ai;
-            ai::tactical::BattleFacts::set_snapshot_owner(ctx.snapshot);
-            fn(b, e);
-            t_lane_ai = prev.ai;
-            ai::tactical::BattleFacts::set_snapshot_owner(prev.snapshot);
-        });
-    };
-}
+// this thread runs with `ctx` until the scope ends (then with what it had); one level per fan-out body
+class LaneContextScope {
+public:
+    explicit LaneContextScope(const LaneContext& ctx) : prev_(LaneContext::now()) { set(ctx); }
+    ~LaneContextScope() { set(prev_); }
+    LaneContextScope(const LaneContextScope&) = delete;
+    LaneContextScope& operator=(const LaneContextScope&) = delete;
+
+private:
+    static void set(const LaneContext& c) {
+        t_lane_ai = c.ai;
+        ai::tactical::BattleFacts::set_snapshot_owner(c.snapshot);
+    }
+    LaneContext prev_;
+};
 // a crossing of the lane boundary: counted (headless exits 3 on any) and, in a debug build, an assert
 void count_lane_crossing(const char* what) {
     const char* none = nullptr;
@@ -95,7 +97,15 @@ uint64_t ai_lane_live_reads(const char** first) {
     return g_lane_live_reads.load();
 }
 AiLaneCounts ai_lane_counts() { return {g_lane_battles.load(), g_lane_mismatches.load(), g_lane_refused_spawns.load()}; }
-ParallelFor ai_lane_context_pf(ParallelFor inner) { return lane_context_pf(std::move(inner)); }
+ParallelFor ai_lane_context_pf(ParallelFor inner) {  // the AI's goal candidates, its solves
+    return [inner = std::move(inner)](uint32_t n, uint32_t grain, const RangeFn& fn) {
+        const LaneContext ctx = LaneContext::now();
+        inner(n, grain, [&ctx, &fn](uint32_t b, uint32_t e) {
+            const LaneContextScope scope(ctx);
+            fn(b, e);
+        });
+    };
+}
 
 void BattleAi::lane_live_read(const char* what) const {
     if (lane_thinking()) count_lane_crossing(what);
@@ -156,7 +166,7 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         cfg.quota_players = ai::goal_quota_players(qp, factions.size(), [&factions](size_t f) { return std::string_view(factions[f].name); });
     }
     // goal candidates' perception values; slot-10 solves. #634: with the lane on, run with the caller's lane context.
-    cfg.pf = setup.ai_lane ? lane_context_pf(host.parallel_for()) : host.parallel_for();
+    cfg.pf = setup.ai_lane ? ai_lane_context_pf(host.parallel_for()) : host.parallel_for();
     cfg.pp_streams = setup.pp_streams;  // OPT2 t10
     cfg.plan_retest = setup.plan_retest;  // skai t15
     cfg.pp_latency = setup.pp_latency;
@@ -694,16 +704,15 @@ void BattleAi::wrap_lane_hooks() {
 #endif
     // #634: Set_Garrison_Spawn / Prevent_Opportunity_Fire of the AI VMs (the bridge's switches) are batch writes too.
     lua::ObjectBridge& br = world_->object_bridge();
-    br.garrison_spawn_changed = [this, vid, queue, owner_of, f = br.garrison_spawn_changed](objects::ObjectHandle u, bool on) {
-        if (!lane_view()) return f ? f(u, on) : void();
-        const objects::ObjectId id = vid(u);
-        queue(kHostGarrisonSpawn, owner_of(id), {id}, {}, -1, on);
+    const auto lane_switch = [this, vid, queue, owner_of](uint8_t op, std::function<void(objects::ObjectHandle, bool)> f) {
+        return [this, vid, queue, owner_of, op, f = std::move(f)](objects::ObjectHandle u, bool on) {
+            if (!lane_view()) return f ? f(u, on) : void();
+            const objects::ObjectId id = vid(u);
+            queue(op, owner_of(id), {id}, {}, -1, on);
+        };
     };
-    br.opportunity_fire_changed = [this, vid, queue, owner_of, f = br.opportunity_fire_changed](objects::ObjectHandle u, bool on) {
-        if (!lane_view()) return f ? f(u, on) : void();
-        const objects::ObjectId id = vid(u);
-        queue(kHostOpportunityFire, owner_of(id), {id}, {}, -1, on);
-    };
+    br.garrison_spawn_changed = lane_switch(kHostGarrisonSpawn, br.garrison_spawn_changed);
+    br.opportunity_fire_changed = lane_switch(kHostOpportunityFire, br.opportunity_fire_changed);
     // A spawned object is used at once (its handle): not available off the critical lane (no shipped AI script spawns).
     k.spawn = [this, f = k.spawn](const objects::SpawnParams& p) {
         if (!lane_view()) return f(p);
@@ -1065,6 +1074,8 @@ void BattleAi::capture_lane_view() {
         view_.drop_facing.resize(np + 1);
         for (size_t p = 0; p <= np; ++p) view_.drop_facing[p] = b_->player_drop_facing(p < np ? static_cast<int32_t>(p) : -1);
         if (view_.map_hints.size() != b_->map_hints_.size()) view_.map_hints = b_->map_hints_;  // the list only grows
+        if (const ShipNames* sn = host_->ship_names(); sn && view_.ship_names.size() != sn->names().size())
+            view_.ship_names = sn->names();  // likewise
         view_.retreat_ok.assign(np, 0);
         for (int32_t p = 0; p < players; ++p) view_.retreat_ok[static_cast<size_t>(p)] = b_->retreat_block(p) == 0 ? 1 : 0;
         view_.production = b_->ai_production_enabled();
@@ -1203,6 +1214,17 @@ void BattleAi::lane_rebuild_difficulty() {  // #634: the world's, then the queue
 bool BattleAi::attack_positioning(objects::ObjectId id) const {
     if (!world_->ai_lane()) return world_->attack_positioning(static_cast<int32_t>(id));
     return std::binary_search(lane_attack_pos_.begin(), lane_attack_pos_.end(), static_cast<int32_t>(id));
+}
+
+std::function<std::string_view(objects::ObjectHandle)> BattleAi::lane_ship_name(std::function<std::string_view(objects::ObjectHandle)> live) {
+    if (!world_->ai_lane()) return live;
+    return [this, live = std::move(live)](objects::ObjectHandle o) {
+        if (!lane_view()) return live ? live(o) : std::string_view();
+        const objects::ObjectStore& vs = world_->view_store();
+        if (!vs.exists(o)) return std::string_view();
+        const auto it = view_.ship_names.find(vs.id(o));
+        return it == view_.ship_names.end() ? std::string_view() : std::string_view(it->second);
+    };
 }
 
 std::span<const std::string> BattleAi::hidden_sub_objects(objects::ObjectId id) const {
@@ -1354,9 +1376,12 @@ bool BattleAi::read(ByteReader& r) {
     // an empty batch)
     const uint32_t version = r.u32();
     const bool lane_version = version == kBattleAiLaneSaveVersion5 || version == kBattleAiLaneSaveVersion6 ||
-                              version == kBattleAiLaneSaveVersion8 || version == kBattleAiLaneSaveVersion;
-    const bool has_second = version == kBattleAiSaveVersion || version == kBattleAiLaneSaveVersion8 || version == kBattleAiLaneSaveVersion;  // mcx6 t06
-    const bool has_locks = version == kBattleAiLaneSaveVersion6 || version == kBattleAiLaneSaveVersion8 || version == kBattleAiLaneSaveVersion;
+                              version == kBattleAiLaneSaveVersion8 || version == kBattleAiLaneSaveVersion9 ||
+                              version == kBattleAiLaneSaveVersion;
+    const bool has_second = version == kBattleAiSaveVersion || version == kBattleAiLaneSaveVersion8 ||
+                            version == kBattleAiLaneSaveVersion9 || version == kBattleAiLaneSaveVersion;  // mcx6 t06
+    const bool has_locks = version == kBattleAiLaneSaveVersion6 || version == kBattleAiLaneSaveVersion8 ||
+                           version == kBattleAiLaneSaveVersion9 || version == kBattleAiLaneSaveVersion;
     const bool has_pushes = version == kBattleAiLaneSaveVersion9 || version == kBattleAiLaneSaveVersion;  // #633
     const bool has_attack_pos = version == kBattleAiLaneSaveVersion;  // #634
     if (!r.ok() || !(version == kBattleAiSaveVersion || version == kBattleAiSaveVersion4 || (lane_version && world_->ai_lane())))
@@ -1452,9 +1477,10 @@ bool BattleAi::read(ByteReader& r) {
     else if (world_->ai_lane() && !has_attack_pos) world_->attack_positioning_ids(lane_attack_pos_);
     if (world_->ai_lane()) {
         lane_rebuild_difficulty();  // #634
-        lane_hidden_ = world_->object_bridge().hidden_sub_object_map();
+        if (has_pushes) lane_hidden_ = world_->object_bridge().hidden_sub_object_map();  // presentation only, not saved
     }
-    view_.map_hints.clear();  // #634: captured again (the loaded battle's list)
+    view_.map_hints.clear();  // #634: captured again (the loaded battle's lists)
+    view_.ship_names.clear();
     view_.valid = false;  // captured again at the next AI slot
     view_.grid_valid = false;  // the grid copy too (a loaded grid may have another state at the same version)
     world_->object_bridge().lane_abilities = nullptr;  // sp3 slice 4b: likewise the ability records
@@ -2324,7 +2350,7 @@ std::function<void(int32_t, double)> BattleAi::lane_release_credits(std::functio
     if (!world_->ai_lane()) return live;
     release_credits_live_ = std::move(live);
     return [this](int32_t p, double amount) {
-        // the amount is used as a float (CampaignBattles' transfer), so its float bits carry it
+        // the transfer uses the amount as a float (CampaignBattles: static_cast<float>), so its float bits carry it unchanged
         if (lane_view()) return queue_host_release(kHostReleaseCredits, p, std::bit_cast<int32_t>(static_cast<float>(amount)), 0);
         if (release_credits_live_) release_credits_live_(p, amount);
     };

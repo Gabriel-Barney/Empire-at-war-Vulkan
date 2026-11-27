@@ -251,7 +251,7 @@ Two ticks (67 ms) is far below retail's AI cadences (goal cycle sleeps, the 90-f
 Lane code must never read the live battle: `BattleAi::lane_live_read` counts every such read, and a lane write stamped
 outside an open job counts too (debug builds assert on both). `alamo_headless` exits 3 when the count is not 0, so every
 `--ai-lane` test checks it. The AI VMs' remaining battle hooks answer from the capture (the finished flag, the map hints,
-the entry facings) or are batch writes (Set_Garrison_Spawn, Prevent_Opportunity_Fire, Release_Credits_For_Tactical);
+the ship names, the entry facings) or are batch writes (Set_Garrison_Spawn, Prevent_Opportunity_Fire, Release_Credits_For_Tactical);
 #634. After a lane run `alamo_headless` prints the lane's mismatches (applies whose result differed from the prediction)
 and the Spawn_Unit calls it refused.
 
@@ -262,8 +262,8 @@ and the Spawn_Unit calls it refused.
 - A job's queued orders and digest become visible only when the job is collected (the next AI slot, or the due tick when
   k_ai = 1). A save keeps a finished, uncollected job and its queued writes; per-slot captures (ability records, facts) are
   not saved, because a load recaptures them from the same saved battle state. The queued pushes and the copies published
-  at collect (danger layers, Prevent_AI_Usage answers) are saved, because the saved world may already be a job further on
-  (`battle.ai` lane version 9, #633).
+  at collect (danger layers, Prevent_AI_Usage answers, attack-positioning flags) are saved, because the saved world may
+  already be a job further on (`battle.ai` lane version 9, #633; 10 with the attack-positioning flags, #634).
 - A save made with the lane on records `ai_lane` / `k_ai`, and a load rebuilds the session that way. A world saved with the
   lane on loads only into a lane-on world; a lane-off save also loads into a lane-on world.
 - In-flight work in general follows the `LatencyJob` save rule ("AI scheduling"): a save/load round trip equals the

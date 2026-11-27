@@ -51,6 +51,8 @@ public:
     // The stored (quoted) name of an object; "" when it has none.
     std::string_view name(objects::ObjectId id) const;
     bool assigned(objects::ObjectId id) const { return names_.count(id) != 0; }
+    // every assigned object's name (ascending id; only grows within a session: the AI lane's copy, #634)
+    const std::map<objects::ObjectId, std::string>& names() const { return names_; }
     size_t list_count() const { return lists_.size(); }
 
     // N1 save chunk "ship_names": the names, then the lists (names in their current order, cursor, wrap count) and the
