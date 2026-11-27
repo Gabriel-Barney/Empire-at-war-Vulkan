@@ -191,6 +191,13 @@ ObjectId CombatSystem::hardpoint_opportunity_target(ObjectId id, uint32_t hp) co
     return (u && hp < u->hp_count) ? hps_[u->hp_begin + hp].opp_target : kNoObject;
 }
 
+ObjectId CombatSystem::hardpoint_target(ObjectId id, uint32_t hp) const {
+    const Unit* u = unit(id);
+    if (!u || hp >= u->hp_count) return kNoObject;
+    const Hardpoint& h = hps_[u->hp_begin + hp];
+    return h.target != kNoObject ? h.target : h.opp_target;
+}
+
 int32_t CombatSystem::choose_target_hardpoint(ObjectId attacker, ObjectId target) const {
     const Unit* a = unit(attacker);
     const Unit* t = unit(target);

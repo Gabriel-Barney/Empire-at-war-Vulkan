@@ -1407,6 +1407,9 @@ public:
     bool hardpoint_world(ObjectId id, int32_t hp, Vec3& out) const;
     uint32_t live_hardpoints(ObjectId id, HardpointKind kind) const;  // functioning: not destroyed, not disabled
     ObjectId hardpoint_opportunity_target(ObjectId id, uint32_t hp) const;
+    // #571 (the battle cam's hardpoint shot, 0x3856a0 [M]): the hard point's current target, its own (HP_Set_Target,
+    // +0x40) when set, else its opportunity target (+0x50); kNoObject for none or an unknown unit or index.
+    ObjectId hardpoint_target(ObjectId id, uint32_t hp) const;
     int32_t choose_target_hardpoint(ObjectId attacker, ObjectId target) const;  // 0x394610
     int32_t closest_hardpoint(ObjectId target, Vec3 from, bool targetable_only) const;  // 0x394a80
     bool can_attack(ObjectId id) const;  // has a live weapon

@@ -68,7 +68,7 @@ A key record is 0x54 bytes. `0x499c60` adds an eye key and `0x499dd0` adds a loo
 | +0x24 | frame |
 | +0x28 | segment mode: 0 spline, 1 linear, 2 hold, 3 orbit |
 | +0x2c | the object id; -1 = a world key |
-| +0x30 | the hardpoint index; -1 = the object [M] |
+| +0x30 | the hardpoint index; -1 = the object [H, #571] |
 | +0x38 | tangent scale (0.5) |
 | +0x44 / +0x48 | ease out / ease in |
 | +0x4c | orbit period, in frames (literal) |
@@ -78,7 +78,13 @@ A key record is 0x54 bytes. `0x499c60` adds an eye key and `0x499dd0` adds a loo
 
 Position (`0x49d640`) [H]:
 - an attached key is the object's model transform × offset, plus the type's `Ranged_Target_Z_Adjust` on z;
-- with +0x51 set, it is the model translation + offset.
+- with +0x51 set, it is the model translation + offset;
+- #571, with a hardpoint (+0x30 ≠ −1) and +0x51 clear: B + M′ · offset, with no `Ranged_Target_Z_Adjust`. B is the world
+  translation of the hardpoint's Attachment_Bone (hp+0x2c; Fire_Bone_A's, hp+0x38, when it has none), from `0x385c70`.
+  M′ = M · Rz(90°) (`0x480f0`), and M = Rz(yaw) · Ry(pitch) (`0x20b350`) from `0x383af0`: the angles of d, Fire_Bone_A's
+  world X axis (column 0 of its bone matrix), yaw = atan2(d.y, d.x) (+360 when negative) and pitch =
+  −atan2(d.z, √(d.x² + d.y²)), in degrees. M maps +X to d. A failed bone lookup reads the angles (0, 0, 0); a hardpoint
+  that no longer resolves falls back to `0x49bc30` [L].
 
 Eye (`0x49c540`) [H]:
 - Between keys a and b: w = accel(σ, a.ease_out, b.ease_in) (`0x49bb40`). The mode of a then picks spline, linear,
@@ -88,7 +94,7 @@ Eye (`0x49c540`) [H]:
   P = resolve(key); L = look(c); d = P - L
   phase = clamp(accel(((c - frame) % period) / period, ease_out, ease_in), 0, 1)
   a = 360 * phase; if reverse: a = 360 - a
-  eye = L + Rz(a) * d            (counter-clockwise about world +Z, 0x4800f0)
+  eye = L + Rz(a) * d            (counter-clockwise about world +Z, 0x480f0)
   ```
   d is re-resolved every frame, so the circle follows the object's facing.
 - Otherwise the last key is held.
@@ -105,8 +111,9 @@ After the eye [H]:
 
 [port] The port evaluates the eye and look with `shot_keys_eye` and `shot_keys_look` (`battle_fx.hpp`):
 - They model the hold, linear, spline and orbit-after-the-last-key cases.
-- They do not model `0x49a610` (an orbit key followed by another key, which no ported shot uses), the look smoothing,
-  the hardpoint / muzzle keys or the roll keys (#562).
+- They do not model `0x49a610` (an orbit key followed by another key, which no ported shot uses), the muzzle keys
+  (+0x52) or the roll keys (#562). The hardpoint keys (#571) are `ShotKey::on_hardpoint`, resolved in
+  `KeyAnchors::hardpoint` (`hardpoint_eye_frame`).
 - The smoothing is `BattleCam::smooth_eye`, once per shot frame.
 - The terrain clamp (#564) is `terrain_clamped_eye` in `battle_cam_camera`, with the flag in `BattleCam::terrain_clamp`.
   The flag is set by Cinematic View. [port] Nothing clears it yet, because the paths that clear it in retail (a type's
@@ -237,8 +244,13 @@ The port: `interesting_pick`, `saliency_rank` and `interesting_shot` (`battle_ca
     or TRANSPORT. Structures are reached only through B or the selection.
   - **D, the ranking** `0x520df0`, below.
   - **E, the choice:** k = min(n − 1, 10). Up to k draws of `rand(0, k)` into the ranking; the first that is neither
-    the current object nor of its type (+0x370) wins. With none, entry 0. Then the hardpoint draw, `rand(0, 3) > 0`:
-    a random live hardpoint with a target.
+    the current object nor of its type (+0x370) wins. With none, entry 0. Then the hardpoint draw (#571,
+    `0x2cd752..0x2cd7e6`): when `rand(0, 3) > 0` and the object has n > 0 hardpoints (obj +0x2d0), up to n draws of
+    `rand(0, n − 1)`, with replacement; the first hardpoint that is live (not a destroyed `Is_Destroyable` one) and
+    has a target (`0x3856a0`) goes in +0x378 (−1 at the top of `0x2cd0d0`, so the selection pick and B leave it −1).
+  - `0x3856a0`, a hardpoint's target [H]: hp+0x40 when hp+0x6d is set and it has a model; else hp+0x50 when it has a
+    model and `0x383ba0` passes; else none. [M] +0x40 is the forced or attack target, +0x50 the opportunity target,
+    and `0x383ba0` the firing-arc test (hardpoint types 5..10).
 - It logs `Start_Interesting_Object_Cinematic: Type %s` and dispatches (`0x4a53f0`).
 
 **The +0x368 alternation [H].** Only step A writes +0x368. B and E change the object but leave +0x368 on the old id, so
@@ -268,9 +280,11 @@ One row per candidate, 7 columns, each with a GameConstants weight (`Saliency_*`
 
 It clears every key list and the shake trackers (`0x4a7a90`), but not the smoothing +0x270. Then, first success wins:
 
-1. the type's Glory_Cinematics files (`0x4a3b40`, #572), which clear +0x315;
+1. the type's Glory_Cinematics files (`0x4a3b40`, #572), which clear +0x315. [H] The glory shot's real entry is the
+   death path (`0x39bdb0` → `0x2cc940`, on the death clone): in the shipped XML only death clones carry the files;
 2. +0x315 = 1, the land terrain clamp, for every generated shot;
-3. a drawn hardpoint with a target: the hardpoint shot (`0x4a47d0`, #571);
+3. a drawn hardpoint with a target: the hardpoint shot (`0x4a47d0`, #571). The dispatcher re-reads the hardpoint
+   (`0x396cb0`) and its target (`0x3856a0`), not its liveness, and calls the template with both ids;
 4. Fighter: **the chase** (`0x4a0140`);
 5. Infantry: **the push-in** (`0x4a4e30`);
 6. `rand(0, 3) == 0`: **the static shot** (`0x4a17c0`);
@@ -323,6 +337,28 @@ shot"]. A glory shot, the fighter chase and the bombing run set 0 (raw); the oth
 carries on from the previous shot, and End_Cinematic_Mode clears it. The filter is ported (#671, `LookFilter`): see
 "The look filter" below.
 
+- **Hardpoint `0x4a47d0(ctrl, mode, obj, hp, target)`** (#571): `0x4a7a90` clears first. It fails, with no draw,
+  when the target does not resolve, is fogged or hidden for the local player (`0x35f470`), or its render object is
+  hidden ((r+0x30 & 0xd) ≠ 0, or bit 1) or faded below 0.75 (r+0x148); or when the object or the hardpoint does not
+  resolve. Then n = rand(120, 180). The eye holds (mode 2, tangent 0.5, period 300) on the hardpoint at (0, 0, 200);
+  the look holds on the target at 0, plus its `Ranged_Target_Z_Adjust`. Both are re-resolved every frame, so the
+  eye rides the turret and the look tracks the target: worked out, eye = B + 200 (−sin ε cos ψ, −sin ε sin ψ, cos ε),
+  ε the barrel's elevation and ψ its yaw [M: that the bone's +X is the barrel]. Length (int)(FPS × n / FPS) (n − 1 for
+  some n in float32), handheld noise 2n, smoothing 0.9, the engine loop on the object; **no letterbox call** and
+  +0x1bd untouched (inherited). Last, z = rand(0, 2) arms the FOV zoom (below): z = 0 disarms it (+0x324 = −1,
+  +0x320 = 0); z = 1 aims it at the target after frame n / 2, z = 2 after n / 2 − 5.
+- **The FOV zoom `0x49bdf0(ctrl, frame)`** (#571) returns the frame's vertical FOV. `0x49cd00` calls it after the eye
+  and look are evaluated and before the terrain clamp and the smoothing. F0 is the mode camera's FOV (mode +0x330 →
+  +0x48, in degrees; 55 without one).
+  - With FOV keys (ctrl +0x30): F0 before the first key, the last key's value from it on, and between keys a and b
+    a + accel(t, a.ease_out, b.ease_in) (b − a) (a mode-2 key holds a).
+  - With none, the armed trigger fires when +0x328 ≠ 0, +0x320 ≠ 0, the shot timer has 36 or more frames left, the
+    frame is past +0x320 and +0x324 resolves. fit = 2 atan(R / D) in degrees, R = \|E\| of the target type's box and
+    D = \|look − eye\| of this frame. Within 10° of F0 it returns F0 and stays armed (re-tried every frame). Otherwise
+    T = clamp(fit, 25, 55), and it appends keys, mode 1, eases 0.1 / 0.1: z = 1 (p + 1, F0), (p + 7, T); z = 2
+    (p + 1, F0), (p + 7, mid), (p + 22, mid), (p + 28, T), mid = F0 + 0.75 (T − F0). The trigger is cleared and F0
+    returned for this frame. The keys play to the shot's end; the next shot's `0x4a7a90` clears them, but not the
+    trigger, which only firing and End_Cinematic_Mode clear. With no box asset, the fit's half-angle is 55° [H, a quirk].
 - **Structure `0x49f880`** (no locomotor): n = rand(60, 90), then sx and sy (each zero = +1). The eye pulls back from
   (sx Ex, sy Ey, 2 Ez) to (2 sx Ex, 2 sy Ey, 3 Ez) over n, eases 0.25 / 0.25. The look holds on the structure; when it
   has a target (any), a second look key at n turns to the target. Length n × (1 or 2), no noise, smoothing inherited.
@@ -465,9 +501,19 @@ each of these is a known gap rather than an accepted difference:
   - a bomber with no speed fails the pick;
   - the first live bomber with a live marker is framed, where retail takes the record's first and fails if it is dying;
   - a lead bomber shot down mid-run stops the cam (the framed object is gone), where retail runs on until the record ends.
-- The not-ported picks and templates: the glory and hardpoint templates (#571, #572) fail and
-  fall through. The 3/4 hardpoint draw is made, but no hardpoint is picked, and its index draws are not made, so for an object with
-  hardpoints the later draws differ from retail's (#571).
+- The not-ported template: the glory files (#572) fail and fall through.
+- The hardpoint shot (#571):
+  - a hardpoint's target is its own target (`CombatSystem::hardpoint_target`), else its opportunity target, where
+    retail reads +0x40 only with +0x6d set and tests the firing arc on +0x50 [M];
+  - "live" is `hardpoint_destroyed`, and the target must be drawn with a model;
+  - the target gate reads "fogged or hidden" as fog-hidden, dying, a death clone, a corpse or contained, and the fade
+    as the drawn fade;
+  - the bones are the type model's, in the drawn pose (`BattleView::bone_world`). Without a loaded model or the bones,
+    the eye sits on the sim's hardpoint position and the object's model X axis, where retail reads (0, 0, 0) and no
+    turn;
+  - F0 is the tactical camera's FOV (`fov_deg`), applied through the Hor+ rule (`tactical_fov_x`); a shot with no
+    length has 0 frames left, so it never zooms; D = 0 gives fit = 180° (retail divides by it);
+  - the type always has a box in the port (`shot_half_extents`), so the no-box quirk is not reached.
 - The fighter chase leaves out retail's CameraAnimeSpiral wander (parameter slots [M]); its box is the one box, where
   retail reads the ModelBox, or the TEAM box without a model.
 - The attack run makes no FLEET member draw (`0x3965f0`): tactical targets are never fleets.
@@ -513,7 +559,9 @@ start stops a running TSW shot.
 
 ## Open
 
-- The interesting-object templates not ported yet: the hardpoint shot (#571) and the glory files (#572).
+- The interesting-object template not ported yet: the glory files (#572).
+- What hp+0x40, +0x50 and +0x6d mean and what `0x383ba0` tests (#571); Fire_Bone_A's model when a hardpoint has its own
+  model.
 - The fighter chase's CameraAnimeSpiral parameter slots (+0x38..+0x50).
 - The exact axes of `0x4a6790`'s rotation.
 - `0x49a610` (polar interpolation), the look smoothing `0x4a96d0`, the roll keys (#562: only its templates use them).

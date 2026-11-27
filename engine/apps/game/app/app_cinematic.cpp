@@ -301,7 +301,10 @@ BattleCamPicks App::battle_cam_picks() {
 // drawable; "may follow" (+0x3a0 & 0x40 clear) = drawn and not gone; fogged = hidden from the local player (FOW); the
 // selection is its drawn objects of the local player; the ObjBox and the ModelBox are one box (shot_half_extents);
 // health = the drawn health; speed = the movement's current speed; power = the type's AI_Combat_Power (a FLEET's
-// members are not summed); the target count leaves out the hardpoints' targets.
+// members are not summed); the target count leaves out the hardpoints' targets. #571: a hardpoint is live when it is
+// not destroyed (CombatSystem::hardpoint_destroyed), and its target (0x3856a0 [M]: CombatSystem::hardpoint_target) must
+// be drawn with a model; the hardpoint shot's target gate reads "not fogged or hidden" as drawn, not fog-hidden and not
+// gone, and the fade as the drawn fade.
 bool App::interesting_object_shot(bool first, BattleCamShot& out) {
     const sim::TacticalBattle* b = battle();
     const sim::TacticalMode* tm = session_ ? session_->host().modes().top_tactical() : nullptr;
@@ -331,6 +334,16 @@ bool App::interesting_object_shot(bool first, BattleCamShot& out) {
     w.may_follow = [this](uint32_t id) {
         const render::SnapshotObject* o = drawn_object(static_cast<objects::ObjectId>(id), nullptr);
         return o && (o->flags & kGone) == 0;
+    };
+    // #571: the hardpoint's target as 0x3856a0 returns it: drawn, with a model.
+    const auto hardpoint_target = [this, b](uint32_t id, uint32_t hp) -> uint32_t {
+        const objects::ObjectId t = b->combat().hardpoint_target(static_cast<objects::ObjectId>(id), hp);
+        const render::SnapshotObject* o = t != objects::kNoObjectId ? drawn_object(t, nullptr) : nullptr;
+        return o && (o->flags & render::kSnapDrawable) != 0 ? static_cast<uint32_t>(t) : 0u;
+    };
+    w.hardpoint_count = [b](uint32_t id) { return b->combat().hardpoint_count(static_cast<objects::ObjectId>(id)); };
+    w.hardpoint_ready = [b, &hardpoint_target](uint32_t id, uint32_t hp) {
+        return !b->combat().hardpoint_destroyed(static_cast<objects::ObjectId>(id), hp) && hardpoint_target(id, hp) != 0;
     };
     w.target = [this, b, &has](uint32_t id) -> uint32_t {
         const objects::ObjectId t = b->combat().current_target(static_cast<objects::ObjectId>(id));
@@ -390,6 +403,15 @@ bool App::interesting_object_shot(bool first, BattleCamShot& out) {
             io.combat_target.frame = tf;
         }
     }
+    // #571 the dispatcher's step 3 (0x4a53f0): the drawn hardpoint's target now, then the template's gates on it.
+    io.hardpoint = cine_.interesting.hardpoint;
+    if (io.hardpoint >= 0)
+        if (const uint32_t t = hardpoint_target(io.id, static_cast<uint32_t>(io.hardpoint)); t != 0) {
+            const render::SnapshotObject* to = drawn_object(static_cast<objects::ObjectId>(t), nullptr);
+            io.hardpoint_target = t;
+            io.hardpoint_target_shown =
+                to && (to->flags & (kGone | render::kSnapFogHidden)) == 0 && to->fade >= 0.75f;  // 0x4a48ae: fade >= 0.75
+        }
     InterestingCategories c;
     c.fighter = static_cast<uint64_t>(cats.lookup("Fighter").value_or(0x1));
     c.bomber = static_cast<uint64_t>(cats.lookup("Bomber").value_or(0x2));
@@ -536,8 +558,39 @@ void App::battle_cam_step() {
     cine_.cam_clock = cine_.cam.serial() != serial ? 0 : c;
 }
 
+// #571 0x49d640 (hp != -1) [H]: B = the Attachment_Bone's world translation (Fire_Bone_A's when the type names no
+// Attachment_Bone), d = Fire_Bone_A's world X axis, both on the drawn model's current pose. [port] Without a loaded model
+// or those bones: B = the sim's hardpoint position (CombatSystem::hardpoint_world) and d = the object's model X axis;
+// retail reads (0, 0, 0) for B and no turn (the identity) when the bone lookups fail.
+bool App::hardpoint_frame(const render::SnapshotObject& o, int32_t hp, const ObjectFrame& object_frame, ObjectFrame& out) {
+    const sim::TacticalBattle* b = battle();
+    if (!b || hp < 0) return false;
+    const tactical::combat::CombatSystem& cs = b->combat();
+    if (static_cast<uint32_t>(hp) >= cs.hardpoint_count(o.id)) return false;
+    const tactical::combat::UnitDesc& ud = cs.data().units[cs.desc_index(o.id)];
+    std::string_view attach, fire;
+    if (static_cast<size_t>(hp) < ud.hardpoints.size() && ud.hardpoints[static_cast<size_t>(hp)] < cs.data().hardpoints.size()) {
+        const objects::TypeIndex ht = data_.types.resolve_name(cs.data().hardpoints[ud.hardpoints[static_cast<size_t>(hp)]].name);
+        if (ht != objects::kNone) {
+            attach = ascii_trim(data_.types.get_string(ht, "Attachment_Bone"));
+            fire = ascii_trim(data_.types.get_string(ht, "Fire_Bone_A"));
+        }
+    }
+    assets::Mat3x4 ma, mf;
+    const bool have_a = bview_.bone_world(o, attach, ma), have_f = bview_.bone_world(o, fire, mf);
+    ui::Vec3 at;
+    if (have_a) at = {ma.m[0][3], ma.m[1][3], ma.m[2][3]};
+    else if (have_f) at = {mf.m[0][3], mf.m[1][3], mf.m[2][3]};
+    else if (tactical::Vec3 p; cs.hardpoint_world(o.id, hp, p)) at = p;
+    else at = object_frame.position;
+    const ui::Vec3 d = have_f ? ui::Vec3{mf.m[0][0], mf.m[1][0], mf.m[2][0]} : object_frame.axis[0];
+    out = hardpoint_eye_frame(at, d);
+    return true;
+}
+
 // 0x49cd00 for the battle cam: the keyed eye / look on the framed object's drawn transform, the eye smoothing, the look
-// filter (#671), near / far 1 / 10000 (0x49b1a0); FOV stays the mode camera's.
+// filter (#671), near / far 1 / 10000 (0x49b1a0). #571 0x49bdf0: the FOV from the shot's FOV keys or zoom trigger, F0 =
+// the tactical camera's FOV.
 bool App::battle_cam_camera(ui::CameraParams& cp) {
     if (!cine_.cam.active()) return false;
     ObjectFrame f;
@@ -554,8 +607,25 @@ bool App::battle_cam_camera(ui::CameraParams& cp) {
             an.second = f2;
             an.z_second = shot_z_adjust(o2->type);
         }
+    // #571: keys with `on_hardpoint` sit on the shot's hardpoint. [port] An unknown hardpoint falls back to the object.
+    an.hardpoint = f;
+    if (s.hardpoint >= 0) (void)hardpoint_frame(*o, s.hardpoint, f, an.hardpoint);
     const ui::Vec3 keyed_look = shot_keys_look(s.look, c, an);
     ui::Vec3 keyed = shot_keys_eye(s.eye, s.look, c, an);
+    // #571 0x49bdf0, after the eye and look and before the terrain clamp: the zoom target's |E| and |look - eye|.
+    {
+        const float f0 = bview_.camera().fov_deg();
+        std::optional<float> radius;
+        if (const uint32_t zt = cine_.cam.fov().target(); zt != 0)
+            if (const render::SnapshotObject* oz = drawn_object(static_cast<objects::ObjectId>(zt), nullptr)) {
+                const ui::Vec3 e = shot_half_extents(oz->type);
+                radius = std::sqrt(tactical::dot(e, e));
+            }
+        const ui::Vec3 dl = keyed_look - keyed;
+        const float fov = cine_.cam.shot_fov(c, f0, radius, std::sqrt(tactical::dot(dl, dl)));
+        if (fov != f0)
+            cp.fov_x = ui::tactical_fov_x(fov, static_cast<float>(targets_.width) / static_cast<float>(std::max(1u, targets_.height)));
+    }
     // #564 (+0x315 [H]): on land, with the sticky clamp set, the eye keeps over the ground; before the smoothing.
     if (!bview_.space() && cine_.cam.terrain_clamp() && bview_.scene()) {
         const terrain::MapData* m = &bview_.scene()->map();

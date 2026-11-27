@@ -266,6 +266,9 @@ private:
     void camera_button();                        // b_camera_t (0x347100)
     void engine_loop_to(objects::ObjectId id);   // #564: move the cinematic engine loop (+0x318) to `id` (none: off)
     bool interesting_object_shot(bool first, BattleCamShot& out);  // #568 0x2cd930: the pick and its template
+    // #571 0x49d640: the frame of drawn object `o`'s hardpoint `hp` for the hardpoint shot's eye (hardpoint_eye_frame);
+    // false for an unknown hardpoint.
+    bool hardpoint_frame(const render::SnapshotObject& o, int32_t hp, const ObjectFrame& object_frame, ObjectFrame& out);
     // The drawn object `id` (snapshot, ascending id) and its transform; null when it is not drawn.
     const render::SnapshotObject* drawn_object(objects::ObjectId id, ObjectFrame* frame) const;
     ui::Vec3 shot_half_extents(objects::TypeIndex type);  // the shots' E: model box, else the drawn radius, else 200
