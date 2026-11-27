@@ -205,15 +205,18 @@ struct ShotKey {
     bool reverse = false;    // +0x50: the orbit turns clockwise
     bool translate_only = false;  // +0x51 (#568): an attached offset in world axes from the object's position
     bool on_second = false;  // #570 (+0x2c holds another id): attached to the shot's second object (a target)
+    bool on_hardpoint = false;  // #571 (+0x30 != -1): in the frame of the shot's hardpoint (KeyAnchors::hardpoint)
 };
 
 // #570: the objects attached keys sit on (0x49d640 resolves each key's +0x2c): the shot's object, and a second one for
-// keys with `on_second`, each with its Ranged_Target_Z_Adjust.
+// keys with `on_second`, each with its Ranged_Target_Z_Adjust. #571: keys with `on_hardpoint` sit in `hardpoint`, the
+// frame of the shot's hardpoint (hardpoint_eye_frame), with no Ranged_Target_Z_Adjust.
 struct KeyAnchors {
     ObjectFrame first;
     float z_first = 0.0f;
     ObjectFrame second;
     float z_second = 0.0f;
+    ObjectFrame hardpoint;
 };
 
 // The key lists' position at shot clock `c` (docs/re/BATTLE_CAM.md "The per-frame evaluator"). Attached keys sit in the

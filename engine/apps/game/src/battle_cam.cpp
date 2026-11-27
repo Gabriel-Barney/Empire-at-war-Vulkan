@@ -151,6 +151,8 @@ bool bombing_run_shot(const BombingRunView& v, UnsyncedRandom& rng, BattleCamSho
 void BattleCam::start(State s, BattleCamShot shot) {
     state_ = s;
     shot_ = std::move(shot);
+    fov_.clear_keys();  // #571 0x4a7a90: every shot start clears the FOV keys, not the zoom trigger
+    if (shot_.zoom) fov_.arm(*shot_.zoom);
     if (shot_.smoothing) smoothing_ = *shot_.smoothing;
     if (shot_.look_filter) look_filter_ = *shot_.look_filter;  // #671 +0x1bd
     if (shot_.interesting) {
@@ -168,6 +170,7 @@ void BattleCam::stop() {
     look_filter_ = false;  // End_Cinematic_Mode 0x49b5c0: +0x1bc and +0x1bd
     filter_.clear();
     filter_serial_ = 0;
+    fov_.clear();  // #571 End_Cinematic_Mode 0x49b5c0: the FOV keys and the zoom trigger
     on_interesting_ = false;
     view_ = 0;
     held_ = false;
@@ -328,6 +331,44 @@ int32_t BattleCam::tick(int32_t clock, bool tab_held, const BattleCamPicks& p) {
     return 0;
 }
 
+float BattleCam::shot_fov(int32_t clock, float base_deg, std::optional<float> target_radius, float distance) {
+    const int32_t remaining = shot_.length > 0 ? shot_.length - clock : 0;  // 0x4ad2e0 [port: 0 with no timer]
+    return fov_.step(clock, remaining, base_deg, target_radius, distance);
+}
+
+float ShotFov::step(int32_t frame, int32_t remaining, float base_deg, std::optional<float> target_radius, float distance) {
+    if (!keys_.empty()) {  // 0x49c40b..0x49c4ec
+        if (frame < keys_.front().frame) return base_deg;
+        size_t k = 0;
+        while (k + 1 < keys_.size() && keys_[k + 1].frame <= frame) ++k;
+        if (k + 1 >= keys_.size()) return keys_[k].degrees;
+        const FovKey& a = keys_[k];
+        const FovKey& b = keys_[k + 1];
+        if (a.hold) return a.degrees;
+        const float t = static_cast<float>(frame - a.frame) / static_cast<float>(b.frame - a.frame);
+        return a.degrees + shot_accel(t, a.ease_out, b.ease_in) * (b.degrees - a.degrees);
+    }
+    if (trigger_.mode == 0 || trigger_.earliest == 0 || remaining < kMinFramesLeft || frame <= trigger_.earliest ||
+        trigger_.target == 0 || !target_radius)
+        return base_deg;
+    // fit = 2 atan(R / D) in degrees. [port] atan2 keeps D = 0 finite (retail divides).
+    const float fit = 2.0f * std::atan2(*target_radius, distance) / kDegToRad;
+    if (std::fabs(base_deg - fit) <= kFitTolerance) return base_deg;  // kept armed: re-tried next frame
+    const float t = std::clamp(fit, kMinFov, kMaxFov);
+    const auto add = [this](int32_t f, float deg) { keys_.push_back(FovKey{f, deg, false, kEase, kEase}); };
+    add(frame + 1, base_deg);
+    if (trigger_.mode == 2) {
+        const float mid = base_deg + kMidShare * (t - base_deg);
+        add(frame + 7, mid);
+        add(frame + 22, mid);
+        add(frame + 28, t);
+    } else {
+        add(frame + 7, t);
+    }
+    trigger_ = {};  // +0x320 = 0, +0x324 = -1, +0x328 = 0
+    return base_deg;
+}
+
 Vec3 BattleCam::filter_look(const Vec3& look, int32_t clock) {
     if (filter_serial_ != serial_) {
         filter_.seed(look);
@@ -447,6 +488,7 @@ std::vector<size_t> saliency_rank(std::span<const SaliencyFeatures> features, co
 }
 
 bool interesting_pick(InterestingState& s, bool first, const InterestingWorld& w, UnsyncedRandom& rng) {
+    s.hardpoint = -1;  // #571 +0x378, set at the top of 0x2cd0d0
     if (first && !w.selection.empty()) {  // 0x2cd930: a random selected object, no filter; +0x368 untouched
         const uint32_t id = w.selection[static_cast<size_t>(rng.range(0, static_cast<int32_t>(w.selection.size()) - 1))];
         s.current = id;
@@ -485,7 +527,16 @@ bool interesting_pick(InterestingState& s, bool first, const InterestingWorld& w
     }
     s.current = w.candidate_ids[pick];
     s.type = w.candidate_types[pick];
-    (void)rng.range(0, 3);  // the hardpoint draw; [port] no hardpoint is picked (#571)
+    // #571 0x2cd752..0x2cd7e6: the hardpoint draw, 3/4 of the time; n tries with replacement, the first ready one.
+    if (rng.range(0, 3) > 0 && w.hardpoint_count && w.hardpoint_ready)
+        if (const uint32_t hn = w.hardpoint_count(s.current); hn > 0)
+            for (uint32_t i = 0; i < hn; ++i) {
+                const int32_t hp = rng.range(0, static_cast<int32_t>(hn) - 1);
+                if (w.hardpoint_ready(s.current, static_cast<uint32_t>(hp))) {
+                    s.hardpoint = hp;
+                    break;
+                }
+            }
     return true;
 }
 
@@ -764,10 +815,61 @@ bool land_flying_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCam
     return true;
 }
 
+ObjectFrame hardpoint_eye_frame(const Vec3& attach, const Vec3& fire_x) {
+    // 0x383af0 -> 0x20acd0: the angles in degrees (yaw + 360 when negative), then 0x20b350 x 0.017453292.
+    float yaw = std::atan2(fire_x.y, fire_x.x) / kDegToRad;
+    if (yaw < 0.0f) yaw += 360.0f;
+    const float pitch = -std::atan2(fire_x.z, std::sqrt(fire_x.x * fire_x.x + fire_x.y * fire_x.y)) / kDegToRad;
+    const float cy = std::cos(yaw * kDegToRad), sy = std::sin(yaw * kDegToRad);
+    const float cp = std::cos(pitch * kDegToRad), sp = std::sin(pitch * kDegToRad);
+    // M = Rz(yaw) Ry(pitch); M' = M Rz(90) (0x480f0), so M' (x, y, z) = M (-y, x, z).
+    const Vec3 mx{cp * cy, cp * sy, -sp}, my{-sy, cy, 0.0f}, mz{sp * cy, sp * sy, cp};
+    ObjectFrame f;
+    f.valid = true;
+    f.position = attach;
+    f.axis[0] = my;
+    f.axis[1] = mx * -1.0f;
+    f.axis[2] = mz;
+    return f;
+}
+
+bool hardpoint_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out) {
+    // Gates (0x4a47d0 [H]): the hardpoint and its target, the target not fogged or hidden, faded in to 0.75.
+    if (o.hardpoint < 0 || o.hardpoint_target == 0 || !o.hardpoint_target_shown) return false;
+    constexpr int32_t fps = kCinematicFps;
+    const int32_t n = rng.range(120, 180);
+    BattleCamShot s;
+    s.target = o.id;
+    s.second = o.hardpoint_target;
+    s.hardpoint = o.hardpoint;
+    s.interesting = true;
+    ShotKey eye = key(0, ShotKey::Segment::Hold, true, Vec3{0.0f, 0.0f, 200.0f});
+    eye.on_hardpoint = true;
+    s.eye.push_back(eye);
+    ShotKey look = key(0, ShotKey::Segment::Hold, true, Vec3{});
+    look.on_second = true;
+    s.look.push_back(look);
+    s.length = static_cast<int32_t>(static_cast<float>(fps) * (static_cast<float>(n) / static_cast<float>(fps)));  // 0x4ad3a0
+    s.handheld = true;
+    s.handheld_frames = 2 * n;  // 0x4ab780(ctrl, 2n)
+    s.smoothing = 0.9f;
+    const int32_t z = rng.range(0, 2);  // +0x328, drawn after the keys
+    ZoomTrigger t;
+    t.mode = z;
+    if (z != 0) {
+        t.target = o.hardpoint_target;
+        t.earliest = z == 2 ? n / 2 - 5 : n / 2;
+    }
+    s.zoom = t;
+    out = std::move(s);
+    return true;
+}
+
 bool interesting_shot(const InterestingObject& o, bool space, const InterestingCategories& c, UnsyncedRandom& rng,
                       BattleCamShot& out) {
-    // Steps 1 - 3 (docs/re/BATTLE_CAM.md "The dispatcher"): the glory files (#572) and the hardpoint shot (#571) are not
-    // ported: they fail and fall through. Step 2 (the terrain clamp) is BattleCam::start's.
+    // Steps 1 - 3 (docs/re/BATTLE_CAM.md "The dispatcher"): the glory files (#572) are not ported: they fail and fall
+    // through. Step 2 (the terrain clamp) is BattleCam::start's; step 3 is the hardpoint shot (#571).
+    if (o.hardpoint >= 0 && hardpoint_shot(o, rng, out)) return true;
     if ((o.category & c.fighter) != 0) {  // step 4
         out = fighter_chase_shot(o, rng);
         return true;

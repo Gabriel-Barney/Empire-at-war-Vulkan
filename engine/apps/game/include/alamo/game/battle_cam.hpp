@@ -11,8 +11,8 @@
 // Presentation only. Nothing here is written into the sim, and the orbit direction is an unsynced draw.
 // Ported shots: Cinematic View, the hero clash orbit, and the interesting-object shot with its orbit, fly-past and
 // static templates (#568), its push-in, drive-by and land flying shots (#569), and its structure, attack-run and
-// fighter shots (#570), and the land bombing run (0x49f370, #563). [port] The hardpoint and glory templates (#571, #572)
-// are not ported yet: they fail, and the next pick is tried, as retail does when a pick fails.
+// fighter shots (#570), the hardpoint shot with its FOV zoom (#571), and the land bombing run (0x49f370, #563). [port]
+// The glory files (#572) are not ported yet: that step fails, and the dispatcher goes on, as retail does on a failure.
 #pragma once
 
 #include <cstdint>
@@ -26,6 +26,49 @@
 #include "alamo/game/battle_fx.hpp"
 
 namespace alamo::game {
+
+// #571 the FOV zoom trigger (ctrl +0x328 / +0x324 / +0x320) a hardpoint shot sets: `mode` 0 none, 1 a quick zoom, 2 a
+// two-step; `target` the object to fit (0 = none); `earliest` the shot frame it may fire after.
+struct ZoomTrigger {
+    int32_t mode = 0;
+    uint32_t target = 0;
+    int32_t earliest = 0;
+};
+
+// #571 a FOV key (list ctrl +0x30, 0x14-byte records): from `frame` on, degrees; mode 1 (linear with eases) here.
+struct FovKey {
+    int32_t frame = 0;
+    float degrees = 0.0f;
+    bool hold = false;  // mode 2: the value holds to the next key
+    float ease_out = 0.0f, ease_in = 0.0f;
+};
+
+// #571 0x49bdf0 [H] (docs/re/BATTLE_CAM.md "The FOV zoom"): the battle cam's FOV keys and zoom trigger. With keys, the
+// value is F0 before the first key, the last key's from it on, and between keys a and b a.degrees + accel(t,
+// a.ease_out, b.ease_in) (b - a) (a hold keeps a). With no keys, an armed trigger fires when the shot frame is past
+// `earliest`, 36 or more frames are left and the target resolves, and fit = 2 atan(R / D) (R = the target's |E|, D =
+// |look - eye|) is more than 10 degrees from F0: T = clamp(fit, 25, 55); mode 1 keys (p + 1, F0), (p + 7, T); mode 2
+// (p + 1, F0), (p + 7, mid), (p + 22, mid), (p + 28, T) with mid = F0 + 0.75 (T - F0); eases 0.1 / 0.1. The trigger
+// is then cleared; a fit within 10 degrees leaves it armed, so it is re-tried each frame.
+class ShotFov {
+public:
+    static constexpr int32_t kMinFramesLeft = 36;
+    static constexpr float kFitTolerance = 10.0f, kMinFov = 25.0f, kMaxFov = 55.0f, kMidShare = 0.75f, kEase = 0.1f;
+    void arm(const ZoomTrigger& t) { trigger_ = t; }  // the hardpoint template (mode 0 disarms)
+    void clear_keys() { keys_.clear(); }              // 0x4a7a90, every shot start; the trigger is kept
+    void clear() { keys_.clear(); trigger_ = {}; }    // End_Cinematic_Mode 0x49b5c0
+    uint32_t target() const { return trigger_.mode != 0 ? trigger_.target : 0; }  // +0x324 while armed
+    const std::vector<FovKey>& keys() const { return keys_; }
+    // This frame's FOV in degrees; an armed trigger that fires appends its keys and disarms (so the call is not const,
+    // but a repeat at the same frame gives the same value). `remaining` = the shot timer's frames left (0x4ad2e0);
+    // `target_radius` = the trigger target's |E| (nullopt: it no longer resolves); `distance` = |look - eye| of this
+    // frame, before the smoothing.
+    float step(int32_t frame, int32_t remaining, float base_deg, std::optional<float> target_radius, float distance);
+
+private:
+    ZoomTrigger trigger_;
+    std::vector<FovKey> keys_;
+};
 
 // A battle-cam shot: eye and look keys attached to one object; shot clock 0 = the frame it started.
 struct BattleCamShot {
@@ -45,6 +88,8 @@ struct BattleCamShot {
     // #671 +0x1bd: true = the view looks at the filtered look (LookFilter), false = the raw look. Unset: the template
     // does not write it, so the previous shot's value carries on (End_Cinematic_Mode clears it).
     std::optional<bool> look_filter;
+    int32_t hardpoint = -1;  // #571: the hardpoint of `target` the keys with `on_hardpoint` sit on (-1 = none)
+    std::optional<ZoomTrigger> zoom;  // #571: the zoom trigger the shot sets at its start (unset: left as it was)
 };
 
 // #671 0x4a96d0 [H] (seeded by 0x49ff50 when a shot's first look key goes in): a lag-compensated moving average of the
@@ -188,6 +233,11 @@ public:
     // with +0x1bd clear the raw look is drawn.
     tactical::Vec3 filter_look(const tactical::Vec3& look, int32_t clock);
     bool look_filter() const { return look_filter_; }  // +0x1bd
+    // #571 0x49bdf0: the FOV keys and the zoom trigger. A shot start clears the keys and arms the shot's trigger, if it
+    // has one; stop() clears both.
+    const ShotFov& fov() const { return fov_; }
+    // This shot frame's FOV in degrees (ShotFov::step with the frames left of a shot with a length, else 0).
+    float shot_fov(int32_t clock, float base_deg, std::optional<float> target_radius, float distance);
 
 private:
     void start(State s, BattleCamShot shot);
@@ -211,6 +261,7 @@ private:
     bool look_filter_ = false;  // +0x1bd, kept across chained shots (#671)
     LookFilter filter_;
     uint32_t filter_serial_ = 0;  // the shot the filter was seeded for
+    ShotFov fov_;  // #571
     bool on_interesting_ = false;  // +0x360 set: the run reached an interesting object (a chained clash keeps it)
     int32_t last_clock_ = 0;
     tactical::Vec3 smooth_eye_;
@@ -230,6 +281,7 @@ struct InterestingState {
     uint32_t current = 0;  // +0x360
     uint32_t stored = 0;   // +0x368: written only by the validation step (the retail bug, BATTLE_CAM.md "The pick")
     int32_t type = -1;     // +0x370
+    int32_t hardpoint = -1;  // #571 +0x378: the hardpoint the ranked pick drew (-1 = none; every pick resets it)
 };
 
 // What the pick reads from the battle.
@@ -245,12 +297,17 @@ struct InterestingWorld {
     std::vector<int32_t> candidate_types;
     std::vector<SaliencyFeatures> candidate_features;
     SaliencyWeights weights;
+    // #571: the object's hardpoint count (obj +0x2d0), and whether hardpoint `hp` is live (not a destroyed
+    // Is_Destroyable one) with a target (0x3856a0). Unset: no hardpoints.
+    std::function<uint32_t(uint32_t id)> hardpoint_count;
+    std::function<bool(uint32_t id, uint32_t hp)> hardpoint_ready;
 };
 
 // 0x2cd930 / 0x2cd0d0 [H]: `first` = a random object of the selection (no filter); otherwise validate the current
 // object (step A), follow its target with chance 2/3 (step B), else one of the first min(n - 1, 10) + 1 ranked
 // candidates that differs from the current object and the last type (k tries, else the first). False = nothing.
-// [port] The hardpoint draw (3/4) is made but no hardpoint is picked: the hardpoint shot is not ported (#571).
+// #571: after a ranked pick only, with chance 3/4 (rand(0, 3) > 0), up to n draws of rand(0, n - 1) over the object's
+// n hardpoints, with replacement, keep the first ready one in `hardpoint`.
 bool interesting_pick(InterestingState& s, bool first, const InterestingWorld& w, UnsyncedRandom& rng);
 
 // One object as the dispatcher and the templates see it.
@@ -271,6 +328,11 @@ struct InterestingObject {
     ObjectFrame frame;              // its transform at the start (M)
     std::string_view type_name;     // type +0xf8
     InterestingTarget combat_target;  // #570: what it is shooting at (not BattleCamShot::target, the framed object)
+    // #571: the pick's hardpoint (InterestingState::hardpoint), its target now (0x3856a0; 0 = none), and whether that
+    // target passes the template's gates: not fogged or hidden for the local player, faded in to 0.75 or more.
+    int32_t hardpoint = -1;
+    uint32_t hardpoint_target = 0;
+    bool hardpoint_target_shown = false;
 };
 // GameObjectCategoryType values the dispatcher tests (the enum file's; [H] defaults).
 struct InterestingCategories {
@@ -308,9 +370,19 @@ BattleCamShot orbit_shot(const InterestingObject& o, UnsyncedRandom& rng);
 // hull for (t + 1) x 8 s; variant B sweeps across the top front along the start's axes for 3 + 4t s; smoothing 0.9.
 // Needs a model.
 bool fly_past_shot(const InterestingObject& o, bool space, UnsyncedRandom& rng, BattleCamShot& out);
-// 0x4a53f0 [H]: the templates in retail's order by category, with retail's draws. [port] The templates not ported yet
-// (fighter, infantry, attack run, vehicle, structure, flying: #569 / #570; hardpoint #571; glory files #572) fail, so
-// the dispatcher falls through to the next test, as retail does when a template fails.
+// #571 0x49d640 (a key with a hardpoint) [H]: the hardpoint frame. `attach` = the Attachment_Bone's world translation
+// (Fire_Bone_A's without one), `fire_x` = Fire_Bone_A's world X axis d. The axes are M Rz(90), M = Rz(yaw) Ry(pitch)
+// with yaw = atan2(d.y, d.x) and pitch = -atan2(d.z, |d.xy|) (M maps +X to d), so an offset (0, 0, h) sits at
+// attach + h (-sin(e) cos(yaw), -sin(e) sin(yaw), cos(e)), e = the barrel's elevation.
+ObjectFrame hardpoint_eye_frame(const tactical::Vec3& attach, const tactical::Vec3& fire_x);
+// #571 0x4a47d0 [H]: needs the pick's hardpoint and its target, shown. n = 120..180 is drawn first, then z = 0..2. The
+// eye holds 200 above the hardpoint (on_hardpoint), the look on the target (on_second, + its Ranged_Target_Z_Adjust);
+// length (int)(FPS x n / FPS), handheld noise 2n, smoothing 0.9, no letterbox call, +0x1bd inherited. z arms the FOV
+// zoom on the target: none, after n / 2, or the two-step after n / 2 - 5. The gates fail before any draw.
+bool hardpoint_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot& out);
+// 0x4a53f0 [H]: the templates in retail's order by category, with retail's draws: step 3 is the hardpoint shot (#571).
+// [port] Step 1, the glory files (#572), is not ported: it fails, and the dispatcher falls through to the next test,
+// as retail does when a template fails.
 bool interesting_shot(const InterestingObject& o, bool space, const InterestingCategories& c, UnsyncedRandom& rng,
                       BattleCamShot& out);
 

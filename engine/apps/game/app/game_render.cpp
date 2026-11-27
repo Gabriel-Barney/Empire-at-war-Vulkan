@@ -1034,6 +1034,20 @@ ui::Vec3 BattleView::type_half_extents(objects::TypeIndex t) {
     return {(b.max.x - b.min.x) * s, (b.max.y - b.min.y) * s, (b.max.z - b.min.z) * s};
 }
 
+bool BattleView::bone_world(const render::SnapshotObject& o, std::string_view name, assets::Mat3x4& out) {
+    if (!models_ || o.type >= table_.size() || name.empty()) return false;
+    const render::GpuModel* m = models_->type_model(o.type);
+    if (!m || !m->asset) return false;
+    const int32_t bone = m->asset->skeleton.find(name);
+    if (bone < 0) return false;
+    std::span<const assets::Mat3x4> pose;
+#ifdef ALAMO_RENDER_HAVE_ANIM_DRIVER
+    pose = poses_.pose(o.id, m->asset->skeleton.size());
+#endif
+    out = render::attachment_transform(*m->asset, render::object_transform(o, table_[o.type].scale), pose, bone);
+    return true;
+}
+
 void BattleView::bombard_tick(std::span<const sim::TacticalBattle::BombardFlashEvent> shots) {
     const ui::Vec3 look = camera_.look_at();
     bombard_.step(look.x, look.y);

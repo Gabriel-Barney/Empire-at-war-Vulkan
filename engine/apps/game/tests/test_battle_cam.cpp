@@ -6,7 +6,10 @@
 // - Cinematic View (0x4a6790): yaw and pitch per view, the distance clamp, the offset;
 // - the state machine (0x2cbd00 / 0x2cc080 / 0x2cca80 / 0x2cc3e0 / 0x2cbc40): Movie Mode on key up and its gates, the
 //   next clash, Esc, Cinematic View's steps and key rules, the mouse rules, the smoothing;
-// - #671 the look filter (0x4a96d0 / 0x49ff50) against a written-out reference, and the +0x1bd flag per template.
+// - #671 the look filter (0x4a96d0 / 0x49ff50) against a written-out reference, and the +0x1bd flag per template;
+// - #571 the hardpoint shot: the pick's hardpoint draw (0x2cd0d0), the eye frame on the bones (0x49d640), the template
+//   and its gates (0x4a47d0), the dispatcher step, and the FOV zoom trigger and keys (0x49bdf0).
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <optional>
@@ -858,6 +861,193 @@ void test_interesting_chain() {
     CHECK(cam.active() && cam.shot().target == 6 && w.interesting_first.back());
 }
 
+// #571 0x2cd0d0: the hardpoint draw after a ranked pick. Hardpoint 2 of 3 is the only ready one.
+void test_hardpoint_pick() {
+    InterestingWorld w = world3();
+    w.hardpoint_count = [](uint32_t) { return 3u; };
+    w.hardpoint_ready = [](uint32_t, uint32_t hp) { return hp == 2; };
+    bool none = false, two = false;
+    for (uint64_t seed = 1; seed <= 60; ++seed) {
+        UnsyncedRandom r(seed);
+        InterestingState s;
+        s.hardpoint = 1;  // +0x378 is reset to -1 at the top of every pick
+        CHECK(interesting_pick(s, false, w, r));
+        CHECK(s.hardpoint == -1 || s.hardpoint == 2);
+        (s.hardpoint == 2 ? two : none) = true;
+    }
+    CHECK(none && two);
+    // The selection pick and the target branch never draw a hardpoint.
+    UnsyncedRandom rng(3);
+    InterestingState s;
+    s.hardpoint = 2;
+    w.selection = {7};
+    CHECK(interesting_pick(s, true, w, rng) && s.current == 7 && s.hardpoint == -1);
+    w.target = [](uint32_t) { return 99u; };
+    for (uint64_t seed = 1; seed <= 20; ++seed) {
+        UnsyncedRandom r(seed);
+        InterestingState b;
+        b.current = 30;
+        CHECK(interesting_pick(b, false, w, r));
+        if (b.current == 99) CHECK(b.hardpoint == -1);
+    }
+    // RNG cost: no hardpoints = the 0..3 draw only, the same as a world without the hooks.
+    w = world3();
+    InterestingWorld bare = world3();
+    w.hardpoint_count = [](uint32_t) { return 0u; };
+    for (uint64_t seed = 1; seed <= 10; ++seed) {
+        UnsyncedRandom a(seed), b(seed);
+        InterestingState sa, sb;
+        CHECK(interesting_pick(sa, false, w, a) && interesting_pick(sb, false, bare, b) && sa.current == sb.current);
+        CHECK(a.range(0, 1000000) == b.range(0, 1000000));
+    }
+    // One ready hardpoint: a hit costs one more draw (rand(0, 0)) after the 0..3 draw.
+    w.hardpoint_count = [](uint32_t) { return 1u; };
+    w.hardpoint_ready = [](uint32_t, uint32_t) { return true; };
+    for (uint64_t seed = 1; seed <= 20; ++seed) {
+        UnsyncedRandom a(seed), b(seed);
+        InterestingState sa, sb;
+        CHECK(interesting_pick(sa, false, w, a) && interesting_pick(sb, false, bare, b));
+        if (sa.hardpoint == 0) (void)b.range(0, 0);
+        CHECK(a.range(0, 1000000) == b.range(0, 1000000));
+    }
+}
+
+// #571 0x49d640 (hp != -1): the frame from Fire_Bone_A's world X axis d, turned by Rz(90); the eye's (0, 0, 200) sits
+// at B + 200 (-sin(eps) cos(psi), -sin(eps) sin(psi), cos(eps)).
+void test_hardpoint_frame() {
+    const V3 b{10.0f, 20.0f, 30.0f};
+    const V3 up{0.0f, 0.0f, 200.0f};
+    CHECK(near(hardpoint_eye_frame(b, {1.0f, 0.0f, 0.0f}).apply(up), V3{10.0f, 20.0f, 230.0f}));
+    const float c30 = std::cos(30.0f * kDegToRad), s30 = std::sin(30.0f * kDegToRad);
+    CHECK(near(hardpoint_eye_frame(b, {c30, 0.0f, s30}).apply(up), b + V3{-100.0f, 0.0f, 200.0f * c30}));
+    // Yaw 90 (d along +Y), raised 30: the offset tips back along -Y. Local +X maps to M (0, 1, 0) = (-1, 0, 0).
+    const ObjectFrame f = hardpoint_eye_frame(b, {0.0f, 2.0f * c30, 2.0f * s30});  // the length does not matter
+    CHECK(near(f.apply(up), b + V3{0.0f, -100.0f, 200.0f * c30}));
+    CHECK(near(f.apply({1.0f, 0.0f, 0.0f}), b + V3{-1.0f, 0.0f, 0.0f}));
+    CHECK(near(f.apply({0.0f, 1.0f, 0.0f}), b + V3{0.0f, -c30, -s30}));  // M (-1, 0, 0): minus the barrel
+    // d straight up: yaw 0, pitch -90, so the eye goes along -X.
+    CHECK(near(hardpoint_eye_frame(b, {0.0f, 0.0f, 1.0f}).apply(up), b + V3{-200.0f, 0.0f, 0.0f}));
+    // The key resolves on the hardpoint anchor, without Ranged_Target_Z_Adjust.
+    ShotKey k;
+    k.attached = true;
+    k.on_hardpoint = true;
+    k.where = up;
+    KeyAnchors an{frame_at({0.0f, 0.0f, 0.0f}), 6.0f, frame_at({0.0f, 0.0f, 0.0f}), 6.0f};
+    an.hardpoint = hardpoint_eye_frame(b, {1.0f, 0.0f, 0.0f});
+    CHECK(near(shot_key_position(k, an), V3{10.0f, 20.0f, 230.0f}));
+}
+
+InterestingObject hardpoint_object(int32_t hp = 1, uint32_t target = 77, bool shown = true) {
+    InterestingObject o = object({10.0f, 4.0f, 6.0f});
+    o.hardpoint = hp;
+    o.hardpoint_target = target;
+    o.hardpoint_target_shown = shown;
+    return o;
+}
+
+// #571 0x4a47d0: the gates, the keys, the length and the zoom trigger; then the dispatcher step 3.
+void test_hardpoint_shot() {
+    int modes[3] = {0, 0, 0};
+    for (uint64_t seed = 1; seed <= 60; ++seed) {
+        UnsyncedRandom rng(seed);
+        BattleCamShot s;
+        CHECK(hardpoint_shot(hardpoint_object(), rng, s));
+        CHECK(s.target == 42 && s.second == 77 && s.hardpoint == 1 && s.interesting && s.engine_loop);
+        CHECK(s.eye.size() == 1 && s.eye[0].segment == ShotKey::Segment::Hold && s.eye[0].attached && s.eye[0].on_hardpoint &&
+              near(s.eye[0].where, V3{0.0f, 0.0f, 200.0f}) && !s.eye[0].translate_only);
+        CHECK(s.look.size() == 1 && s.look[0].segment == ShotKey::Segment::Hold && s.look[0].attached && s.look[0].on_second &&
+              near(s.look[0].where, V3{}));
+        const int32_t n = s.handheld_frames / 2;  // the noise runs 2n
+        CHECK(s.handheld && s.handheld_frames == 2 * n && n >= 120 && n <= 180);
+        CHECK(s.length == static_cast<int32_t>(static_cast<float>(kCinematicFps) *
+                                               (static_cast<float>(n) / static_cast<float>(kCinematicFps))));
+        CHECK(s.smoothing && near(*s.smoothing, 0.9f) && !s.look_filter);  // +0x1bd inherited
+        CHECK(s.zoom.has_value());
+        const ZoomTrigger z = s.zoom.value_or(ZoomTrigger{});
+        CHECK(z.mode >= 0 && z.mode <= 2);
+        ++modes[std::clamp(z.mode, 0, 2)];
+        if (z.mode == 0) CHECK(z.target == 0 && z.earliest == 0);
+        if (z.mode == 1) CHECK(z.target == 77 && z.earliest == n / 2);
+        if (z.mode == 2) CHECK(z.target == 77 && z.earliest == n / 2 - 5);
+    }
+    CHECK(modes[0] > 0 && modes[1] > 0 && modes[2] > 0);
+    // The gates fail before any draw: no hardpoint, no target, a hidden or faded target.
+    for (const InterestingObject& o : {hardpoint_object(-1), hardpoint_object(1, 0), hardpoint_object(1, 77, false)}) {
+        UnsyncedRandom a(9), b(9);
+        BattleCamShot s;
+        CHECK(!hardpoint_shot(o, a, s) && a.range(0, 1000000) == b.range(0, 1000000));
+    }
+    // The dispatcher: step 3 comes before the fighter chase (step 4); without a hardpoint the chase is taken.
+    InterestingCategories c;
+    InterestingObject f = hardpoint_object();
+    f.category = c.fighter;
+    UnsyncedRandom rng(4);
+    BattleCamShot s;
+    CHECK(interesting_shot(f, true, c, rng, s) && s.hardpoint == 1 && s.eye[0].on_hardpoint);
+    f.hardpoint = -1;
+    CHECK(interesting_shot(f, true, c, rng, s) && s.hardpoint == -1 && s.smoothing && near(*s.smoothing, 0.99f));
+    f.hardpoint = 1;
+    f.hardpoint_target_shown = false;  // the template fails: the dispatcher goes on
+    CHECK(interesting_shot(f, true, c, rng, s) && s.hardpoint == -1);
+}
+
+// #571 0x49bdf0: the zoom trigger and the FOV keys. F0 = 55; the target's |E| = 10 at 100 units: fit = 2 atan(0.1).
+void test_fov_zoom() {
+    const float fit = 2.0f * std::atan(0.1f) / kDegToRad;  // 11.4: |55 - fit| > 10, T = clamp(fit, 25, 55) = 25
+    CHECK(fit < 25.0f);
+    ShotFov f;
+    CHECK(near(f.step(5, 100, 55.0f, 10.0f, 100.0f), 55.0f) && f.keys().empty());  // nothing armed
+    f.arm({1, 77, 60});
+    CHECK(f.target() == 77);
+    CHECK(near(f.step(60, 60, 55.0f, 10.0f, 100.0f), 55.0f) && f.keys().empty());         // not past the earliest frame
+    CHECK(near(f.step(61, 35, 55.0f, 10.0f, 100.0f), 55.0f) && f.keys().empty());         // fewer than 36 frames left
+    CHECK(near(f.step(61, 59, 55.0f, std::nullopt, 100.0f), 55.0f) && f.keys().empty());  // the target is gone
+    CHECK(near(f.step(61, 59, 55.0f, 50.0f, 100.0f), 55.0f) && f.keys().empty());         // fit 53.1: within 10 degrees
+    CHECK(f.target() == 77);  // kept armed: the zoom is re-tried each frame
+    CHECK(near(f.step(61, 59, 55.0f, 10.0f, 100.0f), 55.0f));  // fires: keys (62, 55), (68, 25); F0 this frame
+    CHECK(f.target() == 0 && f.keys().size() == 2);
+    if (f.keys().size() == 2) {
+        CHECK(f.keys()[0].frame == 62 && f.keys()[1].frame == 68 && near(f.keys()[0].degrees, 55.0f) &&
+              near(f.keys()[1].degrees, 25.0f));
+        CHECK(near(f.keys()[0].ease_out, 0.1f) && near(f.keys()[1].ease_in, 0.1f));
+    }
+    CHECK(near(f.step(61, 59, 55.0f, 10.0f, 100.0f), 55.0f));  // before the first key: F0
+    CHECK(near(f.step(65, 56, 55.0f, 10.0f, 100.0f), 40.0f));  // half way, symmetric eases
+    CHECK(near(f.step(68, 53, 55.0f, 10.0f, 100.0f), 25.0f) && near(f.step(200, 0, 55.0f, 10.0f, 100.0f), 25.0f));
+    // z = 2: the slow two-step, mid = F0 + 0.75 (T - F0).
+    ShotFov g;
+    g.arm({2, 77, 55});
+    CHECK(near(g.step(56, 64, 55.0f, 10.0f, 100.0f), 55.0f) && g.keys().size() == 4);
+    if (g.keys().size() == 4)
+        CHECK(g.keys()[1].frame == 63 && near(g.keys()[1].degrees, 32.5f) && g.keys()[2].frame == 78 &&
+              near(g.keys()[2].degrees, 32.5f) && g.keys()[3].frame == 84 && near(g.keys()[3].degrees, 25.0f));
+    CHECK(near(g.step(70, 50, 55.0f, 10.0f, 100.0f), 32.5f));
+    // z = 0 disarms; the next shot's start clears the keys, not the trigger; End_Cinematic_Mode clears both.
+    g.arm({0, 0, 0});
+    CHECK(g.target() == 0 && g.keys().size() == 4);
+    g.clear_keys();
+    CHECK(g.keys().empty());
+    g.arm({1, 77, 10});
+    g.clear();
+    CHECK(g.target() == 0 && near(g.step(50, 100, 55.0f, 10.0f, 100.0f), 55.0f));
+    // In the controller: a hardpoint shot arms the trigger, the next shot keeps it armed, a stop clears it.
+    World w;
+    BattleCamGates gates;
+    BattleCam cam;
+    UnsyncedRandom rng(2);
+    BattleCamShot hp;
+    while (!hardpoint_shot(hardpoint_object(), rng, hp) || !hp.zoom || hp.zoom->mode != 1) hp = {};
+    w.interesting = {hp, timed(5, 120)};
+    CHECK(cam.movie_key_up(gates, w.picks()) && cam.shot().hardpoint == 1 && cam.fov().target() == 77);
+    const int32_t e = hp.zoom ? hp.zoom->earliest : 0;
+    CHECK(near(cam.shot_fov(e + 1, 55.0f, 10.0f, 100.0f), 55.0f) && cam.fov().keys().size() == 2);
+    CHECK(near(cam.shot_fov(e + 8, 55.0f, 10.0f, 100.0f), 25.0f));  // fired at e + 1: keys at e + 2 and e + 8
+    CHECK(cam.tick(hp.length, false, w.picks()) == 0 && cam.shot().target == 5 && cam.fov().keys().empty());
+    CHECK(near(cam.shot_fov(10, 55.0f, 10.0f, 100.0f), 55.0f));
+    cam.stop();
+    CHECK(cam.fov().target() == 0);
+}
+
 // #563 0x49f370: the bombing-run shot's keys and length, and its place after the clash in the picks and the chain.
 void test_bombing_run() {
     BombingRunView v;
@@ -1103,6 +1293,10 @@ int main() {
     test_toggle_and_smoothing();
     test_bombing_run();
     test_look_filter();
+    test_hardpoint_pick();
+    test_hardpoint_frame();
+    test_hardpoint_shot();
+    test_fov_zoom();
     std::printf(g_fail == 0 ? "game battle cam tests passed\n" : "%d game battle cam check(s) FAILED\n", g_fail);
     return g_fail == 0 ? 0 : 1;
 }

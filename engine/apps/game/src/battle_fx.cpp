@@ -306,13 +306,14 @@ Vec3 TswFiringShot::look(int32_t c, const ObjectFrame& tsw) { return shot_keys_l
 
 // ---- the key evaluator (0x49c540 eye / 0x49de50 look) ----------------------------------------------------------------
 namespace {
-KeyAnchors one_anchor(const ObjectFrame& f, float z_adjust) { return KeyAnchors{f, z_adjust, f, z_adjust}; }
+KeyAnchors one_anchor(const ObjectFrame& f, float z_adjust) { return KeyAnchors{f, z_adjust, f, z_adjust, f}; }
 }  // namespace
 
 Vec3 shot_key_position(const ShotKey& k, const ObjectFrame& f, float z_adjust) { return shot_key_position(k, one_anchor(f, z_adjust)); }
 
 Vec3 shot_key_position(const ShotKey& k, const KeyAnchors& an) {
     if (!k.attached) return k.where;
+    if (k.on_hardpoint) return an.hardpoint.apply(k.where);  // #571 0x49d640, hp != -1: B + M' offset, no z adjust
     const ObjectFrame& f = k.on_second ? an.second : an.first;
     const float z_adjust = k.on_second ? an.z_second : an.z_first;
     if (k.translate_only) return f.position + k.where + Vec3{0.0f, 0.0f, z_adjust};  // +0x51: world axes

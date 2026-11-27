@@ -212,6 +212,10 @@ public:
     // half-extents of the type's drawn model box x Scale_Factor (TSW firing shot E, legacy docs/re/TSW_PLANET_DESTROY.md §11.2
     // [M: the model box]); zero until the model is loaded.
     ui::Vec3 type_half_extents(objects::TypeIndex t);
+    // #571 (the battle cam's hardpoint shot): the world transform of bone `name` of drawn object `o` on its type's model,
+    // in its current pose (the bind pose without one), x Scale_Factor; false until the model is loaded or without that
+    // bone.
+    bool bone_world(const render::SnapshotObject& o, std::string_view name, assets::Mat3x4& out);
     float load_progress() const;
     bool settled(const render::DrawStats& ds) const;
 
