@@ -874,6 +874,16 @@ void test_buttons() {
         const HudConstants hwx = hud_constants_from(gwx.root());
         CHECK2(near2(h0.min_accuracy_for_icon, 0.4f) && near2(h0.min_sight_range_for_icon, 0.5f) &&
                near2(hwx.min_accuracy_for_icon, 0.25f) && near2(hwx.min_sight_range_for_icon, 0.75f));
+        // #727 the land waypoint line's dashes (FoC 5 / 5 / 1).
+        // ledger: verifies GameConstants.WaypointLineLandDashLength
+        // ledger: verifies GameConstants.WaypointLineLandGapLength
+        // ledger: verifies GameConstants.WaypointLineLandDashVelocity
+        const data::XmlDocument gwp = data::XmlDocument::parse(std::string_view(
+            "<GameConstants><WaypointLineLandDashLength>8</WaypointLineLandDashLength><WaypointLineLandGapLength>2</WaypointLineLandGapLength>"
+            "<WaypointLineLandDashVelocity>0.5</WaypointLineLandDashVelocity></GameConstants>"));
+        const HudConstants hwp = hud_constants_from(gwp.root());
+        CHECK2(near2(h0.waypoint_dash_length, 5.0f) && near2(h0.waypoint_gap_length, 5.0f) && near2(h0.waypoint_dash_velocity, 1.0f) &&
+               near2(hwp.waypoint_dash_length, 8.0f) && near2(hwp.waypoint_gap_length, 2.0f) && near2(hwp.waypoint_dash_velocity, 0.5f));
         // mcx4 t14 (legacy docs/re/MCX4_PRES_RE_ANSWERS_2.md Q1): the countdown column - Game_Play_UI_Countdown_Font_Name (default
         // empty), Game_Play_UI_Countdown_Font_Size (12), GUI_Tactical_Countdown_Timers_Screen_X / GUI_Tactical_Countdown_Timers_Screen_Y,
         // GUI_Strategic_Countdown_Timers_Screen_X / GUI_Strategic_Countdown_Timers_Screen_Y and
@@ -1181,6 +1191,32 @@ void test_markers() {
     line.points = {{0, 0, 0}, {200, 0, 0}, {200, 200, 0}};
     const uint32_t dots = add_waypoint_lines(dl, cv, v, std::span<const HudWaypointLine>(&line, 1));
     CHECK2(dots > 10 && dl.items(0, HudList::Alpha).size() == dots);
+    {  // #727 the land dashes (0x3e240 / 0x3e9e0): 5 on, 5 off in world units, the pattern shifted by the scroll phase
+        const auto d0 = waypoint_dashes(100.0f, 5.0f, 5.0f, 0.0f);
+        CHECK2(d0.size() == 10 && near2(d0[0].first, 0.0f) && near2(d0[0].second, 5.0f) && near2(d0[9].first, 90.0f));
+        const auto d1 = waypoint_dashes(100.0f, 5.0f, 5.0f, 7.5f);  // the first and last dashes clipped by the ends
+        CHECK2(d1.size() == 11 && near2(d1[0].first, 0.0f) && near2(d1[0].second, 2.5f) && near2(d1[1].first, 7.5f) &&
+               near2(d1[10].second, 100.0f));
+        CHECK2(waypoint_dashes(100.0f, 5.0f, 5.0f, 17.5f).size() == 11 && waypoint_dashes(100.0f, 5.0f, 5.0f, 2.5f).size() == 10 && waypoint_dashes(100.0f, 0.0f, 5.0f, 0.0f).empty());
+        HudWaypointLine dash = line;
+        dash.points = {{0, 0, 0}, {100, 0, 0}};
+        dash.dash_world = 5.0f;
+        dash.gap_world = 5.0f;
+        HudDrawList dd;
+        CHECK2(add_waypoint_lines(dd, cv, v, std::span<const HudWaypointLine>(&dash, 1)) == 10 &&
+               dd.items(0, HudList::Alpha).size() == 10 && dd.items(0, HudList::Alpha)[0].has_corners);
+        // Over a corner the pattern carries on: 7 + 10 units give the dashes 0..5 and 10..15 (the second on the far leg).
+        dash.points = {{0, 0, 0}, {7, 0, 0}, {7, 10, 0}};
+        HudDrawList dc;
+        CHECK2(add_waypoint_lines(dc, cv, v, std::span<const HudWaypointLine>(&dash, 1)) == 2);
+        // A dash over the corner is split in two: 3 + 10 units give 0..3 | 0..2 (one dash), then 7..12 on the far leg.
+        dash.points = {{0, 0, 0}, {3, 0, 0}, {3, 10, 0}};
+        HudDrawList ds;
+        CHECK2(add_waypoint_lines(ds, cv, v, std::span<const HudWaypointLine>(&dash, 1)) == 3);
+        // No gap: one dash after another; a negative gap counts as none; a tiny period is capped.
+        CHECK2(waypoint_dashes(20.0f, 5.0f, 0.0f, 0.0f).size() == 4 && waypoint_dashes(20.0f, 5.0f, -3.0f, 0.0f).size() == 4);
+        CHECK2(waypoint_dashes(100.0f, 1e-7f, 0.0f, 0.0f).size() <= kMaxWaypointDashes);
+    }
     {  // path lines: one solid free quad per segment, kPathLineWidthPx wide, drawn with the given corners
         HudDrawList dl2;
         HudWaypointLine pl = line;

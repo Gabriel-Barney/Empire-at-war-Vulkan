@@ -192,6 +192,11 @@ struct HudConstants {
     // #296 lt_weather_icon thresholds (MCX4_PRES_RE_ANSWERS_3 Q5, GC +0x13bc / +0x13c0 [H]; FoC 0.4 / 0.5)
     float min_accuracy_for_icon = 0.4f;               // Min_Accuracy_For_Icon
     float min_sight_range_for_icon = 0.5f;            // Min_Sight_Range_For_Icon
+    // #727 the land waypoint line (MCX4_T14_RE_ANSWERS "GameConstants.WaypointFlagModelName", draw 0x3e240 / 0x3e9e0 [H];
+    // GC +0x13e4 / +0x13e8 / +0x13ec, FoC 5 / 5 / 1): dash and gap in world units, the scroll per frame.
+    float waypoint_dash_length = 5.0f;                // WaypointLineLandDashLength
+    float waypoint_gap_length = 5.0f;                 // WaypointLineLandGapLength
+    float waypoint_dash_velocity = 1.0f;              // WaypointLineLandDashVelocity
     DefaultFonts fonts;                               // the GameConstants default fonts (FontCache::set_defaults)
     float text_reveal_rate = 120.0f;                  // Text_Reveal_Rate (story text typewriter, chars / s)
     // mcx4 t14 (MCX4_PRES_RE_ANSWERS_3 Q2): Num_Structures_For_Medium_Planet_Name / _Large_ (planet_label_class)

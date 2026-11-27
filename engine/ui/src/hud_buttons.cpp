@@ -384,6 +384,15 @@ HudConstants hud_constants_from(const data::XmlNode& root) {
         c.min_accuracy_for_icon = data::parse_float_or(t, c.min_accuracy_for_icon);
     if (const std::string_view t = last("Min_Sight_Range_For_Icon"); !t.empty())
         c.min_sight_range_for_icon = data::parse_float_or(t, c.min_sight_range_for_icon);
+    // ledger: consumes GameConstants.WaypointLineLandDashLength
+    if (const std::string_view t = last("WaypointLineLandDashLength"); !t.empty())
+        c.waypoint_dash_length = data::parse_float_or(t, c.waypoint_dash_length);
+    // ledger: consumes GameConstants.WaypointLineLandGapLength
+    if (const std::string_view t = last("WaypointLineLandGapLength"); !t.empty())
+        c.waypoint_gap_length = data::parse_float_or(t, c.waypoint_gap_length);
+    // ledger: consumes GameConstants.WaypointLineLandDashVelocity
+    if (const std::string_view t = last("WaypointLineLandDashVelocity"); !t.empty())
+        c.waypoint_dash_velocity = data::parse_float_or(t, c.waypoint_dash_velocity);
     // ledger: consumes GameConstants.Icons_Per_Column
     if (const std::string_view t = last("Icons_Per_Column"); !t.empty())
         c.icons_per_column = static_cast<int32_t>(data::parse_float_or(t, static_cast<float>(c.icons_per_column)));
