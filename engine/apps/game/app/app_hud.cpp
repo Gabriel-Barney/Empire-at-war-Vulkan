@@ -1221,6 +1221,7 @@ void App::build_tactical_hud() {
             e.icon = r.type < htypes->size() ? (*htypes)[r.type].icon_name : std::string();
             e.count = r.units;
             e.available = reinforce_available(r.galactic_id);  // the unit cap / retreat / hold gate of order_reinforce
+            if (b->fleet_groups_enabled()) e.group = reserve_group_label(*b, r.galactic_id);  // #645
             out.push_back(std::move(e));
         }
     };

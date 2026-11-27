@@ -838,6 +838,9 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                 ++build_refusals_;
                 break;
             }
+            case ui::HudAction::Kind::ReinforcementGroup:  // [port: Gabriel] #645 right click on a reinforcement pad
+                if (a.unit && screen() == Screen::Battle) cycle_reserve_group(static_cast<objects::ObjectId>(a.unit));
+                break;
             case ui::HudAction::Kind::FleetGroupRename:  // [port: Gabriel] right click on a fleet group tab (#176)
                 if (a.value > 0 && screen() == Screen::Battle) rename_.open_fleet_group(static_cast<uint16_t>(a.value), a.name);
                 break;
@@ -1890,6 +1893,42 @@ void App::galactic_home() {
     const Vec3 c = g->planets()[pi].position;
     gview_.camera().set_look_at({c.x, c.y, 0.0f});
     selected_planet_ = home_planet_;  // 0x3de570(hud, planet, 0)
+}
+
+// #645 (fleet groups on): the reinforcement pad's group label and its right-click cycle.
+std::u32string App::reserve_group_label(const sim::TacticalBattle& b, objects::ObjectId reserve) const {
+    bool picked = false;
+    const uint16_t g = b.fleet_reserve_group(local_player(), reserve, picked);
+    std::string s;
+    if (g == commands::kAssignNoGroup) {
+        s = "No group";
+    } else if (g == commands::kAssignDefault) {
+        s = "New group";
+    } else if (const sim::FleetGroup* fg = b.fleet_groups().group(g); fg && !fg->name.empty()) {
+        s = fg->name;
+    } else {
+        s = "Group " + std::to_string(g);
+    }
+    if (!picked) s = "Auto: " + s;  // the galactic-fleet rule (#173), not a pick
+    return ui::utf8_to_utf32(s);
+}
+
+void App::cycle_reserve_group(objects::ObjectId reserve) {
+    const sim::TacticalBattle* b = battle();
+    if (!b || !b->fleet_groups_enabled() || local_player() < 0) return;
+    std::vector<uint16_t> order{commands::kAssignDefault};
+    for (const sim::FleetGroup& g : b->fleet_groups().groups())
+        if (g.owner == static_cast<uint8_t>(local_player())) order.push_back(g.id);
+    order.push_back(commands::kAssignNoGroup);
+    const uint16_t now = b->fleet_groups().reserve_assignment(static_cast<uint32_t>(reserve));
+    size_t at = 0;
+    for (size_t i = 0; i < order.size(); ++i)
+        if (order[i] == now) at = i;
+    commands::FleetGroupCommand c;
+    c.op = commands::FleetGroupOp::AssignReserve;
+    c.group = order[(at + 1) % order.size()];
+    c.reserve = static_cast<uint32_t>(reserve);
+    submit(commands::fleet_group_event(c), false);
 }
 
 }  // namespace alamo_game_app

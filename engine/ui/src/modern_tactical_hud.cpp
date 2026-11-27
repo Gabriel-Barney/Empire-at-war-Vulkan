@@ -512,6 +512,7 @@ float ModernTacticalHud::build_reinforcements(const TacticalHudFrame& f, Vec2f t
         t.icon = e.icon;
         t.enabled = e.available;
         if (e.count > 1) t.badge = count_text(e.count);
+        t.text = e.group;  // #645 the group it joins (fleet groups on)
         tile(t);
         reinforce_slots_.push_back({reinforce_[i], e});
         ++stats_.reinforcements;
@@ -1896,6 +1897,8 @@ void ModernTacticalHud::update_input(const RoutedInput& routed, bool shift, bool
             r != reinforce_slots_.end()) {
             if (e.button == Button::Left && r->second.available)
                 act(begin_reinforcement_action(e.component, (*table_)[static_cast<size_t>(e.component)].name, r->second));
+            if (e.button == Button::Right && !r->second.group.empty())  // #645 the next group choice
+                act(reinforcement_group_action(e.component, (*table_)[static_cast<size_t>(e.component)].name, r->second));
             continue;
         }
         // A disabled battle action takes no click (the Classic HudButtons swallows it); Retreat sends the retreat command.

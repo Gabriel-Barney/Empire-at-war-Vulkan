@@ -20,6 +20,11 @@ EventData fleet_group_event(const FleetGroupCommand& c) {
             for (size_t i = 0; i < n; ++i) b.push_back(static_cast<uint8_t>(c.name[i]));
             break;
         }
+        case FleetGroupOp::AssignReserve:
+            b.push_back(static_cast<uint8_t>(c.group & 0xFFu));
+            b.push_back(static_cast<uint8_t>(c.group >> 8));
+            for (int i = 0; i < 4; ++i) b.push_back(static_cast<uint8_t>(c.reserve >> (8 * i)));
+            break;
         case FleetGroupOp::Create:
         case FleetGroupOp::Dissolve:
         case FleetGroupOp::RemoveUnits:
@@ -53,6 +58,13 @@ std::optional<FleetGroupCommand> parse_fleet_group(std::span<const uint8_t> data
             c.name.assign(reinterpret_cast<const char*>(data.data() + 4), n);
             return c;
         }
+        case static_cast<uint8_t>(FleetGroupOp::AssignReserve):
+            if (data.size() != 7) return std::nullopt;
+            c.op = FleetGroupOp::AssignReserve;
+            c.group = static_cast<uint16_t>(data[1] | (data[2] << 8));
+            c.reserve = static_cast<uint32_t>(data[3]) | (static_cast<uint32_t>(data[4]) << 8) | (static_cast<uint32_t>(data[5]) << 16) |
+                        (static_cast<uint32_t>(data[6]) << 24);
+            return c;
         default: return std::nullopt;
     }
 }

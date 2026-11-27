@@ -229,6 +229,12 @@ cmd::RejectReason TacticalBattle::fleet_group_command(TacticalMode& mode, uint8_
     if (!fleet_on_ || finished_ || !movement_) return R::NotAllowed;
     const std::optional<cmd::FleetGroupCommand> c = cmd::parse_fleet_group(data);
     if (!c) return R::Malformed;
+    if (c->op == cmd::FleetGroupOp::AssignReserve) {  // #645: one of the issuer's reserves (the Reinforce pool), not the selection
+        bool own = false;
+        for (const Reserve& r : reserves(player)) own = own || static_cast<uint32_t>(r.galactic_id) == c->reserve;
+        if (!own) return R::InvalidUnit;
+        return fleet_.assign_reserve(player, c->reserve, c->group);
+    }
     std::vector<objects::ObjectId> ids;
     for (const Unit* u : owned_units<Unit>(mode.primary(), player, selection, [this](objects::ObjectId id) { return unit_by_id(id); }, true))
         ids.push_back(u->id);
@@ -286,13 +292,33 @@ void TacticalBattle::fleet_join_spawned(const TacticalMode& mode, uint32_t pi, s
     if (P.built || P.map || P.owner < 0 || P.owner > 255) return;
     const auto& players = galaxy_->players();
     if (static_cast<size_t>(P.owner) >= players.size() || !players[static_cast<size_t>(P.owner)].human) return;
-    const uint32_t fleet = galaxy_->fleet_containing(P.galactic);
-    if (fleet == galactic::kNoFleet) return;
+    const uint32_t fleet = galaxy_->fleet_containing(P.galactic);  // kNoFleet: only a pick (#645) groups the units
     std::vector<objects::ObjectId> ids;
     for (size_t i = first; i < units_.size(); ++i)
         if (units_[i].participant == pi && units_[i].movable) ids.push_back(units_[i].id);
     const objects::ObjectStore& st = mode.primary();
-    fleet_.join_spawned(static_cast<uint8_t>(P.owner), fleet, ids, [this, &st](objects::ObjectId id) { return fleet_unit_info(st, id); });
+    // #645: a reserve's pick (AssignReserve) before the galactic-fleet rule.
+    fleet_.join_reserve(static_cast<uint8_t>(P.owner), static_cast<uint32_t>(P.galactic_id), fleet, ids,
+                        [this, &st](objects::ObjectId id) { return fleet_unit_info(st, id); });
+}
+
+uint16_t TacticalBattle::fleet_reserve_group(int32_t player, objects::ObjectId reserve, bool& picked) const {
+    const uint16_t pick = fleet_.reserve_assignment(static_cast<uint32_t>(reserve));
+    picked = pick != cmd::kAssignDefault;
+    if (picked) {
+        const FleetGroup* g = fleet_.group(pick);
+        if (pick == cmd::kAssignNoGroup || (g && g->owner == player && g->members.size() < FleetGroups::kMaxMembers)) return pick;
+        picked = false;  // gone or full since the pick: the rule below applies on arrival
+    }
+    for (const Participant& p : parts_) {
+        if (p.galactic_id != reserve || p.owner != player) continue;
+        const uint32_t fleet = galaxy_->fleet_containing(p.galactic);
+        if (fleet == galactic::kNoFleet) return cmd::kAssignDefault;
+        for (const FleetGroup& g : fleet_.groups())
+            if (g.owner == player && g.fleet == fleet && g.members.size() < FleetGroups::kMaxMembers) return g.id;
+        break;
+    }
+    return cmd::kAssignDefault;
 }
 
 void TacticalBattle::fleet_tick(const TacticalMode& mode) {

@@ -200,6 +200,10 @@ retail behaviour. Design: the claude.ai doc "Fleet groups design" (2026-11-13). 
   galactic fleet (`galactic.state` is unchanged). A human player's units that spawn from a galactic fleet, the opening
   fleet at the battle start and each reinforcement as it arrives, join that player's group of the same galactic fleet,
   or a new one when there is none or it is full. AI players get no automatic groups.
+- Reinforcement group pick (2026-11-26 on #645): before calling a reinforcement in, its owner may pick the group it
+  joins (a right click on its pad cycles the galactic-fleet rule, each of their groups, no group). The pick is one
+  `AssignReserve` fleet group command, saved and hashed with the groups; a picked group that is gone or full by the
+  arrival falls back to the galactic-fleet rule.
 
 ## Modern HUD: exception to the current focus
 

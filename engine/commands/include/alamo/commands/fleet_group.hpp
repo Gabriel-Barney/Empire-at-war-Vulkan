@@ -9,6 +9,8 @@
 //   SetLock      locked (u8 0/1)  every group with a unit in the selection is locked / unlocked
 //   Rename       group (u16 LE), name length (u8), name bytes (UTF-8; over kFleetGroupNameMax the parser refuses it, #393)
 //   Merge        nothing          every group with a unit in the selection folds into the oldest of them (#177)
+//   AssignReserve group (u16 LE), reserve (u32 LE)  #645: the reserve (a Reinforce "unit") joins `group` when it arrives;
+//                group 0 = no group, kAssignDefault = back to the galactic-fleet rule (#173)
 // The sim applies them at the command phase from its synced selection (sim/fleet_groups.hpp).
 #pragma once
 #include <cstddef>
@@ -25,12 +27,15 @@ inline constexpr uint16_t kFleetGroupSubtype = 0x4647;  // "FG"
 // limit: guard [port] fleet group name bytes (port-only feature), refuses
 inline constexpr size_t kFleetGroupNameMax = 32;         // bytes; #393: a longer name is refused, never cut
 
-enum class FleetGroupOp : uint8_t { Create = 0, Dissolve = 1, RemoveUnits = 2, SetLock = 3, Rename = 4, Merge = 5 };
+enum class FleetGroupOp : uint8_t { Create = 0, Dissolve = 1, RemoveUnits = 2, SetLock = 3, Rename = 4, Merge = 5, AssignReserve = 6 };
+inline constexpr uint16_t kAssignNoGroup = 0;        // #645 AssignReserve: the reserve stays ungrouped
+inline constexpr uint16_t kAssignDefault = 0xFFFFu;  // #645 AssignReserve: the galactic-fleet rule (the assignment cleared)
 
 struct FleetGroupCommand {
     FleetGroupOp op = FleetGroupOp::Create;
     bool locked = false;  // SetLock
-    uint16_t group = 0;   // Rename
+    uint16_t group = 0;   // Rename, AssignReserve
+    uint32_t reserve = 0; // AssignReserve: the reserve's Reinforce "unit" (its galactic object id)
     std::string name;     // Rename (encoded whole - at most 255 bytes fit the length byte; over kFleetGroupNameMax refused)
 };
 

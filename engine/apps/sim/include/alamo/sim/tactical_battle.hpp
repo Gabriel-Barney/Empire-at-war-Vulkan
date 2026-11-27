@@ -885,6 +885,10 @@ public:
     void enable_fleet_groups(bool on) { fleet_on_ = on; }
     bool fleet_groups_enabled() const { return fleet_on_; }
     const FleetGroups& fleet_groups() const { return fleet_; }
+    // #645 (presentation read): the group `player`'s reserve `reserve` would join if it arrived now: its pick (a group id,
+    // commands::kAssignNoGroup), else the galactic-fleet rule's group (the player's oldest group of the reserve's galactic
+    // fleet with room), else kAssignDefault (a new group, or none without a galactic fleet). `picked` says which.
+    uint16_t fleet_reserve_group(int32_t player, objects::ObjectId reserve, bool& picked) const;
     // A kFleetGroupSubtype payload for `player`, applied to the player's live movable battle units in `selection`.
     commands::RejectReason fleet_group_command(TacticalMode& mode, uint8_t player, std::span<const uint8_t> data,
                                                std::span<const objects::ObjectId> selection);

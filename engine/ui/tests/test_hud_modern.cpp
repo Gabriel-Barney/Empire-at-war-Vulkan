@@ -949,9 +949,11 @@ void test_actions() {
         HudReinforcement r;
         r.unit = 90;
         r.count = 2;
+        r.group = U"Group 2";  // #645 fleet groups on: the label, and a right click for the next choice
         out.push_back(r);
         r.unit = 91;
         r.available = false;
+        r.group.clear();  // fleet groups off for this one: no right click
         out.push_back(r);
     };
     h.build(f, none, s.types);
@@ -961,6 +963,9 @@ void test_actions() {
         size_t emitted = 0;
         CHECK(h.same_click(h.t.find(name), h.t.find(name), false, false, Button::Left, &emitted));
         CHECK(emitted == n);
+        h.build(f, none, s.types);
+        CHECK(h.same_click(h.t.find(name), h.t.find(name), false, false, Button::Right, &emitted));  // #645
+        CHECK(emitted == n);  // r_0000 has a group (one ReinforcementGroup), r_0001 none
     }
 }
 

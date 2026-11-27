@@ -13,7 +13,7 @@ using R = commands::RejectReason;
 
 namespace {
 
-constexpr uint32_t kSaveVersion = 2;  // 2: FleetGroup::fleet (#173); 1 still loads
+constexpr uint32_t kSaveVersion = 3;  // 3: + the reserve assignments (#645); 2: FleetGroup::fleet (#173); 1 and 2 still load
 
 std::vector<objects::ObjectId> sorted_unique(std::span<const objects::ObjectId> units) {
     std::vector<objects::ObjectId> v(units.begin(), units.end());
@@ -128,29 +128,87 @@ void FleetGroups::join_spawned(uint8_t player, uint32_t fleet, std::span<const o
             g = &groups_.back();
             used_ = true;
         }
-        // The slot in the members' frame: the offset from their current centre plus their mean slot, so the joiner
-        // sits where the frame the slots were captured in puts it (plan_move measures slots from their mean).
-        mv::V2 pos_sum{0.0f, 0.0f}, slot_sum{0.0f, 0.0f};
-        uint32_t count = 0;
-        for (const FleetMember& m : g->members) {
-            const FleetUnitInfo mu = info(m.id);
-            if (!mu.valid) continue;
-            pos_sum = pos_sum + mu.pos;
-            slot_sum = slot_sum + m.slot;
-            ++count;
-        }
-        FleetMember m;
-        m.id = id;
-        if (count > 0) {
-            const float k = 1.0f / static_cast<float>(count);
-            const mv::V2 d = u.pos - pos_sum * k;
-            const mv::V2 f = mv::dir_from_deg(g->facing_deg);
-            m.slot = mv::V2{mv::dot(d, f), mv::dot(d, mv::perp_left(f))} + slot_sum * k;
-        }
-        const auto at = std::lower_bound(g->members.begin(), g->members.end(), id,
-                                         [](const FleetMember& x, objects::ObjectId v) { return x.id < v; });
-        g->members.insert(at, m);
+        add_joiner(*g, id, u, info);
     }
+}
+
+void FleetGroups::add_joiner(FleetGroup& g, objects::ObjectId id, const FleetUnitInfo& u, const InfoFn& info) {
+    // The slot in the members' frame: the offset from their current centre plus their mean slot, so the joiner
+    // sits where the frame the slots were captured in puts it (plan_move measures slots from their mean).
+    mv::V2 pos_sum{0.0f, 0.0f}, slot_sum{0.0f, 0.0f};
+    uint32_t count = 0;
+    for (const FleetMember& m : g.members) {
+        const FleetUnitInfo mu = info(m.id);
+        if (!mu.valid) continue;
+        pos_sum = pos_sum + mu.pos;
+        slot_sum = slot_sum + m.slot;
+        ++count;
+    }
+    FleetMember m;
+    m.id = id;
+    if (count > 0) {
+        const float k = 1.0f / static_cast<float>(count);
+        const mv::V2 d = u.pos - pos_sum * k;
+        const mv::V2 f = mv::dir_from_deg(g.facing_deg);
+        m.slot = mv::V2{mv::dot(d, f), mv::dot(d, mv::perp_left(f))} + slot_sum * k;
+    }
+    const auto at = std::lower_bound(g.members.begin(), g.members.end(), id,
+                                     [](const FleetMember& x, objects::ObjectId v) { return x.id < v; });
+    g.members.insert(at, m);
+}
+
+R FleetGroups::assign_reserve(uint8_t player, uint32_t reserve, uint16_t group) {
+    if (group != commands::kAssignNoGroup && group != commands::kAssignDefault) {
+        const FleetGroup* g = this->group(group);
+        if (!g || g->owner != player) return R::InvalidTarget;
+    }
+    const auto at = std::lower_bound(assigned_.begin(), assigned_.end(), reserve,
+                                     [](const ReserveAssignment& a, uint32_t r) { return a.reserve < r; });
+    const bool found = at != assigned_.end() && at->reserve == reserve;
+    if (group == commands::kAssignDefault) {
+        if (found) assigned_.erase(at);
+        return R::None;
+    }
+    if (found) {
+        at->owner = player;
+        at->group = group;
+    } else {
+        assigned_.insert(at, ReserveAssignment{reserve, player, group});
+    }
+    used_ = true;  // saved and hashed from now on
+    return R::None;
+}
+
+uint16_t FleetGroups::reserve_assignment(uint32_t reserve) const {
+    const auto at = std::lower_bound(assigned_.begin(), assigned_.end(), reserve,
+                                     [](const ReserveAssignment& a, uint32_t r) { return a.reserve < r; });
+    return at != assigned_.end() && at->reserve == reserve ? at->group : commands::kAssignDefault;
+}
+
+void FleetGroups::join_reserve(uint8_t player, uint32_t reserve, uint32_t fleet, std::span<const objects::ObjectId> units,
+                               const InfoFn& info) {
+    const auto at = std::lower_bound(assigned_.begin(), assigned_.end(), reserve,
+                                     [](const ReserveAssignment& a, uint32_t r) { return a.reserve < r; });
+    if (at == assigned_.end() || at->reserve != reserve || at->owner != player) {
+        join_spawned(player, fleet, units, info);
+        return;
+    }
+    const uint16_t pick = at->group;
+    assigned_.erase(at);
+    if (pick == commands::kAssignNoGroup) return;
+    FleetGroup* g = find(pick);
+    if (!g || g->owner != player) {  // gone since the pick: the galactic-fleet rule
+        join_spawned(player, fleet, units, info);
+        return;
+    }
+    std::vector<objects::ObjectId> rest;
+    for (const objects::ObjectId id : sorted_unique(units)) {
+        const FleetUnitInfo u = info(id);
+        if (!u.valid || u.owner != static_cast<int32_t>(player) || group_of(id)) continue;
+        if (g->members.size() < kMaxMembers) add_joiner(*g, id, u, info);
+        else rest.push_back(id);  // full: the rest take the galactic-fleet rule
+    }
+    if (!rest.empty()) join_spawned(player, fleet, rest, info);
 }
 
 R FleetGroups::apply(uint8_t player, const commands::FleetGroupCommand& c, std::span<const objects::ObjectId> units,
@@ -244,6 +302,7 @@ R FleetGroups::apply(uint8_t player, const commands::FleetGroupCommand& c, std::
             g->name = c.name;
             return R::None;
         }
+        case Op::AssignReserve: return R::Malformed;  // #645: TacticalBattle checks the reserve, then assign_reserve
     }
     return R::Malformed;
 }
@@ -404,6 +463,14 @@ std::vector<FleetGroups::Lagging> FleetGroups::lagging(const InfoFn& info) const
 
 void FleetGroups::hash(StateHasher& h) const {
     h.u16(next_id_);
+    if (!assigned_.empty()) {  // #645: only once a pick exists, so a battle without one hashes as before
+        h.u32(static_cast<uint32_t>(assigned_.size()));
+        for (const ReserveAssignment& a : assigned_) {
+            h.u32(a.reserve);
+            h.u8(a.owner);
+            h.u16(a.group);
+        }
+    }
     h.u32(static_cast<uint32_t>(groups_.size()));
     for (const FleetGroup& g : groups_) {
         h.u16(g.id);
@@ -439,11 +506,13 @@ void FleetGroups::write(ByteWriter& w) const {
             w.i32(m.id).f32(m.slot.x).f32(m.slot.y).f32(m.goal.x).f32(m.goal.y).f32(m.start_dist).boolean(m.moving);
         }
     }
+    w.u32(static_cast<uint32_t>(assigned_.size()));  // #645 (v3)
+    for (const ReserveAssignment& a : assigned_) w.u32(a.reserve).u8(a.owner).u16(a.group);
 }
 
 bool FleetGroups::read(ByteReader& r) {
     const uint32_t version = r.u32();
-    if ((version != 1 && version != kSaveVersion) || !r.ok()) return false;
+    if ((version != 1 && version != 2 && version != kSaveVersion) || !r.ok()) return false;
     const uint16_t next = r.u16();
     const bool used = r.boolean();
     uint32_t n = 0;
@@ -477,8 +546,23 @@ bool FleetGroups::read(ByteReader& r) {
         }
         groups.push_back(std::move(g));
     }
+    std::vector<ReserveAssignment> assigned;
+    if (version >= 3) {
+        uint32_t na = 0;
+        if (!r.count(na, 7)) return false;
+        for (uint32_t k = 0; k < na; ++k) {
+            ReserveAssignment a;
+            a.reserve = r.u32();
+            a.owner = r.u8();
+            a.group = r.u16();
+            if (!r.ok() || a.group == commands::kAssignDefault || (!assigned.empty() && !(assigned.back().reserve < a.reserve)))
+                return false;
+            assigned.push_back(a);
+        }
+    }
     if (!r.ok()) return false;
     groups_ = std::move(groups);
+    assigned_ = std::move(assigned);
     next_id_ = next;
     used_ = used;
     return true;
