@@ -3052,7 +3052,7 @@ void test_campaign_station_production(bool corrupted, bool cancel = false) {
                 "(enqueued at 2, %u frames wanted)\n",
                 corrupted ? "corrupted" : "clean", options, option_cost, static_cast<double>(before), static_cast<double>(after),
                 done_at, want);
-    CHECK(bought && options == 1 && option_cost == 40);
+    CHECK(bought && options == 2 && option_cost == 40);  // S10_Base_Upgrade and (#663) S10_Land_Upgrade
     CHECK(after == before - 40.0f);
     CHECK(done_at >= 2 + want && done_at <= 2 + want + 3);
 }
@@ -3061,7 +3061,7 @@ void test_campaign_station_production(bool corrupted, bool cancel = false) {
 // S10_Free_Upgrade (no price: 0x496d80 <= 0) and S10_Instant_Upgrade (time 0: 0x496f00 <= 0): both refused. Then the star
 // base passes to the Underworld (player 1): while the two are enemies, the Empire's order there is refused; once they are
 // allies (the galactic table, 0x39a2c0) the Empire may build at it from the builder owner's (Underworld) row:
-// S10_Tech_Upgrade is accepted, S10_Base_Upgrade (the Empire row only) is refused.
+// S10_Tech_Upgrade is accepted, S10_Land_Upgrade (the Empire row only, no prerequisite) is refused.
 void test_production_check_rest() {
     auto d = make_data(false, false, false, false, true);
     jobs::JobSystem js(jobs::JobSystemConfig{0});
@@ -3086,7 +3086,7 @@ void test_production_check_rest() {
     CHECK(battles.attach(nullptr));
     const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
     if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
-    const uint32_t base1 = type_of(*d, "S10_Star_Base_1"), up = type_of(*d, "S10_Base_Upgrade"), tech = type_of(*d, "S10_Tech_Upgrade"),
+    const uint32_t base1 = type_of(*d, "S10_Star_Base_1"), up = type_of(*d, "S10_Land_Upgrade"), tech = type_of(*d, "S10_Tech_Upgrade"),
                    free_t = type_of(*d, "S10_Free_Upgrade"), instant = type_of(*d, "S10_Instant_Upgrade");
     bool done = false;
     for (uint64_t t = 0; t < 3000 && !done; ++t) {

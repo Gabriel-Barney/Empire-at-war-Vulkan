@@ -789,7 +789,8 @@ uint8_t TacticalBattle::hg_build_check(const objects::ObjectStore& st, int32_t p
     if (!listed) return 1;
     // #663 (0x497140 [H]): the price 0x496d80 (tactical_price) and the build time 0x496f00 (Tactical_Build_Time_Seconds x
     // the GC Tactical_Build_Time_Multiplier; the AI and corruption factors are > 0) must both be > 0. [port] tested here,
-    // after the list (retail: after the build limits); either way the type cannot be built.
+    // after the list (retail: after the build limits): parity tier 1, the same types are buildable (only the port's HUD
+    // block code of a type failing both differs).
     if (tactical_price(type) <= 0) return 1;
     if (!(static_cast<float>(types.get(type, objects::tags::Tactical_Build_Time_Seconds)) * catalog_->tactical_build_time_multiplier() > 0.0f))
         return 1;
