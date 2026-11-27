@@ -772,6 +772,76 @@ void test_anim_hack_drag() {
         hud.build(gf);
         CHECK(!hud.stats().fleet_slots_shown && hud.stats().empty_slots == 0);
     }
+    // ledger: verifies CommandBarComponent.Snap_Drag
+    // ledger: verifies CommandBarComponent.Snap_Location
+    {  // #722 (docs/re/COMMAND_BAR_DRAG.md "Snapping") Snap_Drag on the dragged pad + Snap_Location on the pad under the
+       // cursor: the icon sits on that pad
+        std::string xml = kFleetXml;
+        const auto add_tag = [&xml](std::string_view name, std::string_view tag) {
+            const std::string open = "<CommandBarComponent Name=\"" + std::string(name) + "\">";
+            const size_t at = xml.find(open);
+            CHECK(at != std::string::npos);
+            xml.insert(at + open.size(), "<" + std::string(tag) + ">Yes</" + std::string(tag) + ">");
+        };
+        add_tag("q1_0002", "Snap_Drag");
+        add_tag("q2_0001", "Snap_Location");
+        ComponentTable st;
+        const data::XmlDocument sd = data::XmlDocument::parse(std::string_view(xml), "s.xml");
+        st.parse(sd.root());
+        GalacticHud sh;
+        sh.init(st, fa, env.fonts);
+        sh.resize(1024, 768);
+        sh.build(gf);
+        const auto centre = [&](std::string_view name) {
+            for (const HudHitBox& h : sh.hit_boxes())
+                if (h.component == st.find(name)) return Vec2f{0.5f * (h.min.x + h.max.x), 0.5f * (h.min.y + h.max.y)};
+            return Vec2f{-1e9f, -1e9f};
+        };
+        const auto press_and_move = [&](std::string_view from, std::string_view over_name, Vec2f to_px) {
+            const int32_t fc = st.find(from);
+            const Vec2f p = sh.canvas().canvas_to_pixel(centre(from).x, centre(from).y);
+            std::vector<commands::EventData> out;
+            RoutedInput r;
+            r.world.mouse_x = static_cast<int32_t>(p.x);
+            r.world.mouse_y = static_cast<int32_t>(p.y);
+            r.hover_component = fc;
+            r.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+            r.hud = {{HudPointerEvent::Kind::Press, Button::Left, fc, r.world.mouse_x, r.world.mouse_y}};
+            sh.update_input(r, false, false, 1.0, out);
+            r.hud.clear();
+            r.world.mouse_x = static_cast<int32_t>(to_px.x);
+            r.world.mouse_y = static_cast<int32_t>(to_px.y);
+            r.hover_component = over_name.empty() ? -1 : st.find(over_name);
+            sh.update_input(r, false, false, 1.1, out);
+            CHECK(sh.drag().active && sh.drag().component == fc);
+            sh.build(gf);
+            const Vec2f at = sh.drag_icon_position();
+            r.owner = {};
+            r.hud = {{HudPointerEvent::Kind::Release, Button::Left, -1, 0, 0}};
+            sh.update_input(r, false, false, 1.2, out);  // a release in empty space ends the drag
+            sh.build(gf);
+            return at;
+        };
+        const Vec2f q2 = centre("q2_0001");
+        // Off the pad's centre, over it: the icon snaps to the pad.
+        const Vec2f near_px = sh.canvas().canvas_to_pixel(q2.x + 3.0f, q2.y - 2.0f);
+        Vec2f at = press_and_move("q1_0002", "q2_0001", near_px);
+        CHECK(std::fabs(at.x - q2.x) < 0.01f && std::fabs(at.y - q2.y) < 0.01f);
+        // Over no component: the cursor.
+        at = press_and_move("q1_0002", "", {40.0f, 40.0f});
+        const Vec2f cur = sh.canvas().pixel_to_canvas(40.0f, 40.0f);
+        CHECK(std::fabs(at.x - cur.x) < 0.01f && std::fabs(at.y - cur.y) < 0.01f);
+        // Snap_Drag over a pad without Snap_Location (q1_0001): no snap either.
+        const Vec2f q1 = centre("q1_0001");
+        const Vec2f near_q1 = sh.canvas().canvas_to_pixel(q1.x + 3.0f, q1.y - 2.0f);
+        at = press_and_move("q1_0002", "q1_0001", near_q1);
+        const Vec2f nq1 = sh.canvas().pixel_to_canvas(near_q1.x, near_q1.y);
+        CHECK(std::fabs(at.x - nq1.x) < 0.01f && std::fabs(at.y - nq1.y) < 0.01f);
+        // The dragged pad without Snap_Drag (q1_0001): no snap over q2_0001.
+        at = press_and_move("q1_0001", "q2_0001", near_px);
+        const Vec2f nc = sh.canvas().pixel_to_canvas(near_px.x, near_px.y);
+        CHECK(std::fabs(at.x - nc.x) < 0.01f && std::fabs(at.y - nc.y) < 0.01f);
+    }
 }
 
 // #623 GalacticDrag::over_planet is an index into the frame's planets (the host looks the planet up in its own list of the
