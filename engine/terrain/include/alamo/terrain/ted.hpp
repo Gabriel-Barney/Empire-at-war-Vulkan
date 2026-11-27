@@ -118,7 +118,8 @@ struct EnvironmentSet {
     bool scene_fog_enabled = false;
     float scene_fog_start = 0, scene_fog_end = 0;
     float scene_fog_color[3] = {1, 1, 1};
-    bool legacy_format = false;          // old 0x100/0 + /1 blocks (not decoded; none in vanilla FoC)
+    bool legacy_format = false;          // old 0x100/0 + /1 blocks (#577: decoded into environments; none in vanilla FoC;
+                                         // the writer emits them as TEE records)
     const Environment* start() const {
         return environments.empty() ? nullptr : &environments[start_index < environments.size() ? start_index : 0];
     }
