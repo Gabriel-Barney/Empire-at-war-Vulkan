@@ -43,8 +43,14 @@ struct HudWaypointLine {
     // quad `dot_px` pixels wide (scaled as width_px); step_px is then unused.
     float dash_world = 0.0f, gap_world = 0.0f, phase_world = 0.0f;
 };
+// #727 the dash pattern's period: dash + the gap (a negative gap counts as 0).
+inline float waypoint_dash_period(float dash, float gap) { return dash + (gap > 0.0f ? gap : 0.0f); }
+inline constexpr size_t kMaxWaypointDashes = 4096;  // per segment (a mod's tiny period on a long line)
 // #727 the dashes of a polyline in world units: [start, end] distances along it, for dashes of `dash` with `gap` between,
 // the pattern shifted forward by `phase` (a dash cut by the line's start or end is clipped). Empty for dash <= 0.
+// [port] (tier 1, presentation: docs/SIMULATION.md "Parity tiers") Flat-colour quads `dot_px` wide stand in for the
+// WaypointLineTextureName line (a T15 row), and the dashes move from the unit towards the goal (0x428db0's direction is
+// not traced [M]).
 std::vector<std::pair<float, float>> waypoint_dashes(float length, float dash, float gap, float phase);
 // Returns the number of quads drawn (dots or solid segments, end markers included).
 uint32_t add_waypoint_lines(HudDrawList& dl, const HudCanvas& canvas, const View& view, std::span<const HudWaypointLine> lines,

@@ -1209,6 +1209,13 @@ void test_markers() {
         dash.points = {{0, 0, 0}, {7, 0, 0}, {7, 10, 0}};
         HudDrawList dc;
         CHECK2(add_waypoint_lines(dc, cv, v, std::span<const HudWaypointLine>(&dash, 1)) == 2);
+        // A dash over the corner is split in two: 3 + 10 units give 0..3 | 0..2 (one dash), then 7..12 on the far leg.
+        dash.points = {{0, 0, 0}, {3, 0, 0}, {3, 10, 0}};
+        HudDrawList ds;
+        CHECK2(add_waypoint_lines(ds, cv, v, std::span<const HudWaypointLine>(&dash, 1)) == 3);
+        // No gap: one dash after another; a negative gap counts as none; a tiny period is capped.
+        CHECK2(waypoint_dashes(20.0f, 5.0f, 0.0f, 0.0f).size() == 4 && waypoint_dashes(20.0f, 5.0f, -3.0f, 0.0f).size() == 4);
+        CHECK2(waypoint_dashes(100.0f, 1e-7f, 0.0f, 0.0f).size() <= kMaxWaypointDashes);
     }
     {  // path lines: one solid free quad per segment, kPathLineWidthPx wide, drawn with the given corners
         HudDrawList dl2;

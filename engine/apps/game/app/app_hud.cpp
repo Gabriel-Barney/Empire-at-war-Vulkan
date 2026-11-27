@@ -1230,12 +1230,13 @@ void App::build_tactical_hud() {
                 continue;
             }
             // #727 0x3e240 [H]: on land the line is dashed in world units, the dashes scrolling by DashVelocity a frame
-            // [port] (tier 1, presentation): a frame is 1/30 s of wall time.
+            // [port] (tier 1, presentation: docs/SIMULATION.md "Parity tiers"): a frame is 1/30 s of wall time.
             if (!bview_.space()) {
                 l.dash_world = hud_consts_.waypoint_dash_length;
                 l.gap_world = hud_consts_.waypoint_gap_length;
-                l.phase_world = static_cast<float>(std::fmod(now_s_ * 30.0 * static_cast<double>(hud_consts_.waypoint_dash_velocity),
-                                                             static_cast<double>(l.dash_world + l.gap_world)));
+                if (const double period = ui::waypoint_dash_period(l.dash_world, l.gap_world); period > 0.0)
+                    l.phase_world = static_cast<float>(
+                        std::fmod(now_s_ * 30.0 * static_cast<double>(hud_consts_.waypoint_dash_velocity), period));
             }
             l.points.push_back(here);
             l.points.push_back({v.goal.x, v.goal.y, o->position.z});

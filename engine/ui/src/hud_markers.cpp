@@ -45,11 +45,12 @@ uint32_t dotted(HudDrawList& dl, uint32_t layer, const HudCanvas& cv, float x0, 
 
 std::vector<std::pair<float, float>> waypoint_dashes(float length, float dash, float gap, float phase) {
     std::vector<std::pair<float, float>> out;
-    const float period = dash + std::max(0.0f, gap);
+    const float period = waypoint_dash_period(dash, gap);
     if (!(dash > 0.0f) || !(length > 0.0f) || !(period > 0.0f)) return out;
     float s = std::fmod(phase, period);
     if (s > 0.0f) s -= period;  // the first dash starts at or before 0
-    for (; s < length; s += period) {
+    // limit: guard [port] a mod's tiny period on a long line: at most kMaxWaypointDashes dashes per segment
+    for (size_t n = 0; s < length && n < kMaxWaypointDashes; s += period, ++n) {
         const float a = std::max(0.0f, s), b = std::min(length, s + dash);
         if (b > a) out.emplace_back(a, b);
     }
@@ -57,7 +58,10 @@ std::vector<std::pair<float, float>> waypoint_dashes(float length, float dash, f
 }
 
 namespace {
-// One solid free quad between pixel points a and b, `half` pixels to each side.
+// One solid free quad between pixel points a and b, `half` pixels to each side. The pixel-space normal (+Y down) is
+// turned so a left-to-right segment gives top-left, top-right, bottom-right, bottom-left (the plain quad's winding). Ends
+// are not extended: segments of a sampled curve would overlap and double the alpha at every joint; the notch at a gentle
+// bend is sub-pixel.
 bool solid_segment(HudDrawList& dl, uint32_t layer, const HudCanvas& canvas, float ax, float ay, float bx, float by, float half,
                    Rgba8 color) {
     const float dx = bx - ax, dy = by - ay, len = std::sqrt(dx * dx + dy * dy);
@@ -103,23 +107,7 @@ uint32_t add_waypoint_lines(HudDrawList& dl, const HudCanvas& canvas, const View
             for (size_t i = 0; i + 1 < l.points.size(); ++i) {
                 float ax = 0, ay = 0, bx = 0, by = 0;
                 if (!project(view, l.points[i], ax, ay) || !project(view, l.points[i + 1], bx, by)) continue;
-                const float dx = bx - ax, dy = by - ay, len = std::sqrt(dx * dx + dy * dy);
-                if (!(len > 0.0f)) continue;
-                // Pixel-space normal (+Y down) turned so a left-to-right segment gives top-left, top-right,
-                // bottom-right, bottom-left (the plain quad's winding). Ends are not extended: segments of a sampled
-                // curve would overlap and double the alpha at every joint; the notch at a gentle bend is sub-pixel.
-                const float nx = dy / len * half, ny = -dx / len * half;
-                HudQuad q;
-                q.has_corners = true;
-                q.corners = {canvas.pixel_to_canvas(ax + nx, ay + ny), canvas.pixel_to_canvas(bx + nx, by + ny),
-                             canvas.pixel_to_canvas(bx - nx, by - ny), canvas.pixel_to_canvas(ax - nx, ay - ny)};
-                q.min = {std::min({q.corners[0].x, q.corners[1].x, q.corners[2].x, q.corners[3].x}),
-                         std::min({q.corners[0].y, q.corners[1].y, q.corners[2].y, q.corners[3].y})};
-                q.max = {std::max({q.corners[0].x, q.corners[1].x, q.corners[2].x, q.corners[3].x}),
-                         std::max({q.corners[0].y, q.corners[1].y, q.corners[2].y, q.corners[3].y})};
-                q.color = l.color;
-                dl.add(layer, HudList::Alpha, q);
-                ++dots;
+                if (solid_segment(dl, layer, canvas, ax, ay, bx, by, half, l.color)) ++dots;
             }
         } else {
             float carry = 0.0f;
