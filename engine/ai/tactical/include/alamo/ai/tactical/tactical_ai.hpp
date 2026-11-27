@@ -72,8 +72,10 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "alamo/ai/ai_definitions.hpp"
@@ -444,6 +446,12 @@ public:
     // Threat-grid point danger for `player` at (x, y) (0x653ff0; REMAINING_GAPS §4.2 movement threat mode). Const;
     // safe between AI ticks (the battle's movement planning).
     float point_danger(int32_t player, float x, float y) const;
+    // #633 (AI lane): the threat grid's danger layers for a published copy (TacticalPerceptionGrid::danger_layers) and
+    // point danger answered from such a copy; the answer prevent_ai_usage gives for an object of `player` (NoAiPlayer,
+    // NotInitialised or Done). Serial, between jobs.
+    void danger_layers(std::vector<std::pair<uint32_t, float>>& out) const;
+    float point_danger_from(std::span<const std::pair<uint32_t, float>> layers, int32_t player, float x, float y) const;
+    lua::PreventAiResult prevent_ai_answer(int32_t player) const;
     // the UnitAI attack-positioning flag (data pack +0x38) of object `object_id`, set by a land task force's
     // Enable_Attack_Positioning (legacy docs/re/LUA_API.md). The formation re-path veto 0x4f5780 reads it (BattleAi::follow_service).
     bool attack_positioning(int32_t object_id) const;

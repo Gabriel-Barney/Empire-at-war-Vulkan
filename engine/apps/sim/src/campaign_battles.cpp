@@ -1812,7 +1812,7 @@ void CampaignBattles::story_bridge_begin(SimHost& host, GameMode& mode) {
             TacticalMode* tm = h->tactical();
             if (!ai_ || !tm || !tm->primary().alive(u)) return lua::PreventAiResult::NoAiPlayer;
             const objects::ObjectStore& s2 = tm->primary();
-            return ai_->world().prevent_ai_usage(s2.id(u), s2.owner(u), on);
+            return ai_->prevent_ai_usage(s2.id(u), s2.owner(u), on);  // #633: queued with the AI lane on
         };
 #else
         b.prevent_ai_usage = [](objects::ObjectHandle, bool) { return lua::PreventAiResult::NoAiPlayer; };

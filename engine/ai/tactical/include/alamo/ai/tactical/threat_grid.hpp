@@ -56,6 +56,7 @@
 #include <map>
 #include <span>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "alamo/ai/tactical/constants.hpp"
@@ -213,6 +214,11 @@ public:
     bool cell_visible(const PerceptionWorld& w, int32_t player, uint32_t cell) const;
     // Point danger (0x653ff0): layer x S / (cellW x cellH) at the point's cell, 0 outside.
     float point_danger(const PerceptionWorld& w, int32_t player, float x, float y) const;
+    // #633: the layer point_danger reads (visible: threat, else snapshot) of every (player, cell) whose bits are not 0,
+    // as (player * cells + cell, value) in index order; point_danger_from answers point_danger from such a copy (same
+    // arithmetic; the grid's geometry does not change after init).
+    void danger_layers(const PerceptionWorld& w, std::vector<std::pair<uint32_t, float>>& out) const;
+    float point_danger_from(std::span<const std::pair<uint32_t, float>> layers, int32_t player, float x, float y) const;
     // Zone danger (0x653e90): sum of the layer over the cells, unscaled.
     float cells_danger(const PerceptionWorld& w, int32_t player, std::span<const uint32_t> cells) const;
 

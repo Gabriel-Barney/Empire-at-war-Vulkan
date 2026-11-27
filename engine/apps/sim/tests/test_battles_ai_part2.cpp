@@ -787,6 +787,23 @@ void test_battle_ai_land_drop(const Data& d) {
                 CHECK(compared == 4 && mismatches == 0);
                 std::printf("  ref5 t07 facts: snapshot = live for %zu players (%zu mismatches)\n", compared, mismatches);
             }
+            {  // #633: with the lane on, a raised order-replaced signal waits for the next AI slot; Prevent_AI_Usage answers
+               // from the published flags and is delivered with it
+                al.start(nullptr);
+                int32_t uid = -1;
+                for (const objects::ObjectHandle h : tm->primary().owned_by(1))
+                    if (tm->primary().active(h)) uid = static_cast<int32_t>(tm->primary().id(h));
+                CHECK(uid >= 0);
+                const size_t before = al.lane_pushes_pending();
+                b->raise_order_replaced(static_cast<objects::ObjectId>(uid));
+                CHECK(al.lane_pushes_pending() == before + 1);
+                CHECK(al.prevent_ai_usage(static_cast<objects::ObjectId>(uid), 7, true) == lua::PreventAiResult::NoAiPlayer);
+                CHECK(al.lane_pushes_pending() == before + 1);  // answered at once, nothing queued
+                al.update();
+                CHECK(al.lane_pushes_pending() == 0);
+                CHECK(al.lane_mismatches() == 0);
+                std::printf("  #633 lane pushes: %zu queued at the signal, delivered at the next AI slot\n", before + 1);
+            }
             CHECK(lane_ok >= clear_ok.size() && lines > 0 && blocked > 0);
             std::printf("  ref5 t06 lane: %zu lane-valid drop spots (live %zu), %zu line tests (%zu blocked), live reads %llu\n", lane_ok,
                         clear_ok.size(), lines, blocked, static_cast<unsigned long long>(ai_lane_live_reads() - reads_before));

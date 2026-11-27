@@ -565,6 +565,28 @@ float TacticalPerceptionGrid::point_danger(const PerceptionWorld& w, int32_t pla
     return layer * s / (cell_w_ * cell_h_);
 }
 
+void TacticalPerceptionGrid::danger_layers(const PerceptionWorld& w, std::vector<std::pair<uint32_t, float>>& out) const {
+    out.clear();
+    const uint32_t cells = cell_count();
+    for (uint32_t p = 0; p < players_; ++p)
+        for (uint32_t c = 0; c < cells; ++c) {
+            const float layer = cell_visible(w, static_cast<int32_t>(p), c) ? threat_[p][c] : snapshot_[p][c];
+            if (std::bit_cast<uint32_t>(layer) != 0) out.emplace_back(p * cells + c, layer);
+        }
+}
+
+float TacticalPerceptionGrid::point_danger_from(std::span<const std::pair<uint32_t, float>> layers, int32_t player, float x,
+                                                float y) const {
+    if (player < 0 || static_cast<uint32_t>(player) >= players_) return 0.0f;
+    const int32_t c = cell_strict(x, y);
+    if (c < 0) return 0.0f;
+    const uint32_t key = static_cast<uint32_t>(player) * cell_count() + static_cast<uint32_t>(c);
+    const auto it = std::lower_bound(layers.begin(), layers.end(), key, [](const std::pair<uint32_t, float>& e, uint32_t k) { return e.first < k; });
+    const float layer = it != layers.end() && it->first == key ? it->second : 0.0f;
+    const float s = mode_ == TacticalMode::Space ? kSpacePointDangerArea : kLandPointDangerArea;
+    return layer * s / (cell_w_ * cell_h_);
+}
+
 float TacticalPerceptionGrid::cells_danger(const PerceptionWorld& w, int32_t player, std::span<const uint32_t> cells) const {
     if (player < 0 || static_cast<uint32_t>(player) >= players_) return 0.0f;
     float sum = 0.0f;
