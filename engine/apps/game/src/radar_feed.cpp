@@ -56,8 +56,7 @@ void RadarFeed::deaths(std::span<const RadarDeathNote> notes, const ui::RadarSet
     if (event.empty()) return;
     for (const RadarDeathNote& n : notes) {
         if (!n.visible || !n.visible_on_radar) continue;
-        events.add(settings, event, n.x, n.y);
-        ++death_pings_;
+        if (events.add(settings, event, n.x, n.y) != 0) ++death_pings_;  // 0: Use_Event_System off, nothing placed
     }
 }
 
@@ -67,8 +66,7 @@ void RadarFeed::capture_points(std::span<const RadarCapturePointNote> points, co
         const float before = it == progress_.end() ? 0.0f : it->second;
         // Progress leaves 0 towards a controller other than the owner (0x501980: "from 0 play ... Begin_Control_Transition").
         if (before <= 0.0f && p.progress > 0.0f && p.pending >= 0 && p.pending != p.owner && p.visible && !p.begin_event.empty()) {
-            events.add(settings, p.begin_event, p.x, p.y);
-            ++transition_pings_;
+            if (events.add(settings, p.begin_event, p.x, p.y) != 0) ++transition_pings_;
         }
         progress_[p.id] = p.progress;
     }

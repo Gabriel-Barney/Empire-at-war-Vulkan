@@ -988,6 +988,16 @@ void test_radar() {
     CHECK2(inter && inter->persistent && inter->single_instance);
     // the Event_* scratch values carry over (Interdict_Activated has no Event_Duration: Default_Click's .8).
     CHECK2(inter && near2(inter->duration, 0.8f) && near2(inter->scale, 0.001f));
+    {  // #727 Use_Event_System (0x355e00 [H]): on by default (0x355650); off, an add places nothing.
+        // ledger: verifies RadarMapSettings.Use_Event_System
+        const data::XmlDocument ud = data::XmlDocument::parse(std::string_view(
+            "<RadarMap><RadarMapSettings><Use_Event_System>No</Use_Event_System></RadarMapSettings></RadarMap>"));
+        RadarSettings off;
+        CHECK2(s.use_event_system && off.parse(ud.root()) && !off.use_event_system);
+        RadarEvents ev;
+        CHECK2(ev.add(off, "Default_Click", 1.0f, 2.0f) == 0 && ev.items().empty());
+        CHECK2(ev.add(s, "Default_Click", 1.0f, 2.0f) != 0 && ev.items().size() == 1);
+    }
     {  // whole-file walk: no path check, known tags at any depth; a fresh record keeps 0.0125 / 2.0 until an Event_* field
         const char* walk = R"(<Mod_Radar><Radar_Map_Event name="A"><Event_Model_Name>a.alo</Event_Model_Name></Radar_Map_Event>
           <Wrapper><Radar_Map_Event name="B"><Event_Persistent>Yes</Event_Persistent></Radar_Map_Event>

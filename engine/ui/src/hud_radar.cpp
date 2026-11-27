@@ -97,7 +97,9 @@ struct RadarWalk {
             }
             return;
         }
-        if (ascii_iequals(tag, "Space_Backdrop_Texture_Name")) out.space_backdrop = std::string(text);
+        // ledger: consumes RadarMapSettings.Use_Event_System
+        if (ascii_iequals(tag, "Use_Event_System")) out.use_event_system = data::parse_bool_or(text, out.use_event_system);
+        else if (ascii_iequals(tag, "Space_Backdrop_Texture_Name")) out.space_backdrop = std::string(text);
         else if (ascii_iequals(tag, "Land_Backdrop_Texture_Name")) out.land_backdrop = std::string(text);
         else if (ascii_iequals(tag, "Space_FOW_Color")) out.space_fow = color(text, out.space_fow);
         else if (ascii_iequals(tag, "Land_FOW_Color")) out.land_fow = color(text, out.land_fow);
@@ -335,6 +337,10 @@ void RadarImage::build(uint32_t size, std::span<const uint8_t> terrain, uint32_t
 }
 
 uint32_t RadarEvents::add(const RadarSettings& s, std::string_view type, float x, float y) {
+    // #727 0x355e00 [H]: the add is gated on Use_Event_System (+0x51d). [port] (tier 1: docs/SIMULATION.md "Parity
+    // tiers") its second gate, the global DAT_140b155c4, is not modelled: what sets it is not traced [M], a known gap
+    // tracked on #727 (docs/re/RADAR_BLIPS_AND_BOX.md "Use_Event_System and the guide rectangle").
+    if (!s.use_event_system) return 0;
     const RadarEventType* t = s.event(type);
     if (t && t->single_instance)
         items_.erase(std::remove_if(items_.begin(), items_.end(),

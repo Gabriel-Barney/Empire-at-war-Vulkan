@@ -398,7 +398,7 @@ Each entry lists tags named by the source reading. The compiled field ledger rec
 
 **legacy docs/re/MCX4_PRES_RE_ANSWERS_2.md**
 
-`Alternate_Description_Text` `Alternate_Name_Text` `Auto_Destruct_Fade_Time` `Auto_Destruct_Time` `Blob_Radius` `Build_Countdown_Text_ID` `Build_Countdown_Text_RGBA` `Diffuse` `Enemy_Color` `Falloff_Start` `GUI_Strategic_Countdown_Timers_Screen_Spacing` `GUI_Strategic_Countdown_Timers_Screen_X` `GUI_Strategic_Countdown_Timers_Screen_Y` `GUI_Tactical_Countdown_Timers_Screen_X` `GUI_Tactical_Countdown_Timers_Screen_Y` `Game_Play_UI_Countdown_Font_Name` `Game_Play_UI_Countdown_Font_Size` `Highlight_Blob_Material_Name` `Land_Is_Guide_Rectangle` `Land_Retreat_Cancel_SFXEvent` `Land_Retreat_Countdown_Color_RGBA` `Land_Retreat_Countdown_Seconds` `Land_Retreat_Countdown_Text_ID` `Land_Terrain_Model_Mapping` `Num_Slots` `Particle_Attach_To_Collision` `Player_Color` `Projectile_Object_Detonation_Particle` `Replace_Faded` `SFXEvent_Retreat_Cancel` `Scale_Duration` `Selection_Blob_RGBA` `Shield_Hit_Particles` `Slot_X` `Slot_Y` `Space_Is_Guide_Rectangle` `Space_Retreat_Cancel_SFXEvent` `Space_Retreat_Countdown_Color_RGBA` `Space_Retreat_Countdown_Text_ID` `Texture_Repeat` `Texture_Scroll` `Use_Event_System`
+`Alternate_Description_Text` `Alternate_Name_Text` `Auto_Destruct_Fade_Time` `Auto_Destruct_Time` `Blob_Radius` `Build_Countdown_Text_ID` `Build_Countdown_Text_RGBA` `Diffuse` `Enemy_Color` `Falloff_Start` `GUI_Strategic_Countdown_Timers_Screen_Spacing` `GUI_Strategic_Countdown_Timers_Screen_X` `GUI_Strategic_Countdown_Timers_Screen_Y` `GUI_Tactical_Countdown_Timers_Screen_X` `GUI_Tactical_Countdown_Timers_Screen_Y` `Game_Play_UI_Countdown_Font_Name` `Game_Play_UI_Countdown_Font_Size` `Highlight_Blob_Material_Name` `Land_Retreat_Cancel_SFXEvent` `Land_Retreat_Countdown_Color_RGBA` `Land_Retreat_Countdown_Seconds` `Land_Retreat_Countdown_Text_ID` `Land_Terrain_Model_Mapping` `Num_Slots` `Particle_Attach_To_Collision` `Player_Color` `Projectile_Object_Detonation_Particle` `Replace_Faded` `SFXEvent_Retreat_Cancel` `Scale_Duration` `Selection_Blob_RGBA` `Shield_Hit_Particles` `Slot_X` `Slot_Y` `Space_Retreat_Cancel_SFXEvent` `Space_Retreat_Countdown_Color_RGBA` `Space_Retreat_Countdown_Text_ID` `Texture_Repeat` `Texture_Scroll`
 
 **legacy docs/re/MCX4_PRES_RE_ANSWERS_3.md**
 
@@ -451,6 +451,10 @@ Each entry lists tags named by the source reading. The compiled field ledger rec
 **legacy docs/re/MODC_LOADER.md**
 
 `Projectile_Stun_Victims_Category_Mask`
+
+**RADAR_BLIPS_AND_BOX.md**
+
+`Land_Is_Guide_Rectangle` `Space_Is_Guide_Rectangle` `Use_Event_System`
 
 **MOVEMENT.md**
 
