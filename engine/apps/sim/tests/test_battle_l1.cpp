@@ -963,7 +963,7 @@ void test_land(const Data& d) {
     CHECK(c.cmd_none_for_defender && c.cmd_in_progress_refused);
     CHECK(!first_divergence(a.crc, c.crc).diverged && a.trace == c.trace);
     // #717 command 54 starts the bombardment exactly as the direct call; before ready it is refused AbilityNotReady, for
-    // the defender (no record) NotAllowed, and a second one while the strike runs AbilityNotReady.
+    // the defender (no record) NotAllowed, and while the strike runs AbilityNotReady.
     CHECK(c.bombard_started && c.bombard_hit && c.bombard_reset);
     CHECK(c.bombard_cmd_not_ready && c.bombard_cmd_defender && c.bombard_cmd_in_progress);
     // the pb_switch queries (0x528a10 / 0x5294d0): shown for the attacker's record only, the bar 0 on the first frame

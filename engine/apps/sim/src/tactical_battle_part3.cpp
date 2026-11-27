@@ -1509,8 +1509,7 @@ cmd::RejectReason TacticalBattle::handle_command(TacticalMode& mode, uint8_t pla
     if (t == T::PlanetaryBombard) {
         if (space_ || !l1_mode_) return R::NotAllowed;
         const int32_t p = static_cast<int32_t>(player);
-        if (!std::any_of(l1_bombard_.begin(), l1_bombard_.end(), [&](const L1Bombard& r) { return r.player == p && r.enabled; }))
-            return R::NotAllowed;
+        if (const L1Bombard* r = l1_bombard_of(p); !r || !r->enabled) return R::NotAllowed;
         Vec3 at{ev.f("x"), ev.f("y"), ev.f("z")};
         if (std::fabs(at.z) < 0.0001f) at.z = 0.0f;
         if (!bombardment_target_valid(p, at)) return R::InvalidPosition;

@@ -813,12 +813,14 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                 audio_.faction_sfx("Reinforcements_Pick_Landing_Zone_SFXEvent");  // ledger: consumes Faction.Reinforcements_Pick_Landing_Zone_SFXEvent
                 targeting_.cancel();  // one modal pick at a time
                 bombing_end(false);
+                bombard_end(false);
                 beacon_pick_ = false;
                 break;
             case ui::HudAction::Kind::BeginAbilityTargeting:  // the target is the next world click (TargetingController)
                 if (screen() == Screen::Battle && targeting_.begin(a)) {
                     reinforce_unit_ = 0;
                     bombing_end(false);
+                    bombard_end(false);
                     beacon_pick_ = false;
                 }
                 break;
@@ -927,7 +929,7 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                     break;
                 }
                 // #717 pb_switch (0x379; click handler 0x2e7bc0 through 0x347930): the land orbital-bombardment switch. A
-                // disabled switch never reaches here.
+                // disabled switch swallows the click (HudButtons) unless Lua enabled it.
                 if (screen() == Screen::Battle && !bview_.space() && ascii_iequals(a.name, "pb_switch") && a.button == ui::Button::Left) {
                     bombard_toggle();
                     break;
@@ -1375,7 +1377,8 @@ void App::battle_input() {
     bool bombing_click = false;
     bombing_blob_.reset();
     if (bombing_targeting_ && (bview_.space() || !bombing_run_ready())) bombing_end(false);
-    if (bombard_targeting_ && (bview_.space() || !bombard_ready())) bombard_end(false);
+    // retail keeps +0x2ae6 until a click or a cancel; [port] the pick ends silently once the switch is gone (space, no record).
+    if (bombard_targeting_ && (bview_.space() || !bombard_shown())) bombard_end(false);
     const bool bombard = bombard_targeting_;
     if ((bombing_targeting_ || bombard) && !world_blocked) {
         const sim::TacticalBattle* tb = battle();
@@ -1406,8 +1409,8 @@ void App::battle_input() {
                 cmds.push_back(std::move(ev));
                 ++bombing_commands_;
                 if (bombard) {
-                    if (const objects::TypeIndex st = tb->bombardment_ship_type(me_player); st != objects::kNone)
-                        audio_.ui(data_.types.get_string(st, "SFXEvent_Bombard_Incoming"));
+                    if (const objects::TypeIndex ship = tb->bombardment_ship_type(me_player); ship != objects::kNone)
+                        audio_.ui(data_.types.get_string(ship, "SFXEvent_Bombard_Incoming"));
                     bombard_end(false);
                 } else {
                     if (const objects::TypeIndex bt = tb->bombing_run_bomber_type(me_player); bt != objects::kNone)
@@ -1673,10 +1676,10 @@ void App::bombing_end(bool cancel_sfx) {
     if (cancel_sfx) audio_.faction_sfx("SFXEvent_Bombing_Run_Cancelled");
 }
 
-// #717 0x314360's `ready` (0x528970): the local player's switch is shown and the bombardment available.
-bool App::bombard_ready() const {
+// #717 0x314360's `shown` (0x528a10): the local player's switch is on the command bar.
+bool App::bombard_shown() const {
     const sim::TacticalBattle* b = battle();
-    return b && b->bombardment_shown(local_player()) && b->bombardment_available(local_player());
+    return b && b->bombardment_shown(local_player());
 }
 
 // #717 0x2e7bc0 (from_click = 0): off -> on plays 0x5296d0's line, the bombarding ship type's SFXEvent_Bomb_Run_Select_Target

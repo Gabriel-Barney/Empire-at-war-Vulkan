@@ -766,15 +766,13 @@ public:
         bool on = false;
     };
     std::span<const AbilityToggleEvent> ability_toggles() const { return ability_toggles_; }
-    // mcx4 t13 (presentation feed; MCX4_T13_RE_ANSWERS "Faction.SFXEvent_Bombard_Available family" and
-    // "GameObjectType.SFXEvent_Bombard_Incoming family"): land strikes started in this tick or in the command phase
-    // before it. A bombing run names its first bomber (0x492d60); a bombardment names the first of the faction's
-    // Bombardment_Required_Orbital_Ships types that resolves [M: retail reads the bombarding ship].
+    // mcx4 t13 (presentation feed; MCX4_T13_RE_ANSWERS "Faction.SFXEvent_Bombard_Available family"): land strikes started
+    // in this tick or in the command phase before it. A bombing run names its first bomber (0x492d60). A bombardment's
+    // SFXEvent_Bombard_Incoming is the app's, from the bombard click (#717, bombardment_ship_type).
     struct StrikeEvent {
         int32_t player = -1;
         bool bombard = false;
         objects::ObjectId first_bomber = objects::kNoObjectId;
-        objects::TypeIndex ship_type = objects::kNone;
     };
     std::span<const StrikeEvent> strike_starts() const { return strike_starts_; }
     // #314 (presentation feed; docs/re/BOMBARD_FLASH.md, 0x52a110 [H]): the bombardment shots of this tick that make a
@@ -1416,7 +1414,8 @@ public:
     // #717 the land HUD's orbital-bombardment switch (pb_switch, 0x314360 [H]; docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md
     // "Orbital bombardment switch"). Const, presentation only: the sim never reads them back. shown = 0x528a10: land, an
     // enabled record (in a skirmish only with the special-weapons option); recharge = 0x5294d0's bar fraction 0..1;
-    // ship_type = the record's required ship type (its SFXEvent_Bombard_Incoming; objects::kNone = no record).
+    // ship_type = the first of the faction's Bombardment_Required_Orbital_Ships that resolves (its SFXEvent_Bombard_Incoming;
+    // objects::kNone = no enabled record) [M: retail reads the bombarding ship the record keeps].
     bool bombardment_shown(int32_t player) const;
     float bombardment_recharge(int32_t player) const;
     objects::TypeIndex bombardment_ship_type(int32_t player) const;
@@ -3127,7 +3126,7 @@ private:
     std::vector<L1Bombard> l1_bombard_;
     std::vector<L1BombingRun> l1_runs_;
     int64_t l1_bombing_run_ready_frame(const L1BombingRun& r) const;  // 0x4950f0 absolute frame, -1 = disabled
-    objects::TypeIndex l1_bombard_ship_type(const L1Bombard& r) const;  // the first resolving required ship type
+    const L1Bombard* l1_bombard_of(int32_t player) const;  // the player's record (one per player), nullptr = none
     bool l1_strike_skirmish_gate() const;  // 0x494410 / 0x528a10: not a skirmish, or the skirmish's special-weapons option
     std::vector<std::pair<int32_t, int32_t>> l1_extra_projectiles_;  // (type, CombatData projectile) appended for strikes
     void l1_strikes_setup(TacticalMode& mode);  // setup(): records

@@ -632,7 +632,7 @@ private:
     // type's SFXEvent_Bomb_Run_Select_Target (retail's +0x1360 read), a cancel the local faction's SFXEvent_Bombard_Cancelled.
     // It shares bombing_blob_ and the strike counters with the bombing-run pick (one pick at a time).
     bool bombard_targeting_ = false;
-    bool bombard_ready() const;
+    bool bombard_shown() const;
     void bombard_toggle();
     void bombard_end(bool cancel_sfx);
     // t04 (app_tactical_keys.cpp): tactical hotkeys / command-bar buttons beyond the camera and move toggles.

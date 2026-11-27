@@ -326,18 +326,16 @@ bool TacticalBattle::l1_strike_skirmish_gate() const {
     return !cfg_.skirmish || (cfg_.skirmish_options.set ? cfg_.skirmish_options.super_weapons : l1_k_.skirmish_superweapons);
 }
 
-objects::TypeIndex TacticalBattle::l1_bombard_ship_type(const L1Bombard& r) const {
-    if (r.faction >= l1_factions_.size()) return objects::kNone;
-    for (const std::string& n : l1_factions_[r.faction].bombard_ships)
-        if (const objects::TypeIndex t = catalog_->types().resolve_name(n); t != objects::kNone) return t;
-    return objects::kNone;
+const TacticalBattle::L1Bombard* TacticalBattle::l1_bombard_of(int32_t player) const {
+    for (const L1Bombard& r : l1_bombard_)
+        if (r.player == player) return &r;
+    return nullptr;
 }
 
 bool TacticalBattle::bombardment_shown(int32_t player) const {
     if (space_ || !l1_strike_skirmish_gate()) return false;
-    for (const L1Bombard& r : l1_bombard_)
-        if (r.player == player) return r.enabled;
-    return false;
+    const L1Bombard* r = l1_bombard_of(player);
+    return r && r->enabled;
 }
 
 // #717 0x5294d0 [H]: the pb_switch_recharge bar, 0..1. No record or not enabled: 0; a record the service gates (not
@@ -345,23 +343,22 @@ bool TacticalBattle::bombardment_shown(int32_t player) const {
 // and E the ready frame (idle) or now + interval (in progress): 1 once now >= E, 0 when E <= S or now <= S.
 // [M] the original also returns 1 in the game modes 0x28af80 / 0x28b060 name, not ported (as bombing_run_cooldown_fraction).
 float TacticalBattle::bombardment_recharge(int32_t player) const {
-    for (const L1Bombard& r : l1_bombard_) {
-        if (r.player != player) continue;
-        if (!r.enabled) return 0.0f;
-        if (!r.timer_only && !player_gate_allows(player, tactical::abilities::PlayerGate::Bombardment)) return 0.0f;
-        if (r.available && !r.in_progress) return 1.0f;
-        const int64_t now = static_cast<int64_t>(frame_), start = static_cast<int64_t>(r.start);
-        const int64_t end = r.in_progress ? now + static_cast<int64_t>(r.interval) : static_cast<int64_t>(r.ready);
-        if (now >= end) return 1.0f;
-        if (end <= start || now <= start) return 0.0f;
-        return static_cast<float>(now - start) / static_cast<float>(end - start);
-    }
-    return 0.0f;
+    const L1Bombard* r = l1_bombard_of(player);
+    if (!r || !r->enabled) return 0.0f;
+    if (!r->timer_only && !player_gate_allows(player, tactical::abilities::PlayerGate::Bombardment)) return 0.0f;
+    if (r->available && !r->in_progress) return 1.0f;
+    const int64_t now = static_cast<int64_t>(frame_), start = static_cast<int64_t>(r->start);
+    const int64_t end = r->in_progress ? now + static_cast<int64_t>(r->interval) : static_cast<int64_t>(r->ready);
+    if (now >= end) return 1.0f;
+    if (end <= start || now <= start) return 0.0f;
+    return static_cast<float>(now - start) / static_cast<float>(end - start);
 }
 
 objects::TypeIndex TacticalBattle::bombardment_ship_type(int32_t player) const {
-    for (const L1Bombard& r : l1_bombard_)
-        if (r.player == player && r.enabled) return l1_bombard_ship_type(r);
+    const L1Bombard* r = l1_bombard_of(player);
+    if (!r || !r->enabled || r->faction >= l1_factions_.size()) return objects::kNone;
+    for (const std::string& n : l1_factions_[r->faction].bombard_ships)
+        if (const objects::TypeIndex t = catalog_->types().resolve_name(n); t != objects::kNone) return t;
     return objects::kNone;
 }
 
@@ -506,7 +503,6 @@ bool TacticalBattle::start_bombardment(TacticalMode& mode, int32_t player, Vec3 
             StrikeEvent e;
             e.player = player;
             e.bombard = true;
-            e.ship_type = l1_bombard_ship_type(r);
             strike_starts_.push_back(e);
         }
         story_generics_.push_back({"start_bombard", player});  // STY1 t03 (0x528140): raised last, every player
@@ -563,7 +559,7 @@ bool TacticalBattle::start_bombing_run(TacticalMode& mode, int32_t player, Vec3 
         }
         r.total = static_cast<uint32_t>(r.bombers.size());
         // presentation feed (SFXEvent_Bombing_Run_Begin_Crosstalk on the first bomber)
-        strike_starts_.push_back({player, false, r.bombers.empty() ? objects::kNoObjectId : r.bombers.front().id, bt});
+        strike_starts_.push_back({player, false, r.bombers.empty() ? objects::kNoObjectId : r.bombers.front().id});
         return true;
     }
     return false;
