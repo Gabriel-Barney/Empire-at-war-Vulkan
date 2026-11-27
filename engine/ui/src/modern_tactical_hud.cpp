@@ -82,7 +82,7 @@ void ModernTacticalHud::init(const ComponentTable& table, const TextureAtlas& at
     resume_ = table.find("attack_button");
     for (uint32_t i = 0; i < kOrderButtonCount; ++i) {
         char n[16];
-        std::snprintf(n, sizeof n, "c_button%02d", i);
+        std::snprintf(n, sizeof n, "c_button%02u", i);
         order_[i] = table.find(n);
     }
     special_button_.assign(48, -1);  // as TacticalHud::init

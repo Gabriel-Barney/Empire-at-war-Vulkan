@@ -14,13 +14,10 @@ C6011	engine/ai/tests/test_ai_galactic_part1.cpp	run_path_world
 C6011	engine/audio/tests/test_audio.cpp	`anonymous-namespace'::test_draws
 C6011	engine/audio/tests/test_game_audio.cpp	`anonymous-namespace'::test_data
 C6011	engine/galactic/tests/test_conflicts.cpp	`anonymous-namespace'::test_company_survivors
-C6011	engine/render/src/jam_fx.cpp	alamo::render::jam_blobs
-C6011	engine/render/src/renderer_graph.cpp	alamo::render::RendererCore::post_cache_entry
 C6011	engine/render/tests/reference/test_reference.cpp	`anonymous-namespace'::run_skinning
 C6011	engine/render/tests/test_render_r5.cpp	test_surface_data
 C6011	engine/render/tests/test_render_r5.cpp	test_surface_data
 C6011	engine/tactical/movement/tests/test_movement.cpp	test_fighter_orbit
-C6011	engine/ui/src/gui_dialog.cpp	alamo::ui::GuiImagePages::page
 C6011	engine/ui/tests/test_gui.cpp	`anonymous-namespace'::test_load_screen
 C6011	engine/ui/tests/test_gui.cpp	`anonymous-namespace'::test_lua_gui
 C6031	engine/ai/tactical/tests/test_ai_tactical_world.cpp	`anonymous-namespace'::test_landing_wait

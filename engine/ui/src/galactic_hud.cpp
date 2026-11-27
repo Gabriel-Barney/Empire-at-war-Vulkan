@@ -1371,7 +1371,7 @@ bool GalacticHud::drop(std::vector<commands::EventData>* out, std::vector<HudAct
 // (retail's empty header pad is not traced as a target; there is no fleet to lead, so no state changes).
 bool GalacticHud::lead_drop(int32_t over_component, std::vector<commands::EventData>* out) const {
     const PadSlot* over = pad_of(over_component);
-    if (!over || !over->lead_pad || over->foreign || over->fleet == 0) return false;
+    if (!over || !over->lead_pad || over->foreign || over->fleet == 0 || over->fleet_index < 0 || over->fleet_index >= 3) return false;
     if (drag_.fleet_index < 0 || drag_.fleet_index >= 3 || drag_.unit == 0 || drag_.no_lead || drag_.unit == over->unit) return false;
     if (!out) return true;
     galactic_lead_events(drag_.fleet, drag_.unit, over->fleet, drag_.fleet_index != over->fleet_index,

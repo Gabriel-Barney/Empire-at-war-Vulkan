@@ -56,6 +56,7 @@ int32_t GuiImagePages::page(std::string_view texture) {
     for (Entry& e : entries_)
         if (!victim || (e.failed && !victim->failed) || (e.failed == victim->failed && e.last_use < victim->last_use))
             victim = &e;
+    if (!victim) return -1;  // only with kHudImagePages == 0: no image page at all
     victim->name = std::string(texture);
     victim->width = victim->height = 0;
     victim->failed = false;
