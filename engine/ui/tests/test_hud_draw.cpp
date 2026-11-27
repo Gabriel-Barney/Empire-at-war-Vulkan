@@ -422,11 +422,20 @@ void test_gpu_real(Gpu& g, [[maybe_unused]] const std::string& src_dir, bool str
         ui::RoutedInput ri;
         ri.hover_component = hud.hit_test(static_cast<int32_t>(rpx.x), static_cast<int32_t>(rpx.y));
         std::vector<commands::EventData> cmds;
+        // #762 the tooltip is checked unpaused: the Game Paused banner holds component tooltips off
+        // (#71 t06, legacy docs/re/HUD_GAPS.md §2.1 [H]), which the paused build below then shows.
+        hf.paused = false;
+        hud.build(hf, units, types);
         hud.update_input(ri, false, false, 0.0, cmds);
         hud.update_input(ri, false, false, 1.0, cmds);
         hf.cursor_px = rpx;
         hud.build(hf, units, types);
         CHECK(ri.hover_component == table.find("b_retreat") && hud.stats().tooltip);
+        hf.paused = true;  // the paused look for the PNG: the banner up, the tooltip gone
+        hud.build(hf, units, types);
+        hud.update_input(ri, false, false, 2.0, cmds);
+        hud.build(hf, units, types);
+        CHECK(hud.stats().pause_banner && !hud.stats().tooltip);
         CHECK(hud.stats().queue_markers == 4 && hud.stats().queue_dots > 20);
         CHECK(hud.stats().panel_slots == 2 && hud.stats().ability_buttons == 1 && hud.stats().queue_entries == 1 &&
               hud.stats().buttons > 5 && hud.stats().waypoint_dots > 10);
