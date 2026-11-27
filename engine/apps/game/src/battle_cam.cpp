@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <utility>
 
 namespace alamo::game {
@@ -152,6 +153,7 @@ void BattleCam::start(State s, BattleCamShot shot) {
     state_ = s;
     shot_ = std::move(shot);
     fov_.clear_keys();  // #571 0x4a7a90: every shot start clears the FOV keys, not the zoom trigger
+    if (!shot_.fov_keys.empty()) fov_.set_keys(shot_.fov_keys);  // #572 a glory file's
     if (shot_.zoom) fov_.arm(*shot_.zoom);
     if (shot_.smoothing) smoothing_ = *shot_.smoothing;
     if (shot_.look_filter) look_filter_ = *shot_.look_filter;  // #671 +0x1bd
@@ -159,9 +161,16 @@ void BattleCam::start(State s, BattleCamShot shot) {
         on_interesting_ = true;
         terrain_clamp_ = true;
     }  // 0x4a53f0 step 2: +0x315 = 1 for every generated shot (sticky)
+    if (shot_.terrain_clamp) terrain_clamp_ = *shot_.terrain_clamp;  // #572 the glory shot clears it (also sticky)
     last_clock_ = 0;
     ++serial_;
     smooth_clock_ = -1;
+}
+
+void BattleCam::death_glory(std::optional<BattleCamShot> shot) {
+    stop();  // 0x2cbb80: the running shot stops first, so a file that fails leaves the cam stopped
+    terrain_clamp_ = false;  // 0x4a3b40 sets +0x315 = 0 first, even when the file then fails
+    if (shot) start(State::Movie, std::move(*shot));
 }
 
 void BattleCam::stop() {
@@ -336,18 +345,20 @@ float BattleCam::shot_fov(int32_t clock, float base_deg, std::optional<float> ta
     return fov_.step(clock, remaining, base_deg, target_radius, distance);
 }
 
+float fov_keys_value(std::span<const FovKey> keys, int32_t frame, float before) {
+    if (keys.empty() || frame < keys.front().frame) return before;  // 0x49c40b..0x49c4ec
+    size_t k = 0;
+    while (k + 1 < keys.size() && keys[k + 1].frame <= frame) ++k;
+    if (k + 1 >= keys.size()) return keys[k].degrees;
+    const FovKey& a = keys[k];
+    const FovKey& b = keys[k + 1];
+    if (a.hold) return a.degrees;
+    const float t = static_cast<float>(frame - a.frame) / static_cast<float>(b.frame - a.frame);
+    return a.degrees + shot_accel(t, a.ease_out, b.ease_in) * (b.degrees - a.degrees);
+}
+
 float ShotFov::step(int32_t frame, int32_t remaining, float base_deg, std::optional<float> target_radius, float distance) {
-    if (!keys_.empty()) {  // 0x49c40b..0x49c4ec
-        if (frame < keys_.front().frame) return base_deg;
-        size_t k = 0;
-        while (k + 1 < keys_.size() && keys_[k + 1].frame <= frame) ++k;
-        if (k + 1 >= keys_.size()) return keys_[k].degrees;
-        const FovKey& a = keys_[k];
-        const FovKey& b = keys_[k + 1];
-        if (a.hold) return a.degrees;
-        const float t = static_cast<float>(frame - a.frame) / static_cast<float>(b.frame - a.frame);
-        return a.degrees + shot_accel(t, a.ease_out, b.ease_in) * (b.degrees - a.degrees);
-    }
+    if (!keys_.empty()) return fov_keys_value(keys_, frame, base_deg);
     if (trigger_.mode == 0 || trigger_.earliest == 0 || remaining < kMinFramesLeft || frame <= trigger_.earliest ||
         trigger_.target == 0 || !target_radius)
         return base_deg;
@@ -865,10 +876,208 @@ bool hardpoint_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamSh
     return true;
 }
 
+ShakeEffect glory_shake_effect(const GloryShake& k) {
+    ShakeEffect e;  // 0x49fd70 [H]: by the parameter names of 0x7d93a0
+    e.frequency = static_cast<float>(k.duration) * (k.frequency / 1000.0f);
+    e.x_amplitude = k.x_amplitude;
+    e.y_amplitude = k.y_amplitude;
+    e.ease_in = k.ease_in;
+    e.ease_out = k.ease_out;
+    return e;
+}
+
+namespace {
+uint32_t read_u32(std::span<const uint8_t> b, size_t at) {
+    return static_cast<uint32_t>(b[at]) | static_cast<uint32_t>(b[at + 1]) << 8 | static_cast<uint32_t>(b[at + 2]) << 16 |
+           static_cast<uint32_t>(b[at + 3]) << 24;
+}
+float read_f32(std::span<const uint8_t> b, size_t at) {
+    const uint32_t u = read_u32(b, at);
+    float f = 0.0f;
+    std::memcpy(&f, &u, sizeof f);
+    return f;
+}
+// One chunk header at `at` within [at, end): its id, its body and its end (the size's bit 31 marks a container).
+struct Chunk {
+    uint32_t id = 0;
+    size_t body = 0, end = 0;
+};
+bool next_chunk(std::span<const uint8_t> b, size_t at, size_t end, Chunk& c) {
+    if (at + 8 > end) return false;
+    const size_t size = read_u32(b, at + 4) & 0x7FFFFFFFu;
+    if (at + 8 + size > end) return false;  // 0x220730: a read must fit the chunk
+    c = {read_u32(b, at), at + 8, at + 8 + size};
+    return true;
+}
+// Calls f(id, offset, size) for each mini-chunk (u8 id, u8 size) of [at, end).
+template <class F>
+void each_mini(std::span<const uint8_t> b, size_t at, size_t end, F&& f) {
+    while (at + 2 <= end) {
+        const uint8_t id = b[at], size = b[at + 1];
+        if (at + 2 + size > end) return;
+        f(id, at + 2, static_cast<size_t>(size));
+        at += 2u + size;
+    }
+}
+// 0x4a86f0: a key child (id 4). Defaults as the record's: frame 0, mode 0, ease 0, period 300.
+bool read_glory_key(std::span<const uint8_t> b, const Chunk& c, ShotKey& k) {
+    k = ShotKey{};
+    bool vectors_ok = true;
+    each_mini(b, c.body, c.end, [&](uint8_t id, size_t at, size_t size) {
+        const bool word = size >= 4;
+        switch (id) {
+            case 0x00: if (word) k.frame = static_cast<int32_t>(read_u32(b, at)); break;
+            case 0x01:  // +0x00 world position: overwritten (the glory shot attaches every key)
+            case 0x02:  // +0x0c tangent (the world-key Hermite)
+                if (size < 12) vectors_ok = false;
+                break;
+            case 0x03:
+                if (word) {
+                    const uint32_t m = read_u32(b, at);  // 0 spline, 1 linear, 2 hold, 3 orbit
+                    // [port] (tier 1, presentation) an unknown mode reads as a spline
+                    k.segment = m <= 3 ? static_cast<ShotKey::Segment>(m) : ShotKey::Segment::Spline;
+                }
+                break;
+            case 0x0a:
+                if (size < 12) vectors_ok = false;
+                else k.where = {read_f32(b, at), read_f32(b, at + 4), read_f32(b, at + 8)};
+                break;
+            case 0x0b: if (word) k.ease_out = read_f32(b, at); break;
+            case 0x0c: if (word) k.ease_in = read_f32(b, at); break;
+            case 0x16: if (word) k.period = static_cast<int32_t>(read_u32(b, at)); break;
+            case 0x17: if (size >= 1) k.reverse = b[at] != 0; break;
+            default: break;  // 0x04 object (overwritten), 0x05 / 0x07 / 0x08 unknown, 0x06 tangent scale (0.5)
+        }
+    });
+    return vectors_ok;
+}
+// cases 2 / 3: a FOV / roll child (id 5). Defaults: frame 0, mode 1, the rest 0.
+FovKey read_glory_fov(std::span<const uint8_t> b, const Chunk& c) {
+    FovKey k;
+    each_mini(b, c.body, c.end, [&](uint8_t id, size_t at, size_t size) {
+        if (size < 4) return;
+        switch (id) {
+            case 0x00: k.frame = static_cast<int32_t>(read_u32(b, at)); break;
+            case 0x03: k.hold = read_u32(b, at) == 2; break;
+            case 0x09: k.degrees = read_f32(b, at); break;
+            case 0x0b: k.ease_out = read_f32(b, at); break;
+            case 0x0c: k.ease_in = read_f32(b, at); break;
+            default: break;
+        }
+    });
+    return k;
+}
+// case 6: a shake child (id 7).
+GloryShake read_glory_shake(std::span<const uint8_t> b, const Chunk& c) {
+    GloryShake k;
+    each_mini(b, c.body, c.end, [&](uint8_t id, size_t at, size_t size) {
+        if (size < 4) return;
+        switch (id) {
+            case 0x00: k.start = static_cast<int32_t>(read_u32(b, at)); break;
+            case 0x0d: k.duration = static_cast<int32_t>(read_u32(b, at)); break;
+            case 0x0e: k.frequency = read_f32(b, at); break;
+            case 0x12: k.y_amplitude = read_f32(b, at); break;
+            case 0x13: k.x_amplitude = read_f32(b, at); break;
+            case 0x0b: k.ease_out = read_f32(b, at); break;
+            case 0x0c: k.ease_in = read_f32(b, at); break;
+            default: break;
+        }
+    });
+    return k;
+}
+}  // namespace
+
+bool parse_glory_cinematic(std::span<const uint8_t> file, GloryCinematic& out) {
+    out = {};
+    bool seen = false;
+    size_t at = 0;
+    Chunk top;
+    while (next_chunk(file, at, file.size(), top)) {
+        at = top.end;
+        const uint32_t child = top.id <= 1 || top.id == 8 ? 4u : top.id <= 3 ? 5u : top.id == 6 ? 7u : 0u;
+        if (child == 0) continue;  // unknown: skipped, not a success
+        seen = true;
+        size_t c_at = top.body;
+        Chunk ch;
+        while (next_chunk(file, c_at, top.end, ch)) {
+            c_at = ch.end;
+            if (ch.id != child) break;  // a child of the wrong id ends the list
+            if (child == 4) {
+                ShotKey k;
+                if (!read_glory_key(file, ch, k)) continue;
+                if (top.id == 0) out.eye.push_back(k);
+                else if (top.id == 1) out.look.push_back(k);  // chunk 8: read and dropped [L: fog or depth settings]
+            } else if (child == 5) {
+                (top.id == 2 ? out.fov : out.roll).push_back(read_glory_fov(file, ch));
+            } else {
+                out.shake.push_back(read_glory_shake(file, ch));
+            }
+        }
+    }
+    return seen;
+}
+
+std::vector<std::string> glory_file_names(std::span<const std::string_view> entries) {
+    std::vector<std::string> out;
+    for (const std::string_view entry : entries) {
+        size_t at = 0;
+        while (at <= entry.size()) {
+            const size_t comma = std::min(entry.find(',', at), entry.size());
+            if (const std::string_view name = ascii_trim(entry.substr(at, comma - at)); !name.empty()) out.emplace_back(name);
+            at = comma + 1;
+        }
+    }
+    return out;
+}
+
+bool glory_pick(std::span<const std::string> files, UnsyncedRandom& rng, const GloryLoader& load, GloryCinematic& out) {
+    if (files.empty()) return false;
+    const auto i = static_cast<size_t>(rng.range(0, static_cast<int32_t>(files.size()) - 1));  // before the open
+    return load && load(files[i], out);
+}
+
+std::string glory_file_path(std::string_view name) { return "Data\\Art\\Cinematics\\" + std::string(name); }
+
+BattleCamShot glory_shot(const InterestingObject& o, const GloryCinematic& c) {
+    BattleCamShot s;
+    s.target = o.id;
+    s.interesting = true;
+    ObjectFrame r0;  // R0: the object's rotation at the start (identity without a model)
+    if (o.model)
+        for (int j = 0; j < 3; ++j) r0.axis[j] = o.frame.axis[j];
+    int32_t last = 0;
+    const auto attach = [&](std::vector<ShotKey> keys) {
+        for (ShotKey& k : keys) {
+            k.attached = true;        // +0x2c = the object
+            k.translate_only = true;  // +0x51 = 1
+            k.where = r0.apply(k.where);
+            last = std::max(last, k.frame);
+        }
+        return keys;
+    };
+    s.eye = attach(c.eye);
+    s.look = attach(c.look);
+    s.fov_keys = c.fov;
+    s.roll_keys = c.roll;
+    s.shakes = c.shake;
+    constexpr int32_t fps = kCinematicFps;
+    s.length = static_cast<int32_t>(static_cast<float>(fps) * (static_cast<float>(last) / static_cast<float>(fps)));  // 0x4ad3a0
+    s.smoothing = 0.0f;
+    s.look_filter = false;
+    s.handheld = false;
+    s.terrain_clamp = false;
+    return s;
+}
+
 bool interesting_shot(const InterestingObject& o, bool space, const InterestingCategories& c, UnsyncedRandom& rng,
-                      BattleCamShot& out) {
-    // Steps 1 - 3 (docs/re/BATTLE_CAM.md "The dispatcher"): the glory files (#572) are not ported: they fail and fall
-    // through. Step 2 (the terrain clamp) is BattleCam::start's; step 3 is the hardpoint shot (#571).
+                      BattleCamShot& out, const GloryLoader& load_glory) {
+    // Steps 1 - 3 (docs/re/BATTLE_CAM.md "The dispatcher"). Step 1, the glory files (#572, 0x4a3b40): the pick is drawn
+    // before the file is opened, so a file that fails still costs the draw. Step 2 (the terrain clamp) is
+    // BattleCam::start's; step 3 is the hardpoint shot (#571).
+    if (GloryCinematic g; glory_pick(o.glory_files, rng, load_glory, g)) {
+        out = glory_shot(o, g);
+        return true;
+    }
     if (o.hardpoint >= 0 && hardpoint_shot(o, rng, out)) return true;
     if ((o.category & c.fighter) != 0) {  // step 4
         out = fighter_chase_shot(o, rng);

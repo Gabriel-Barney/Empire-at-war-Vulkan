@@ -90,6 +90,8 @@ void App::tsw_shot_end() {
 void App::cinematic_reset() {
     engine_loop_to(objects::kNoObjectId);
     cine_.interesting = {};
+    cine_.glory_seen.clear();  // #572
+    cine_.glory_any = false;
     cine_.cam.stop();  // the swallowed keys stay hidden until released (else a held one would read as a new press)
     cine_.cam_on = false;
     cine_.shot.end();
@@ -103,6 +105,7 @@ void App::cinematic_reset() {
 
 void App::cinematic_step() {
     cine_.letterbox.update(dt_);
+    if (screen() == Screen::Battle) glory_death_path();  // #572: every frame, so a clone counts once, as it appears
     if (cine_.cam.active()) battle_cam_step();
     if (!cine_.shot.active()) return;
     const sim::TacticalBattle* b = battle();
@@ -419,8 +422,64 @@ bool App::interesting_object_shot(bool first, BattleCamShot& out) {
     c.corvette = static_cast<uint64_t>(cats.lookup("Corvette").value_or(0x8));
     c.infantry = static_cast<uint64_t>(cats.lookup("Infantry").value_or(0x80));
     c.vehicle = static_cast<uint64_t>(cats.lookup("Vehicle").value_or(0x100));
+    io.glory_files = glory_files(o->type);  // #572 step 1
     std::printf("Start_Interesting_Object_Cinematic: Type %.*s\n", static_cast<int>(io.type_name.size()), io.type_name.data());
-    return interesting_shot(io, space, c, cine_.rng, out);
+    return interesting_shot(io, space, c, cine_.rng, out, glory_loader());
+}
+
+// #572 (type +0x21b8 / +0x21c0, a list of strings [H]; glory_file_names splits the entries).
+std::vector<std::string> App::glory_files(objects::TypeIndex t) const {
+    if (t == objects::kNone || t >= data_.types.size()) return {};
+    return glory_file_names(data_.types.get_list(t, "Glory_Cinematics"));
+}
+
+// #572 0x4a3b40 [H]: .\Data\Art\Cinematics\ + the name as written (the .tec is in it), through the file system
+// (cinematics.meg in the shipped game); logs "Init_Glory_Cinematics - %s" once the file opened.
+GloryLoader App::glory_loader() const {
+    return [this](std::string_view name, GloryCinematic& out) {
+        if (!data_.files) return false;
+        const std::string path = glory_file_path(name);
+        std::vector<uint8_t> bytes;
+        if (!data_.files->read(path, bytes)) return false;
+        std::printf("Init_Glory_Cinematics - %s\n", path.c_str());
+        return parse_glory_cinematic(bytes, out);
+    };
+}
+
+// #572 0x39bdb0 -> 0x2cc940 [H]: a death clone appears (the object's death) while the battle cam runs (state 3), at
+// most one glory shot every FPS x 5 frames, and its type has Glory_Cinematics: the running shot stops, one file is
+// drawn and loaded; a loaded one plays on the clone (+0x360 = the clone), a failed one leaves the cam stopped. [port]
+// (tier 1, presentation) A clone counts once, as it first shows in the drawn frame; the +0x34c and DAT_140b15490
+// gates, the cursor re-baseline and +0x34a are not modelled; the first glory shot of a battle is not gated (+0x3a0's
+// start value is not traced [M]).
+void App::glory_death_path() {
+    const sim::TacticalBattle* b = battle();
+    if (!b || !bview_.active()) return;
+    for (const render::SnapshotObject& o : bview_.frame().objects) {
+        if ((o.flags & render::kSnapDeathClone) == 0 || !cine_.glory_seen.insert(o.id).second) continue;
+        if (cine_.cam.state() != BattleCam::State::Movie) continue;
+        if (cine_.glory_any && b->frame() - cine_.glory_frame < static_cast<uint32_t>(5 * kCinematicFps)) continue;
+        const std::vector<std::string> files = glory_files(o.type);
+        if (files.empty()) continue;
+        ObjectFrame frame;
+        (void)drawn_object(o.id, &frame);
+        InterestingObject io;
+        io.id = static_cast<uint32_t>(o.id);
+        io.model = (o.flags & render::kSnapDrawable) != 0;
+        io.half_extents = shot_half_extents(o.type);
+        io.frame = frame;
+        io.type_name = data_.types.name(o.type);
+        GloryCinematic g;
+        const bool ok = glory_pick(files, cine_.rng, glory_loader(), g);
+        cine_.cam.death_glory(ok ? std::optional<BattleCamShot>(glory_shot(io, g)) : std::nullopt);
+        if (ok) {
+            cine_.interesting.current = static_cast<uint32_t>(o.id);
+            cine_.glory_frame = b->frame();
+            cine_.glory_any = true;
+        }
+        battle_cam_sync();
+        return;
+    }
 }
 
 // Cinematic mode on (0x49b1a0: the mode camera saved once, HUD and cursor hidden, FS +0x37) and the letterbox (0x44b550,
@@ -453,6 +512,8 @@ void App::battle_cam_sync() {
         cine_.shake.reset();  // 0x4a7a90: every shot start clears the trackers
         if (const BattleCamShot& s = cine_.cam.shot(); s.handheld)
             (void)cine_.shake.start(handheld_shake(s.handheld_frames), 0, s.handheld_frames);
+        for (const GloryShake& k : cine_.cam.shot().shakes)  // #572 0x49fd70: a glory file's shake keys
+            (void)cine_.shake.start(glory_shake_effect(k), k.start, k.duration);
         if (cine_.cam.shot().engine_loop)  // +0x318: off on the old, on on the new (#563: the bombing run leaves it)
             engine_loop_to(static_cast<objects::ObjectId>(cine_.cam.shot().target));
     }
@@ -633,7 +694,8 @@ bool App::battle_cam_camera(ui::CameraParams& cp) {
     }
     const ui::Vec3 eye = cine_.cam.smooth_eye(keyed, c);
     const ui::Vec3 look = cine_.cam.filter_look(keyed_look, c);  // #671 0x4a96d0, after the smoothing
-    const CinematicPose pose = apply_shake(eye, look, 0.0f, cine_.shake, c);
+    // #572 0x49cd00 [H]: the roll keys (degrees), plus the shake's roll.
+    const CinematicPose pose = apply_shake(eye, look, cine_.cam.shot_roll(c), cine_.shake, c);
     cp.eye = pose.eye;
     cp.target = pose.look;
     cp.up = pose.up;

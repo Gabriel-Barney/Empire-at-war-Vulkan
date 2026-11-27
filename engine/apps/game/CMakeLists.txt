@@ -197,7 +197,7 @@ set_tests_properties(alamo_game_battle_fx_tests PROPERTIES TIMEOUT 120)
 add_executable(alamo_game_battle_cam_tests tests/test_battle_cam.cpp)
 target_link_libraries(alamo_game_battle_cam_tests PRIVATE alamo_core alamo_game_core alamo_test_support)
 add_test(NAME alamo_game_battle_cam_tests COMMAND alamo_game_battle_cam_tests)
-set_tests_properties(alamo_game_battle_cam_tests PROPERTIES TIMEOUT 120)
+set_tests_properties(alamo_game_battle_cam_tests PROPERTIES TIMEOUT 600)  # #572: its retail part loads the game data
 
 # the screen rule table (app/screen_flow.hpp) without a window or a GPU.
 add_executable(alamo_game_screen_flow_tests tests/test_screen_flow.cpp app/screen_flow.cpp)

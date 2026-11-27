@@ -8,16 +8,22 @@
 //   next clash, Esc, Cinematic View's steps and key rules, the mouse rules, the smoothing;
 // - #671 the look filter (0x4a96d0 / 0x49ff50) against a written-out reference, and the +0x1bd flag per template;
 // - #571 the hardpoint shot: the pick's hardpoint draw (0x2cd0d0), the eye frame on the bones (0x49d640), the template
-//   and its gates (0x4a47d0), the dispatcher step, and the FOV zoom trigger and keys (0x49bdf0).
+//   and its gates (0x4a47d0), the dispatcher step, and the FOV zoom trigger and keys (0x49bdf0);
+// - #572 the Glory_Cinematics files: the .tec parser (0x4a7ce0) on a fixture file, the glory shot (0x4a3b40), the
+//   dispatcher's step 1 with its draw and fall-through, the FOV / roll keys and the death path (0x2cc940).
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string>
 #include <optional>
 #include <string_view>
 #include <vector>
 
 #include "alamo/game/battle_cam.hpp"
 #include "alamo/game/battle_fx.hpp"
+#include "alamo/game/game_data.hpp"
 #include "alamo/test/support.hpp"
 
 
@@ -1048,6 +1054,253 @@ void test_fov_zoom() {
     CHECK(cam.fov().target() == 0);
 }
 
+// #572 a .tec writer for the fixtures: chunks (u32 id, u32 size | 0x80000000 for a container) and minis (u8 id, u8 size).
+struct Tec {
+    std::vector<uint8_t> b;
+    void u32(uint32_t v) {
+        for (int i = 0; i < 4; ++i) b.push_back(static_cast<uint8_t>(v >> (8 * i)));
+    }
+    void f32(float f) {
+        uint32_t u = 0;
+        std::memcpy(&u, &f, sizeof u);
+        u32(u);
+    }
+};
+std::vector<uint8_t> tec_chunk(uint32_t id, const std::vector<uint8_t>& body, bool container) {
+    Tec t;
+    t.u32(id);
+    t.u32(static_cast<uint32_t>(body.size()) | (container ? 0x80000000u : 0u));
+    t.b.insert(t.b.end(), body.begin(), body.end());
+    return t.b;
+}
+std::vector<uint8_t> tec_mini_i(uint8_t id, int32_t v) {
+    Tec t;
+    t.b = {id, 4};
+    t.u32(static_cast<uint32_t>(v));
+    return t.b;
+}
+std::vector<uint8_t> tec_mini_f(uint8_t id, float v) {
+    Tec t;
+    t.b = {id, 4};
+    t.f32(v);
+    return t.b;
+}
+std::vector<uint8_t> tec_mini_v(uint8_t id, V3 v, uint8_t size = 12) {
+    Tec t;
+    t.b = {id, size};
+    t.f32(v.x);
+    t.f32(v.y);
+    t.f32(v.z);
+    t.b.resize(2u + size);
+    return t.b;
+}
+std::vector<uint8_t> cat(std::initializer_list<std::vector<uint8_t>> parts) {
+    std::vector<uint8_t> out;
+    for (const auto& p : parts) out.insert(out.end(), p.begin(), p.end());
+    return out;
+}
+// A key child (id 4) as the shipped files write it: frame, world, tangent, offset, mode, object, then eases.
+std::vector<uint8_t> tec_key(int32_t frame, V3 offset, int32_t mode, float ease_out = 0.0f, uint8_t offset_size = 12) {
+    return tec_chunk(4, cat({tec_mini_i(0x00, frame), tec_mini_v(0x01, {1000.0f, 2000.0f, 50.0f}), tec_mini_v(0x02, {1.0f, 2.0f, 3.0f}),
+                             tec_mini_v(0x0a, offset, offset_size), tec_mini_i(0x03, mode), tec_mini_i(0x04, 1),
+                             tec_mini_f(0x06, 0.5f), tec_mini_f(0x0b, ease_out), tec_mini_f(0x0c, 0.0f)}),
+                     false);
+}
+std::vector<uint8_t> tec_fov(int32_t frame, int32_t mode, float deg) {
+    return tec_chunk(5, cat({tec_mini_i(0x00, frame), tec_mini_i(0x03, mode), tec_mini_f(0x09, deg), tec_mini_f(0x0b, 0.0f),
+                             tec_mini_f(0x0c, 0.0f)}),
+                     false);
+}
+// The fixture: eye keys 0 / 120 (a third whose offset mini is short, dropped), look keys 0 / 90, FOV 55 -> 30 with a
+// hold, a roll key, a shake with start / duration / frequency / amplitudes / eases, an empty chunk 8 and an unknown
+// chunk 9 between them.
+std::vector<uint8_t> tec_fixture() {
+    return cat({tec_chunk(0, cat({tec_key(0, {100.0f, 0.0f, 50.0f}, 1, 0.5f), tec_key(120, {200.0f, 0.0f, 80.0f}, 2),
+                                  tec_key(150, {1.0f, 1.0f, 1.0f}, 1, 0.0f, 4)}),
+                          true),
+                tec_chunk(9, {1, 2, 3, 4}, false),
+                tec_chunk(1, cat({tec_key(0, {0.0f, 10.0f, 0.0f}, 1), tec_key(90, {0.0f, 0.0f, 0.0f}, 2)}), true),
+                tec_chunk(2, cat({tec_fov(0, 2, 55.0f), tec_fov(60, 1, 55.0f), tec_fov(90, 1, 30.0f)}), true),
+                tec_chunk(3, tec_fov(30, 1, -15.0f), true),
+                tec_chunk(6, tec_chunk(7, cat({tec_mini_i(0x00, 20), tec_mini_i(0x0d, 60), tec_mini_f(0x0e, 100.0f), tec_mini_f(0x12, 10.0f),
+                                               tec_mini_f(0x13, 5.0f), tec_mini_f(0x0c, 0.0f), tec_mini_f(0x0b, 0.5f)}),
+                                          false),
+                          true),
+                tec_chunk(8, {}, false)});
+}
+
+// #572 0x4a7ce0 [H]: the fixture's lists, the failure cases.
+void test_glory_parse() {
+    GloryCinematic g;
+    const std::vector<uint8_t> f = tec_fixture();
+    CHECK(parse_glory_cinematic(f, g));
+    CHECK(g.eye.size() == 2 && g.look.size() == 2 && g.fov.size() == 3 && g.roll.size() == 1 && g.shake.size() == 1);
+    if (g.eye.size() == 2) {
+        CHECK(g.eye[0].frame == 0 && g.eye[0].segment == ShotKey::Segment::Linear && near(g.eye[0].where, V3{100.0f, 0.0f, 50.0f}) &&
+              near(g.eye[0].ease_out, 0.5f) && g.eye[0].period == 300);
+        CHECK(g.eye[1].frame == 120 && g.eye[1].segment == ShotKey::Segment::Hold);
+    }
+    if (g.fov.size() == 3) CHECK(g.fov[0].hold && !g.fov[1].hold && near(g.fov[2].degrees, 30.0f) && g.fov[2].frame == 90);
+    if (g.roll.size() == 1) CHECK(g.roll[0].frame == 30 && near(g.roll[0].degrees, -15.0f));
+    if (g.shake.size() == 1) {
+        const GloryShake& k = g.shake[0];
+        CHECK(k.start == 20 && k.duration == 60 && near(k.frequency, 100.0f) && near(k.y_amplitude, 10.0f) && near(k.x_amplitude, 5.0f) &&
+              near(k.ease_in, 0.0f) && near(k.ease_out, 0.5f));
+        const ShakeEffect e = glory_shake_effect(k);  // Frequency = duration x v / 1000
+        CHECK(near(e.frequency, 6.0f) && near(e.x_amplitude, 5.0f) && near(e.y_amplitude, 10.0f) && near(e.ease_out, 0.5f));
+    }
+    // Shake defaults: a child with only its start frame.
+    GloryCinematic d;
+    CHECK(parse_glory_cinematic(tec_chunk(6, tec_chunk(7, tec_mini_i(0x00, 5), false), true), d) && d.shake.size() == 1);
+    if (d.shake.size() == 1)
+        CHECK(d.shake[0].duration == 150 && near(d.shake[0].frequency, 1.0f) && near(d.shake[0].ease_in, 0.25f) &&
+              near(d.shake[0].ease_out, 0.25f));
+    // An empty known chunk still counts; only unknown chunks, or nothing, fail.
+    CHECK(parse_glory_cinematic(tec_chunk(8, {}, false), d) && d.eye.empty());
+    CHECK(!parse_glory_cinematic(tec_chunk(9, {1, 2}, false), d));
+    CHECK(!parse_glory_cinematic(std::vector<uint8_t>{}, d));
+    // A child of the wrong id ends its list: the key after it is not read.
+    const std::vector<uint8_t> broken = tec_chunk(0, cat({tec_key(0, {}, 1), tec_fov(5, 1, 1.0f), tec_key(10, {}, 1)}), true);
+    CHECK(parse_glory_cinematic(broken, d) && d.eye.size() == 1);
+    // A truncated chunk ends the file.
+    std::vector<uint8_t> cut = f;
+    cut.resize(f.size() / 2);
+    CHECK(parse_glory_cinematic(cut, d) && d.fov.empty());
+}
+
+// #572 0x4a3b40 [H]: the keys on the object (translate-only, turned once by R0), length, smoothing, look, clamp.
+void test_glory_shot() {
+    GloryCinematic g;
+    CHECK(parse_glory_cinematic(tec_fixture(), g));
+    InterestingObject o = object({10.0f, 4.0f, 6.0f});
+    o.frame.axis[0] = {0.0f, 1.0f, 0.0f};  // facing +Y: R0 turns +X to +Y
+    o.frame.axis[1] = {-1.0f, 0.0f, 0.0f};
+    const BattleCamShot s = glory_shot(o, g);
+    CHECK(s.target == 42 && s.interesting && s.eye.size() == 2 && s.look.size() == 2);
+    if (s.eye.size() == 2) {
+        CHECK(s.eye[0].attached && s.eye[0].translate_only && near(s.eye[0].where, V3{0.0f, 100.0f, 50.0f}));
+        // The keys follow the object's position only: resolved at a moved, turned object they keep the start's turn.
+        ObjectFrame moved = frame_at({500.0f, 0.0f, 0.0f});
+        CHECK(near(shot_key_position(s.eye[0], moved, 0.0f), V3{500.0f, 100.0f, 50.0f}));
+    }
+    if (s.look.size() == 2) CHECK(near(s.look[0].where, V3{-10.0f, 0.0f, 0.0f}));
+    CHECK(s.length == 120 && s.smoothing && near(*s.smoothing, 0.0f) && s.look_filter && !*s.look_filter && !s.handheld);
+    CHECK(s.terrain_clamp && !*s.terrain_clamp && s.fov_keys.size() == 3 && s.roll_keys.size() == 1 && s.shakes.size() == 1);
+    // Without a model R0 is the identity.
+    InterestingObject bare = o;
+    bare.model = false;
+    const BattleCamShot b = glory_shot(bare, g);
+    CHECK(!b.eye.empty() && near(b.eye[0].where, V3{100.0f, 0.0f, 50.0f}));
+}
+
+// #572 0x4a53f0 step 1: the pick is drawn before the open; a file that fails falls through to the other templates.
+void test_glory_dispatch() {
+    const std::vector<uint8_t> fixture = tec_fixture();
+    std::vector<std::string> opened;
+    const GloryLoader load = [&](std::string_view name, GloryCinematic& out) {
+        opened.emplace_back(name);
+        return name == "good.tec" && parse_glory_cinematic(fixture, out);
+    };
+    InterestingCategories c;
+    InterestingObject o = object({10.0f, 4.0f, 6.0f});
+    o.category = c.fighter;
+    o.glory_files = {"good.tec"};
+    UnsyncedRandom rng(3);
+    BattleCamShot s;
+    CHECK(interesting_shot(o, true, c, rng, s, load) && s.length == 120 && s.fov_keys.size() == 3 && opened.size() == 1);
+    // A file that does not load: the fighter chase (step 4), after one more draw than a type without files.
+    o.glory_files = {"bad.tec"};
+    UnsyncedRandom a(8), b(8);
+    BattleCamShot sa, sb;
+    CHECK(interesting_shot(o, true, c, a, sa, load) && sa.smoothing && near(*sa.smoothing, 0.99f) && opened.back() == "bad.tec");
+    InterestingObject none = o;
+    none.glory_files.clear();
+    (void)b.range(0, 0);  // the pick of a one-file list
+    CHECK(interesting_shot(none, true, c, b, sb, load) && a.range(0, 1000000) == b.range(0, 1000000));
+    // Two files: either is opened.
+    o.glory_files = {"bad.tec", "good.tec"};
+    bool good = false, bad = false;
+    for (uint64_t seed = 1; seed <= 20; ++seed) {
+        UnsyncedRandom r(seed);
+        BattleCamShot t;
+        CHECK(interesting_shot(o, true, c, r, t, load));
+        (t.fov_keys.empty() ? bad : good) = true;
+    }
+    CHECK(good && bad);
+    // No loader: the files are never opened, the draw is still made.
+    const size_t before = opened.size();
+    CHECK(interesting_shot(o, true, c, rng, s) && opened.size() == before);
+}
+
+// #572 in the controller: the FOV and roll keys, the cleared terrain clamp, and the death path's stop-then-start.
+void test_glory_controller() {
+    GloryCinematic g;
+    CHECK(parse_glory_cinematic(tec_fixture(), g));
+    const BattleCamShot glory = glory_shot(object({10.0f, 4.0f, 6.0f}), g);
+    World w;
+    BattleCamGates gates;
+    BattleCam cam;
+    w.interesting = {timed(1, 300), glory, timed(3, 300)};
+    CHECK(cam.movie_key_up(gates, w.picks()) && cam.terrain_clamp() && cam.shot().target == 1);
+    CHECK(cam.tick(300, false, w.picks()) == 0 && cam.shot().target == 42 && !cam.terrain_clamp());  // the glory shot
+    CHECK(near(cam.shot_fov(10, 60.0f, std::nullopt, 100.0f), 55.0f));   // key 0 holds (mode 2) to frame 60
+    CHECK(near(cam.shot_fov(75, 60.0f, std::nullopt, 100.0f), 42.5f));   // 55 -> 30 between 60 and 90
+    CHECK(near(cam.shot_fov(200, 60.0f, std::nullopt, 100.0f), 30.0f));
+    CHECK(near(cam.shot_roll(0), 0.0f) && near(cam.shot_roll(30), -15.0f) && near(cam.shot_roll(100), -15.0f));
+    CHECK(near(cam.smooth_eye({0.0f, 0.0f, 0.0f}, 0), {0.0f, 0.0f, 0.0f}) && near(cam.smooth_eye({90.0f, 0.0f, 0.0f}, 1), {90.0f, 0.0f, 0.0f}));
+    CHECK(!cam.look_filter());
+    // The next interesting shot sets the clamp again and has no FOV keys.
+    CHECK(cam.tick(120, false, w.picks()) == 0 && cam.shot().target == 3 && cam.terrain_clamp() && cam.fov().keys().empty());
+    // The death path: the running shot stops; with a loaded file the glory shot runs in state 3, without one the cam is off.
+    cam.death_glory(glory);
+    CHECK(cam.state() == State::Movie && cam.shot().target == 42 && cam.fov().keys().size() == 3);
+    cam.death_glory(std::nullopt);
+    CHECK(!cam.active() && !cam.terrain_clamp());  // +0x315 = 0 even when the file fails
+}
+
+// #572 on the installed game (ALAMO_FOC_DATA): every shipped death clone's Glory_Cinematics file loads through the VFS
+// (base EaW's cinematics.meg) and parses; CAM_SDestroyer_Glory01's lists as the RE read them.
+void test_glory_shipped(const char* foc) {
+    // ledger: verifies GameObjectType.Glory_Cinematics
+    alamo::game::GameData data;
+    std::string err;
+    if (!alamo::game::load_game_data(foc, {}, data, &err) || !data.files) {
+        std::printf("FAIL load_game_data: %s\n", err.c_str());
+        ++g_fail;
+        return;
+    }
+    size_t files = 0;
+    for (const char* name : {"Star_Destroyer_Death_Clone", "Arc_Hammer_Death_Clone", "Calamari_Cruiser_Death_Clone",
+                             "Home_One_Death_Clone", "AT_AT_Walker_Death_Clone_00"}) {
+        const alamo::objects::TypeIndex t = data.types.resolve_name(name);
+        CHECK(t != alamo::objects::kNone);
+        if (t == alamo::objects::kNone) continue;
+        const std::vector<std::string> names = glory_file_names(data.types.get_list(t, "Glory_Cinematics"));
+        CHECK(!names.empty());
+        for (const std::string& n : names) {
+            std::vector<uint8_t> bytes;
+            GloryCinematic g;
+            const bool read = data.files->read(glory_file_path(n), bytes);
+            CHECK(read && parse_glory_cinematic(bytes, g) && !g.eye.empty() && !g.look.empty() && !g.fov.empty());
+            // The keys go in in file order, so the files must be frame-sorted.
+            for (const auto* keys : {&g.eye, &g.look})
+                for (size_t i = 1; i < keys->size(); ++i) CHECK((*keys)[i - 1].frame < (*keys)[i].frame);
+            for (const auto* keys : {&g.fov, &g.roll})
+                for (size_t i = 1; i < keys->size(); ++i) CHECK((*keys)[i - 1].frame < (*keys)[i].frame);
+            if (!read) std::printf("  not read: %s\n", n.c_str());
+            ++files;
+        }
+    }
+    CHECK(files == 7);  // the AT-AT clone lists three files in one entry
+    std::vector<uint8_t> bytes;
+    GloryCinematic sd;
+    CHECK(data.files->read(glory_file_path("CAM_SDestroyer_Glory01.tec"), bytes) && parse_glory_cinematic(bytes, sd));
+    CHECK(sd.eye.size() == 10 && sd.look.size() == 6 && sd.fov.size() == 1 && sd.roll.size() == 2 && sd.shake.empty());
+    if (!sd.eye.empty()) CHECK(sd.eye[0].frame == 0 && near(sd.eye[0].where, V3{635.689f, -862.355f, 379.0f}));
+    if (sd.roll.size() == 2) CHECK(sd.roll[1].frame == 1800 && near(sd.roll[1].degrees, -15.0f));
+    std::printf("glory files: %zu shipped files parsed\n", files);
+}
+
 // #563 0x49f370: the bombing-run shot's keys and length, and its place after the clash in the picks and the chain.
 void test_bombing_run() {
     BombingRunView v;
@@ -1297,6 +1550,14 @@ int main() {
     test_hardpoint_frame();
     test_hardpoint_shot();
     test_fov_zoom();
+    test_glory_parse();
+    test_glory_shot();
+    test_glory_dispatch();
+    test_glory_controller();
+    CHECK((glory_file_names(std::vector<std::string_view>{"a.tec, b.tec ,c.tec", "", " d.tec"}) ==
+           std::vector<std::string>{"a.tec", "b.tec", "c.tec", "d.tec"}));
+    if (const char* foc = std::getenv("ALAMO_FOC_DATA"); foc && *foc) test_glory_shipped(foc);
+    else std::printf("alamo_game_battle_cam_tests: ALAMO_FOC_DATA not set: the shipped glory files are skipped\n");
     std::printf(g_fail == 0 ? "game battle cam tests passed\n" : "%d game battle cam check(s) FAILED\n", g_fail);
     return g_fail == 0 ? 0 : 1;
 }

@@ -491,6 +491,80 @@ The TSW firing shot is state 3 too. `0x2ccf30` sets the baseline at Fire, and ev
   LOCK_CONTROLS and story-lock gates. In state > 1 it stops instead, so the button is a toggle and never cycles.
 - [port] The free-rotation pitch offset and roll count as pitch (`TacticalCameraController::pitch_yaw_at_defaults`).
 
+## The Glory_Cinematics files (#572) [H]
+
+A type's `Glory_Cinematics` files (type +0x21b8, a list of strings) are camera shots made in an editor: eye, look,
+FOV, roll and shake keys. In the shipped XML only death clones carry them:
+
+| type | files |
+|---|---|
+| Star_Destroyer_Death_Clone, Arc_Hammer_Death_Clone | CAM_SDestroyer_Glory01.tec |
+| Calamari_Cruiser_Death_Clone | CAM_Calamari_Cruiser_Die.tec |
+| Home_One_Death_Clone | CAM_HomeOne_Die.tec |
+| AT_AT_Walker_Death_Clone_00/01/02 | "CAM_ATAT_Death_01.tec, CAM_ATAT_Death_02.tec, CAM_ATAT_Death_03.tec" |
+
+The files are in base EaW's `GameData\Data\cinematics.meg` (`DATA\ART\CINEMATICS\*.TEC`, 10 entries); FoC's
+`megafiles.xml` lists `Data\Cinematics.meg`, and there are no loose `.tec` files.
+
+### Who calls `0x4a3b40(ctrl, mode, obj)`
+- **The death path, the real entry:** the object's death `0x39bdb0` spawns the death clone (`0x29f270`) and calls
+  `0x2cc940(ctrl, clone)` when ctrl+0x34c is set (default 1), `DAT_140b15490 == 0` [L], the state is 3 (the battle
+  cam runs), FPS × 5 ≤ now − ctrl+0x3a0 (one glory shot every 5 s at most), and the clone's type has files. It then
+  stops the running shot (`0x2cbb80`) and calls `0x4a3b40`. On success: +0x360 = the clone, state 3, +0x3a0 = now. On
+  failure the cam stays stopped.
+- **The dispatcher's step 1** (`0x4a53f0`), for every interesting object; a failure goes on to step 2.
+
+### The load
+- +0x315 = 0 first, even when the shot then fails; +0x160 = mode.
+- It fails with no mode, an id that does not resolve, no type, or an empty list.
+- `i = rand(0, count − 1)` is drawn **before** the open. The path is `.\Data\Art\Cinematics\` + the name as written.
+  A failed open returns 0.
+- After the open `0x4a7a90` clears the lists again and the log reads "Init_Glory_Cinematics - %s". `0x4a7ce0` parses;
+  0 (no known chunk) fails the shot.
+
+### The format (`0x4a7ce0`, checked against the shipped files)
+- **Chunks:** `u32 id, u32 size`, size bit 31 = a container; read back to back until the end. **Mini-chunks:** `u8 id,
+  u8 size`. A read must fit both, or it fails. Every field is 4 bytes, except mini 0x17 (1 byte); a vector is three.
+
+| top chunk | children | goes to |
+|---|---|---|
+| 0 | id 4, one per key | eye keys |
+| 1 | id 4 | look keys |
+| 2 | id 5 | FOV keys |
+| 3 | id 5 | roll keys |
+| 6 | id 7 | shake keys |
+| 8 | id 4 | a third key list for the mode's vf+0x100 object [L: fog or depth settings] |
+
+The parse succeeds when any of 0 / 1 / 2 / 3 / 6 / 8 was seen, even empty. A child of the wrong id ends its list.
+Keys are appended in file order (the shipped files are frame-ordered).
+
+- **Key (id 4, `0x4a86f0`).** Defaults 0, except object = hardpoint = −1, tangent scale 0.5, period 300. Minis: 0x00
+  frame, 0x01 world position (3 f32), 0x02 tangent (3 f32), 0x03 mode (0 spline, 1 linear, 2 hold, 3 orbit), 0x04
+  object, 0x05 / 0x07 / 0x08 unknown, 0x06 tangent scale, 0x0a offset (3 f32), 0x0b ease out, 0x0c ease in, 0x16 period,
+  0x17 reverse (u8). A key is kept only when all its 3-float reads fit.
+- **FOV / roll (id 5).** Defaults frame 0, mode 1. Minis: 0x00 frame, 0x03 mode (2 = hold), 0x09 value in degrees, 0x0b
+  ease out, 0x0c ease in.
+- **Shake (id 7).** Defaults duration 150, frequency 1, the amplitudes 1, eases 0.25. Minis: 0x00 start frame, 0x0d
+  duration, 0x0e frequency factor, 0x12 YAmplitude, 0x13 XAmplitude, 0x0b EaseOut, 0x0c EaseIn. `0x49fd70` builds one
+  CameraShakeEffect per key by those parameter names, Frequency = duration × factor / 1000, started at its frame for its
+  duration.
+
+### What a loaded shot does (`0x4a3b40`)
+- Every eye and look key gets the object (+0x2c) and translate-only (+0x51 = 1); its offset is turned **once** by the
+  object's rotation at the start (R0; the identity without a model). So the file's offsets are in the object's frame,
+  frozen at the start, then follow its position only. FOV, roll and shake keys are not rewritten.
+- Length: the largest eye / look key frame, through `0x4ad3a0`.
+- The keys' first frame is the seed (no glide), smoothing +0x270 = 0, +0x1bd = 0 (the raw look), no handheld noise,
+  +0x315 = 0 (no terrain clamp), the letterbox when it is not in, the engine loop on the object.
+- **FOV keys:** F0 before the first key, the last key's value from it on, between keys a + accel(t, a.ease_out,
+  b.ease_in) (b − a), a hold key keeping its value (`0x49bdf0`). **Roll keys:** the same with 0 before and without keys,
+  plus the shake's roll, into the view build (`0x49cd00`).
+
+**Port:** `parse_glory_cinematic`, `glory_shot`, step 1 of `interesting_shot` (with a `GloryLoader`), and
+`BattleCam::death_glory` (`battle_cam.hpp`); `fov_keys_value` evaluates the FOV and roll keys. The host
+(`app_cinematic.cpp`): `App::glory_files`, `App::glory_loader` (the VFS, so the MEG), `App::glory_death_path` (the
+clones of the drawn frame), the shake keys started with the shot, the roll keys into `apply_shake`.
+
 ## The port's differences and their tier (`docs/SIMULATION.md` "Parity tiers")
 
 All of them are presentation: no sim state, no synced draw, so tiers 2 and 3 are untouched. Camera feel is tier 1, so
@@ -501,7 +575,15 @@ each of these is a known gap rather than an accepted difference:
   - a bomber with no speed fails the pick;
   - the first live bomber with a live marker is framed, where retail takes the record's first and fails if it is dying;
   - a lead bomber shot down mid-run stops the cam (the framed object is gone), where retail runs on until the record ends.
-- The not-ported template: the glory files (#572) fail and fall through.
+- The glory files (#572):
+  - a death clone counts once, as it first shows in the drawn frame; the +0x34c and `DAT_140b15490` gates, the cursor
+    re-baseline and +0x34a are not modelled; the first glory shot of a battle is not gated (+0x3a0's start value is not
+    traced [M]);
+  - the key tangent (mini 0x02) and tangent scale (0x06) are read past: the port's attached keys interpolate linearly;
+  - each `Glory_Cinematics` entry is split on commas and trimmed [M];
+  - an unknown key mode reads as a spline (the shipped files are frame-sorted, which the retail test checks);
+  - chunk 8 is read and dropped [L: fog or depth settings], and so are key minis 0x05 / 0x07 / 0x08 (use not traced);
+  - the attached spline between keys is linear, as for every attached key in the port.
 - The hardpoint shot (#571):
   - a hardpoint's target is its own target (`CombatSystem::hardpoint_target`), else its opportunity target, where
     retail reads +0x40 only with +0x6d set and tests the firing arc on +0x50 [M];
@@ -563,7 +645,7 @@ start stops a running TSW shot.
 
 ## Open
 
-- The interesting-object template not ported yet: the glory files (#572).
+- Glory files (#572): what key minis 0x05 / 0x07 / 0x08 and chunk 8 do; `DAT_140b15490` and `DAT_140a28c30`.
 - What hp+0x40, +0x50 and +0x6d mean and what `0x383ba0` tests (#571); Fire_Bone_A's model when a hardpoint has its own
   model.
 - The fighter chase's CameraAnimeSpiral parameter slots (+0x38..+0x50).

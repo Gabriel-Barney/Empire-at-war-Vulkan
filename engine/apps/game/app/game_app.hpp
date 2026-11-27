@@ -244,6 +244,11 @@ private:
         objects::TypeIndex engine_type = objects::kNone;
         ui::KeySet cam_swallowed;      // keys the controller swallowed, hidden until released
         ui::KeySet cam_prev_down;      // the previous frame's keys down (key-up edges)
+        // #572 the death path (0x39bdb0 -> 0x2cc940): the death clones seen so far (each may start one glory shot as it
+        // appears) and the tactical frame of the last glory shot (+0x3a0; at most one every FPS x 5 frames).
+        std::set<objects::ObjectId> glory_seen;
+        uint32_t glory_frame = 0;
+        bool glory_any = false;
     } cine_;
     void tsw_shot_begin(const TswCue& c, const sim::TacticalBattle& b, const objects::ObjectStore& st);
     void tsw_shake(const TswCue& c, const sim::TacticalBattle& b);
@@ -266,6 +271,10 @@ private:
     void camera_button();                        // b_camera_t (0x347100)
     void engine_loop_to(objects::ObjectId id);   // #564: move the cinematic engine loop (+0x318) to `id` (none: off)
     bool interesting_object_shot(bool first, BattleCamShot& out);  // #568 0x2cd930: the pick and its template
+    // #572: type `t`'s Glory_Cinematics file names, and the loader of one (Data\Art\Cinematics\ + the name, parsed).
+    std::vector<std::string> glory_files(objects::TypeIndex t) const;
+    GloryLoader glory_loader() const;
+    void glory_death_path();  // #572 0x2cc940: a new death clone with Glory_Cinematics while the battle cam runs
     // #571 0x49d640: the frame of drawn object `o`'s hardpoint `hp` for the hardpoint shot's eye (hardpoint_eye_frame);
     // false for an unknown hardpoint.
     bool hardpoint_frame(const render::SnapshotObject& o, int32_t hp, const ObjectFrame& object_frame, ObjectFrame& out);
