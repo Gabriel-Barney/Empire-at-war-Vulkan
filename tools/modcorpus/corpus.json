@@ -45,11 +45,14 @@
       "space_map": "_MP_SPACE_GEONOSIS",
       "land_map": "_MP_LAND_UTAPAU",
       "campaign": "Sandbox_Balance_New_Republic",
-      "blockers": ["2026-11-27 (#701): G2 with the space Lua errors accepted (the same Try_Weapon_Switch nil call as land)", "smoke_skirmish runs 86 of 86 but fails the attract-demo orientation check: 24 moving hulls, 0 nose-first, 18 sideways (mean cos 0.109); UI/render smoke flow, routed to the UI lane", "the mod's Data/Scripts/AI/SpaceMode/BuildStructureSpace.lua starts with a UTF-8 BOM and does not compile (retail's Lua does not skip one either, docs/MODS.md): a mod-data fault, not a port blocker", "smoke_campaign stops at step 23 of 102 ('encyclopedia over a planet' timed out): UI smoke flow, routed to the UI lane", "the static honour gaps (#77 tag-ledger tickets)"],
+      "blockers": ["2026-11-27 (#701): G2; land 0 Lua errors, space 5 (all the Try_Weapon_Switch nil call, accepted); 4-worker runs equal", "smoke_skirmish runs 86 of 86 but fails the attract-demo orientation check: 24 moving hulls, 0 nose-first, 18 sideways (mean cos 0.109); UI/render smoke flow, routed to the UI lane", "the mod's Data/Scripts/AI/SpaceMode/BuildStructureSpace.lua starts with a UTF-8 BOM and does not compile, a tactical AI script error outside the Lua error count (docs/MODS.md: retail's Lua does not skip a BOM either): a mod-data fault, not a port blocker", "smoke_campaign stops at step 23 of 102 ('encyclopedia over a planet' timed out): UI smoke flow, routed to the UI lane", "the static honour gaps (#77 tag-ledger tickets)"],
       "accept": [
-        {"blocker": "^(land|space): \\d+ Lua error\\(s\\)$",
+        {"blocker": "^land: 9 Lua error\\(s\\)$",
          "why": "the mod's own Data/Scripts/Library/PGCommands.lua shadows FoC's and defines only Try_Weapon_Switch_Ground, while its BusyTacticalFreeStore.lua and PGEvents.lua still call Try_Weapon_Switch: retail resolves require('pgcommands') to the same mod file and raises the same nil-call error",
-         "ref": "legacy docs/MODS.md 10.4, mcx8 t01"}
+         "ref": "legacy docs/MODS.md 10.4, mcx8 t01"},
+        {"blocker": "^space: \\d+ Lua error\\(s\\)$",
+         "why": "every space-run Lua error is BusyTacticalFreeStore.lua:186's call of Try_Weapon_Switch (a nil value): the mod's PGCommands.lua shadows FoC's without defining it, as for the land entry above, and retail raises the same nil-call error",
+         "ref": "the 2026-11-27 corpus run's space_w0.txt (#701); legacy docs/MODS.md 10.4"}
       ]
     },
     "1397421866": {
