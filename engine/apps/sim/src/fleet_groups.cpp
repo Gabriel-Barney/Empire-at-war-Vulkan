@@ -186,7 +186,7 @@ uint16_t FleetGroups::reserve_assignment(uint32_t reserve) const {
 }
 
 void FleetGroups::join_reserve(uint8_t player, uint32_t reserve, uint32_t fleet, std::span<const objects::ObjectId> units,
-                               const InfoFn& info) {
+                               const InfoFn& info, bool last) {
     const auto at = std::lower_bound(assigned_.begin(), assigned_.end(), reserve,
                                      [](const ReserveAssignment& a, uint32_t r) { return a.reserve < r; });
     if (at == assigned_.end() || at->reserve != reserve || at->owner != player) {
@@ -194,7 +194,7 @@ void FleetGroups::join_reserve(uint8_t player, uint32_t reserve, uint32_t fleet,
         return;
     }
     const uint16_t pick = at->group;
-    assigned_.erase(at);
+    if (last) assigned_.erase(at);
     if (pick == commands::kAssignNoGroup) return;
     FleetGroup* g = find(pick);
     if (!g || g->owner != player) {  // gone since the pick: the galactic-fleet rule

@@ -286,7 +286,7 @@ std::vector<FleetGroups::Lagging> TacticalBattle::fleet_lagging(const TacticalMo
 
 static_assert(FleetGroup::kNoFleet == galactic::kNoFleet, "#173: FleetGroup::fleet holds galactic fleet ids");
 
-void TacticalBattle::fleet_join_spawned(const TacticalMode& mode, uint32_t pi, size_t first) {
+void TacticalBattle::fleet_join_spawned(const TacticalMode& mode, uint32_t pi, size_t first, bool last) {
     if (!fleet_on_ || finished_ || !movement_ || pi >= parts_.size() || first >= units_.size()) return;
     const Participant& P = parts_[pi];
     if (P.built || P.map || P.owner < 0 || P.owner > 255) return;
@@ -299,7 +299,7 @@ void TacticalBattle::fleet_join_spawned(const TacticalMode& mode, uint32_t pi, s
     const objects::ObjectStore& st = mode.primary();
     // #645: a reserve's pick (AssignReserve) before the galactic-fleet rule.
     fleet_.join_reserve(static_cast<uint8_t>(P.owner), static_cast<uint32_t>(P.galactic_id), fleet, ids,
-                        [this, &st](objects::ObjectId id) { return fleet_unit_info(st, id); });
+                        [this, &st](objects::ObjectId id) { return fleet_unit_info(st, id); }, last);
 }
 
 uint16_t TacticalBattle::fleet_reserve_group(int32_t player, objects::ObjectId reserve, bool& picked) const {
@@ -310,15 +310,22 @@ uint16_t TacticalBattle::fleet_reserve_group(int32_t player, objects::ObjectId r
         if (pick == cmd::kAssignNoGroup || (g && g->owner == player && g->members.size() < FleetGroups::kMaxMembers)) return pick;
         picked = false;  // gone or full since the pick: the rule below applies on arrival
     }
+    // The galactic-fleet rule (join_spawned): its group with room, else a new group while the player has room for one;
+    // no galactic fleet, or no room, groups nothing (kAssignNoGroup).
+    if (reserve == objects::kNoObjectId) return cmd::kAssignNoGroup;
     for (const Participant& p : parts_) {
         if (p.galactic_id != reserve || p.owner != player) continue;
         const uint32_t fleet = galaxy_->fleet_containing(p.galactic);
-        if (fleet == galactic::kNoFleet) return cmd::kAssignDefault;
-        for (const FleetGroup& g : fleet_.groups())
-            if (g.owner == player && g.fleet == fleet && g.members.size() < FleetGroups::kMaxMembers) return g.id;
-        break;
+        if (fleet == galactic::kNoFleet) return cmd::kAssignNoGroup;
+        size_t owned = 0;
+        for (const FleetGroup& g : fleet_.groups()) {
+            if (g.owner != player) continue;
+            ++owned;
+            if (g.fleet == fleet && g.members.size() < FleetGroups::kMaxMembers) return g.id;
+        }
+        return owned < FleetGroups::kMaxGroupsPerPlayer ? cmd::kAssignDefault : cmd::kAssignNoGroup;
     }
-    return cmd::kAssignDefault;
+    return cmd::kAssignNoGroup;
 }
 
 void TacticalBattle::fleet_tick(const TacticalMode& mode) {

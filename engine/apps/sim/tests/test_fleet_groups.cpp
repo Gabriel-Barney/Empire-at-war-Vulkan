@@ -402,6 +402,15 @@ void test_reserve_assignment() {
     const objects::ObjectId d[] = {43};
     fg.join_reserve(0, 504, 9, d, w.fn());
     CHECK(fg.group_of(43) && fg.group_of(43)->fleet == 9);
+    // a land landing unloads in steps: every step follows the pick, the last one uses it up
+    w.add(44, 90.0f, 0.0f, 3.0f);
+    w.add(45, 95.0f, 0.0f, 3.0f);
+    const objects::ObjectId e1[] = {44}, e2[] = {45};
+    CHECK(fg.assign_reserve(0, 505, cmd::kAssignNoGroup) == cmd::RejectReason::None);
+    fg.join_reserve(0, 505, 9, e1, w.fn(), false);
+    CHECK(!fg.group_of(44) && fg.reserve_assignment(505) == cmd::kAssignNoGroup);
+    fg.join_reserve(0, 505, 9, e2, w.fn(), true);
+    CHECK(!fg.group_of(45) && fg.reserve_assignment(505) == cmd::kAssignDefault);
 }
 
 // #177: Merge folds the player's groups with a selected unit into the oldest (lowest id), which keeps its id, name and
@@ -616,8 +625,15 @@ FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on, bool idle_pha
                     as.reserve = static_cast<uint32_t>(res.front().galactic_id);
                     CHECK(b->fleet_group_command(*tm, 0, data(as), {}) == R::None &&
                           b->fleet_groups().reserve_assignment(as.reserve) == as.group);
+                    bool picked = false;  // the pad label's source: the pick
+                    CHECK(b->fleet_reserve_group(0, res.front().galactic_id, picked) == as.group && picked);
                     as.group = cmd::kAssignDefault;
                     CHECK(b->fleet_group_command(*tm, 0, data(as), {}) == R::None);
+                    // no pick: the galactic-fleet rule's result, never "a new group" for a reserve outside a fleet
+                    const uint16_t rule = b->fleet_reserve_group(0, res.front().galactic_id, picked);
+                    CHECK(!picked && (rule == cmd::kAssignNoGroup || rule == cmd::kAssignDefault ||
+                                      b->fleet_groups().group(rule) != nullptr));
+                    CHECK(b->fleet_reserve_group(0, objects::kNoObjectId, picked) == cmd::kAssignNoGroup && !picked);
                 }
             }
             slowest = 3.0e38f;
