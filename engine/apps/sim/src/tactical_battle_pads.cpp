@@ -141,7 +141,7 @@ int32_t TacticalBattle::pad_build(TacticalMode& mode, objects::ObjectId pad, obj
         }
         const std::string_view name = types.name(type);
         bool listed = false, in_row = false;
-        for (const std::string_view tok : types.get(st.type(ph), pad_list_tag())) {
+        for (const std::string_view tok : types.get(st.type(ph), buildable_list_tag())) {
             if (types.raw().find(tok) == objects::kNone) {
                 in_row = ascii_iequals(data::trim(tok), faction);
                 continue;

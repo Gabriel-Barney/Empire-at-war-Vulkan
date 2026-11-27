@@ -2970,6 +2970,93 @@ void test_station_production(float build_mult = 1.0f) {
     CHECK(after == before - 100.0f);
 }
 
+// #660 (#544 t01; 0x497140 / 0x28afb0 / 0x3743f0 [H]): the station production of test_station_production as a campaign
+// battle (not a skirmish). The human Empire buys S10_Base_Upgrade from its star base's Tactical_Buildable_Objects_Campaign
+// row, charged its Tactical_Build_Cost_Campaign 40 to the galactic credits (the skirmish price is 100); S10_Tech_Upgrade,
+// only on the _Multiplayer row, is refused. Corrupted battle planet: Corruption_Tactical_Production_Time_Multipliers entry 1
+// (2.0) doubles the 30-frame build; uncorrupted, entry 0 (1.0). `cancel`: the order is cancelled at frame 10 and its 40
+// refunded in full (a human's charge, 0x498820).
+void test_campaign_station_production(bool corrupted, bool cancel = false) {
+    auto d = make_data(false, false, false, false, true);
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    SimConfig cfg;
+    cfg.seed = 2026;
+    cfg.players = 4;
+    SimHost host(d->types, js, cfg);
+    galactic::GalacticSim* gs = host.start_galactic(d->rules, make_setup(*d, false));
+    CHECK(gs != nullptr);
+    if (!gs) return;
+    gs->add_credits(0, 1000.0f, false);
+    if (corrupted) gs->set_corruption(1, 1, 1);  // the battle planet
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 600;
+    CampaignBattles battles(host, d->crules, *d->catalog,
+                            [](const std::string& name, terrain::MapData& m) {
+                                if (name != "S10_Space_B") return false;
+                                m = space_map();
+                                return true;
+                            },
+                            opt);
+    CHECK(battles.attach(nullptr));
+    const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
+    CHECK(!uf.empty());
+    if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
+    const uint32_t base1 = type_of(*d, "S10_Star_Base_1"), up = type_of(*d, "S10_Base_Upgrade"), tech = type_of(*d, "S10_Tech_Upgrade");
+    objects::ObjectId station = objects::kNoObjectId;
+    bool bought = false;
+    uint32_t done_at = 0;
+    float before = 0.0f, after = 0.0f;
+    int32_t option_cost = -1;
+    size_t options = 0;
+    for (uint64_t t = 0; t < 3000 && done_at == 0; ++t) {
+        host.tick_once();
+        TacticalBattle* b = battles.battle();
+        TacticalMode* tm = host.tactical();
+        if (!b || !tm) continue;
+        if (!bought && b->frame() == 2) {
+            CHECK(b->production_enabled() && !b->ai_production_enabled());
+            for (const objects::ObjectHandle h : tm->primary().owned_by(0))
+                if (tm->primary().alive(h) && tm->primary().type(h) == base1) station = tm->primary().id(h);
+            CHECK(station != objects::kNoObjectId);
+            const std::vector<TacticalBattle::BuildOptionInfo> opts = b->station_build_options(tm->primary(), 0, station);
+            options = opts.size();
+            for (const TacticalBattle::BuildOptionInfo& o : opts)
+                if (o.type == static_cast<int32_t>(up)) option_cost = o.cost;
+            before = gs->credits(0);
+            commands::EventData no(commands::EventType::Production);  // in the tables (the Underworld row), not in the Empire row
+            no.set("type_index", tech).set("location", static_cast<uint32_t>(station));
+            CHECK(host.execute_direct(0, commands::CommandSource::Player, no) == commands::RejectReason::NotAllowed);
+            commands::EventData ev(commands::EventType::Production);
+            ev.set("type_index", up).set("location", static_cast<uint32_t>(station));
+            CHECK(host.execute_direct(0, commands::CommandSource::Player, ev) == commands::RejectReason::None);
+            after = gs->credits(0);
+            CHECK(b->production() && b->production()->queue(0).size() == 1);
+            bought = true;
+        }
+        if (cancel && bought && b->frame() == 10) {
+            commands::EventData c(commands::EventType::Production);
+            c.set("type_index", up).set("location", static_cast<uint32_t>(station)).set("cancel", 1u).set("index", 0u);
+            CHECK(host.execute_direct(0, commands::CommandSource::Player, c) == commands::RejectReason::None);
+            const float refunded = gs->credits(0);
+            std::printf("  campaign production cancelled at frame 10: credits %.0f -> %.0f -> %.0f\n", static_cast<double>(before),
+                        static_cast<double>(after), static_cast<double>(refunded));
+            CHECK(after == before - 40.0f && refunded == before && b->production()->queue(0).empty());
+            return;
+        }
+        if (bought && b->contents() && !b->contents()->contents(station).empty()) done_at = b->frame();
+    }
+    CHECK(!cancel);
+    const uint32_t want = corrupted ? 60u : 30u;
+    std::printf("  campaign production (planet %s): options %zu, S10_Base_Upgrade %d, credits %.0f -> %.0f, built at frame %u "
+                "(enqueued at 2, %u frames wanted)\n",
+                corrupted ? "corrupted" : "clean", options, option_cost, static_cast<double>(before), static_cast<double>(after),
+                done_at, want);
+    CHECK(bought && options == 1 && option_cost == 40);
+    CHECK(after == before - 40.0f);
+    CHECK(done_at >= 2 + want && done_at <= 2 + want + 3);
+}
+
 // #222 (legacy docs/re/BKG1_RE_ANSWERS.md §7.3 [H]): the S10 space skirmish battle. At frame 2 the Empire orders
 // S10_Base_Upgrade (Tactical_Build_Cost_Multiplayer 100, 30 frames) at its star base and cancels it at frame 17, mid-build.
 // As an AI player (the battle AI's Production path) the enqueue 0x496a20 charges nothing (the plan's escrow paid) and the
@@ -4182,6 +4269,9 @@ int main(int argc, char** argv) {
     std::printf("skirmish station production: Production at the star base, upgrade object, station upgrade\n");
     test_station_production();
     test_station_production(1.5f);  // Easy AI build time
+    test_campaign_station_production(false);  // #660
+    test_campaign_station_production(true);
+    test_campaign_station_production(false, true);
     std::printf("#222: tactical production cancel refunds (AI: progress x cost; human: the charged cost)\n");
     test_production_cancel_refund(true);
     test_production_cancel_refund(false);

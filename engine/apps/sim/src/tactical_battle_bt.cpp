@@ -183,7 +183,7 @@ void TacticalBattle::bt_add_pad_types(const terrain::MapData& map) {
         if (std::find(types_used_.begin(), types_used_.end(), t) == types_used_.end()) types_used_.push_back(t);
     };
     for (const uint32_t pt : pads)
-        for (const std::string_view tok : types.get(pt, pad_list_tag())) {
+        for (const std::string_view tok : types.get(pt, buildable_list_tag())) {
             const objects::TypeIndex uc = types.raw().find(tok);
             if (uc == objects::kNone || uc >= types.size()) continue;  // a faction name (row header)
             use(uc);
@@ -286,16 +286,21 @@ void TacticalBattle::bt_pad_health() {
 float TacticalBattle::build_cost(objects::TypeIndex uc_type, int32_t player) const {
     const objects::GameObjectTypes& types = catalog_->types();
     if (uc_type >= types.size()) return 0.0f;
-    // Both are int fields (the float view of an int field is 0).
-    // t50 0x3744e0: a skirmish pad is priced from Tactical_Build_Cost_Multiplayer alone (no campaign fallback).
-    // any skirmish, land or space (0x28afb0).
-    if (cfg_.skirmish) return static_cast<float>(std::max(0, types.get(uc_type, objects::tags::Tactical_Build_Cost_Multiplayer)));
-    int32_t c = types.get(uc_type, objects::tags::Tactical_Build_Cost_Campaign);
-    if (c < 1) c = types.get(uc_type, objects::tags::Tactical_Build_Cost_Multiplayer);  // 0x3743f0: "below 1" (int field)
-    c = std::max(0, c);
+    // t50 0x3744e0: the base price 0x3743f0 (tactical_price; a skirmish pad: _Multiplayer alone, and no factor)
+    int32_t c = tactical_price(uc_type);
     // mcx4 t07 (Q7.2): the corrupted battle planet's pad price factor, truncated
     if (const float m = pad_price_factor(player); m != 1.0f) c = static_cast<int32_t>(static_cast<float>(c) * m);
     return static_cast<float>(c);
+}
+
+int32_t TacticalBattle::tactical_price(objects::TypeIndex type) const {
+    const objects::GameObjectTypes& types = catalog_->types();
+    if (type >= types.size()) return 0;
+    // Both are int fields (the float view of an int field is 0). Any skirmish, land or space (0x28afb0): _Multiplayer alone.
+    if (cfg_.skirmish) return std::max(0, types.get(type, objects::tags::Tactical_Build_Cost_Multiplayer));
+    int32_t c = types.get(type, objects::tags::Tactical_Build_Cost_Campaign);
+    if (c < 1) c = types.get(type, objects::tags::Tactical_Build_Cost_Multiplayer);  // 0x3743f0: "below 1" (int field)
+    return std::max(0, c);
 }
 
 float TacticalBattle::pad_price_factor(int32_t player) const {
@@ -390,7 +395,7 @@ float TacticalBattle::pad_sell_refund(const objects::ObjectStore& st, const PadS
     float cost = 0.0f;
     const objects::ObjectHandle ph = st.find(s.pad);
     if (st.alive(ph))
-        for (const std::string_view tok : types.get(st.type(ph), pad_list_tag())) {
+        for (const std::string_view tok : types.get(st.type(ph), buildable_list_tag())) {
             const objects::TypeIndex uc = types.raw().find(tok);
             if (uc == objects::kNone || uc >= types.size()) continue;
             if (types.resolve_name(types.get(uc, objects::tags::Tactical_Buildable_Constructed)) == bt) {
@@ -2565,7 +2570,7 @@ objects::TypeIndex TacticalBattle::bt_skirmish_preplaced(const objects::ObjectSt
     const std::string& faction = galaxy_->rules().factions[f].name;
     objects::TypeIndex uc = objects::kNone;
     bool in_row = false;
-    for (const std::string_view tok : types.get(st.type(ph), pad_list_tag())) {
+    for (const std::string_view tok : types.get(st.type(ph), buildable_list_tag())) {
         const objects::TypeIndex x = types.raw().find(tok);
         if (x == objects::kNone || x >= types.size()) {
             in_row = iequal_trim(tok, faction);

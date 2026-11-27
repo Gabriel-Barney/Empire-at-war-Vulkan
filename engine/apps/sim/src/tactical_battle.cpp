@@ -415,7 +415,7 @@ void TacticalBattle::setup(TacticalMode& mode, terrain::MapData map, SimRng& rng
     hg_add_types();            // hangars: launched squadrons / ships and the station chain join the tables
     ga_add_types();            // the battle players' planet-bonus upgrade types join the tables
     sp_add_types();            // the map spawners' indigenous units (and pack teams) join the tables
-    // hg_add_types adds the skirmish production lists, so the ability / survivor types of those units join now
+    // hg_add_types adds the tactical production lists (_Multiplayer in a skirmish, _Campaign otherwise, #660), so the ability / survivor types of those units join now
     // (Pirate_Skiff_U's Destruction_Survivors pilot was created as a prop: no combat, no movement, never used by the AI).
     oi_add_ability_types();
 #ifdef ALAMO_SIM_HAVE_ASSETS
