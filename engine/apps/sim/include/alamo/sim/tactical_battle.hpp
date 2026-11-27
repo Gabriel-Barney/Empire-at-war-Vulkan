@@ -240,6 +240,9 @@ struct BattleStats {
     // cmb1 t01 (land Auto_Engage, LandFormationRecord; not saved): auto attack blocks pushed and popped (the order resumed)
     uint32_t land_auto_pushes = 0, land_auto_pops = 0, land_waypoint_pops = 0, land_guard_pops = 0;
     uint32_t land_pop_waits = 0;  // #510: object-block Pops that waited (state 6) before the re-plan
+    // #574 (0x392600's tactical branch [H]; not saved): Bounty_On_Faction payments on kills and the credits they paid
+    uint32_t bounties = 0;
+    int64_t bounty_credits = 0;
     uint32_t land_pop_signals = 0;  // #491: signal 0x2a raised by a Pop of a block with 0x40 (per member; not saved)
     uint32_t land_pop_facings = 0;  // #491: members whose orientation a Pop set from locomotor vf +0x1e8 (not saved)
     uint32_t land_step10_pushes = 0;  // MovingVsStopped step 10 attack blocks issued (not saved)
@@ -500,6 +503,16 @@ struct IncomeStreamDef {
     uint8_t mode = 0;
     float owner_share = 0.0f;
     std::vector<IncomeModDef> mods;
+};
+
+// #574 (BountyOnFactionAbilityClass, vtable 0x8c5818 [H]): one Bounty_On_Faction_Ability of a type - Bounty_Percentage_Amount
+// (+0x178), Stacking_Category (+0x17c), Target_Faction_Names (+0x180, kept lower-cased: 0x6f1bc0 keys the per-player bounty
+// object by the hash of the lower-cased name, so an unknown name simply never matches) and Apply_To_All_Allies (+0x198).
+struct BountyOnFactionDef {
+    float percentage = 0.0f;
+    int32_t category = 0;
+    std::vector<std::string> factions;
+    bool all_allies = false;
 };
 
 class TacticalBattle {
@@ -3208,6 +3221,16 @@ private:
     };
     std::vector<SkIncome> sk_income_;
     const IncomeStreamDef& sk_income_of(uint32_t type);
+    // #574: per-type Bounty_On_Faction_Ability data (parsed on first use, by type), and the kill bounty
+    // (tactical_battle_bounty.cpp; 0x392600's tactical branch [H]) of a dying battle unit `victim` whose killer is
+    // `killer`'s (-1: none), called by process_death while the victim is still in the store.
+    struct BountyDefs {
+        bool parsed = false;
+        std::vector<BountyOnFactionDef> defs;
+    };
+    std::vector<BountyDefs> bounty_defs_;
+    const std::vector<BountyOnFactionDef>& bounty_defs_of(uint32_t type);
+    void pay_kill_bounty(const TacticalMode& mode, const Unit& victim, int32_t killer);
     void sk_income(const TacticalMode& mode);           // tick: the Income_Stream credit trickle
     void bt_team_positions(TacticalMode& mode);                            // tick, after the movement commit
     std::vector<RemovalRecord> bt_removals_;
@@ -3567,5 +3590,19 @@ float income_share(uint8_t mode, float owner_share, int32_t owner, int32_t recip
 // Affects_All_Allied_Sources is set or the two owners are the same.
 bool income_mod_applies(const IncomeModDef& mod, uint32_t stream_type, int32_t stream_owner, int32_t mod_owner,
                         std::span<const int32_t> recipients);
+
+// #574: a type's Bounty_On_Faction_Ability entries, <Abilities> order.
+std::vector<BountyOnFactionDef> parse_bounty_on_faction(const objects::GameObjectTypes& types, uint32_t type);
+// One entry of a per-player bounty object for one faction (0x6f1bc0: the holder ability's percentage in its category).
+struct BountyEntry {
+    int32_t category = 0;
+    float value = 0.0f;
+};
+// 0x527260 [H]: per stacking category the largest value, the category maxima summed (0 without entries). [H] Its optional
+// minimum / maximum (+0x38 / +0x3c, flags +0x40 / +0x41) are not modelled: 0x526f60 creates the node with both flags clear
+// and nothing in the bounty path (0x6f1bc0 / 0x6f20b0) sets them.
+float bounty_fold(std::span<const BountyEntry> entries);
+// The credits of one payment: max(1, round(fold x bounty)) (0x22f9c0, half away from zero).
+int32_t bounty_credits(float fold, float bounty);
 
 }  // namespace alamo::sim

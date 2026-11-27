@@ -220,6 +220,7 @@
     REBUILT(pad_restore_, "set by the host: on for a new battle, off for a rebuild; read only by setup()") \
     DERIVED(map_preplaced_, "#334 t03: scratch of the map load, consumed and cleared by setup's bt_pad_restore") \
     DERIVED(sk_income_, "per-type cache (filled from type data on first use)") \
+    DERIVED(bounty_defs_, "#574: per-type Bounty_On_Faction cache (filled from type data on first use)") \
     SAVED(bt_removals_, state) \
     SAVED(bt_landing_, state) \
     SAVED(bt_shields_, state) \

@@ -32,7 +32,7 @@ BountyTable load_bounty_table(const data::GameConstants& constants, const object
     return t;
 }
 
-int64_t bounty_of(const BountyTable& table, bool has_override, float override_amount, uint64_t categories) {
+float bounty_value(const BountyTable& table, bool has_override, float override_amount, uint64_t categories) {
     float b = 0.0f;
     if (has_override && override_amount >= 0.0f) {
         b = override_amount;  // 0 stays 0: no category fallback (A2M_R2_RE_B §2.2)
@@ -41,17 +41,25 @@ int64_t bounty_of(const BountyTable& table, bool has_override, float override_am
         for (const BountyTable::Entry& e : table.entries)
             if ((e.categories & categories) != 0) b = std::max(b, e.amount);
     }
+    return b;
+}
+
+int64_t bounty_of(const BountyTable& table, bool has_override, float override_amount, uint64_t categories) {
     // 0x22f9c0: rounded half away from zero (std::round).
-    return static_cast<int64_t>(std::round(b));
+    return static_cast<int64_t>(std::round(bounty_value(table, has_override, override_amount, categories)));
 }
 
 int64_t type_bounty(const BountyTable& table, const objects::GameObjectTypes& types, objects::TypeIndex t, bool skirmish) {
-    if (t >= types.size()) return 0;
+    return static_cast<int64_t>(std::round(type_bounty_value(table, types, t, skirmish)));
+}
+
+float type_bounty_value(const BountyTable& table, const objects::GameObjectTypes& types, objects::TypeIndex t, bool skirmish) {
+    if (t >= types.size()) return 0.0f;
     // Override_Bounty_SP / _MP are float fields (parser kind 0x8, A2M_R2_RE_B section 2.2), read through the typed view
     // (bkc1 t07 fixed get_int / get_float for float-parsed fields). Absent = negative = category default.
     const objects::FloatTag& k = skirmish ? objects::tags::Override_Bounty_MP : objects::tags::Override_Bounty_SP;
     const bool has_override = types.is_set(t, k);
-    return bounty_of(table, has_override, has_override ? types.get(t, k) : -1.0f, types.get(t, objects::tags::CategoryMask));
+    return bounty_value(table, has_override, has_override ? types.get(t, k) : -1.0f, types.get(t, objects::tags::CategoryMask));
 }
 
 }  // namespace alamo::galactic

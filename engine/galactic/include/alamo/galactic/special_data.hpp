@@ -189,9 +189,9 @@ struct CorruptionChoiceDef {
     std::string tactical_plots;
 };
 
-// a2m r2: Bounty_On_Faction_Ability. In tactical (A2M_R2_RE_B §2.4, not modelled) the holder's player gains
-// Bounty_Percentage_Amount x the bounty (bounty.hpp) of each destroyed object owned by a Target_Faction_Names faction (max
-// per Stacking_Category, summed over categories). The galactic bounty does not read it (§2.3, ConflictManager).
+// a2m r2: Bounty_On_Faction_Ability. In tactical (A2M_R2_RE_B §2.4; #574: apps/sim tactical_battle_bounty.cpp) the
+// holder's player gains Bounty_Percentage_Amount x the bounty (bounty.hpp) of each destroyed object owned by a
+// Target_Faction_Names faction (max per Stacking_Category, summed over categories). The galactic bounty does not read it (§2.3, ConflictManager).
 // Vanilla FoC: Underworld_Racketeering_Salvage_Effect (1.0, on the Underworld's Racketeering corruption upgrade),
 // Underworld_Planetary_Corruption_Bounty (1.2, a tactical upgrade) and NalHutta_Bounty (0.15, Nal Hutta's planet bonus).
 struct BountyAbilityDef {
@@ -199,7 +199,7 @@ struct BountyAbilityDef {
     float percentage = 0.0f;              // Bounty_Percentage_Amount
     int32_t stacking_category = 0;        // Stacking_Category
     std::vector<uint32_t> target_factions;  // Target_Faction_Names (GalacticRules::factions indices; unknown names dropped)
-    bool apply_to_all_allies = false;     // Apply_To_All_Allies (parsed; allies are not modelled [port])
+    bool apply_to_all_allies = false;     // Apply_To_All_Allies (parsed; the galactic bounty does not read it)
 };
 
 inline constexpr uint32_t kGalabRef = 0x80000000u;  // TypeSpecial::trigger_order: the entry is a `galab` index

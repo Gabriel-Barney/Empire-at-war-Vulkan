@@ -29,6 +29,7 @@
 
 #include "alamo/core/file_provider.hpp"
 #include "alamo/core/parallel.hpp"
+#include "alamo/galactic/bounty.hpp"
 #include "alamo/tactical/abilities/ability_data.hpp"
 #include "alamo/tactical/abilities/ability_system.hpp"
 #include "alamo/tactical/combat/combat_system.hpp"
@@ -113,6 +114,8 @@ public:
     // mcx4 tac2 (MCX4_T10_RE_ANSWERS §16 / §18 [H]): GC Override_Death_Persistence_Duration (+0x11eb8; ctor 0, FoC 30.0),
     // the persistence the death clone of a dying Infantry-category object gets (0x29f270).
     float override_death_persistence() const { return override_death_persistence_; }
+    // #574 (A2M_R2_RE_B §2.2 [H]): Default_Bounty_By_Category_SP / _MP (galactic/bounty.hpp), for the tactical kill bounty.
+    const galactic::BountyTable& bounty_table(bool skirmish) const { return skirmish ? bounty_mp_ : bounty_sp_; }
     float threat_decay_step() const { return threat_decay_step_; }  // AI_SpaceThreatDecayStep (DAMAGE_TRACKING)
     // S10-int constants.
     float engines_disabled_speed_modifier() const { return engines_disabled_speed_; }  // Engines_Disabled_Speed_Modifier
@@ -294,6 +297,7 @@ private:
     float elev_vuln_secs_ = 15.0f, elev_vuln_factor_ = -3.0f, space_elev_vuln_secs_ = 15.0f, space_elev_vuln_factor_ = -3.0f;
     int32_t skirmish_reinforce_delay_ = 90;
     float override_death_persistence_ = 0.0f;
+    galactic::BountyTable bounty_sp_, bounty_mp_;  // #574
     float threat_decay_step_ = 0.05f;
     float engines_disabled_speed_ = 0.4f;
     float nebula_ability_disable_ = 5.0f, force_ability_disable_ = 0.0f, ion_storm_shield_disable_ = 5.0f;

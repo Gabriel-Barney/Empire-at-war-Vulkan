@@ -928,6 +928,99 @@ void test_income_streams() {
     CHECK(income_mod_applies(m, favor_t, 0, 1, split_r) && !income_mod_applies(m, favor_t, 0, 1, solo_r));
 }
 
+// ---- #574: the tactical kill bounty (Bounty_On_Faction_Ability; 0x392600's tactical branch [H]) ----
+// S10_Trooper gets Override_Bounty_SP 10 and three Bounty_On_Faction abilities aimed at the Empire: 1.5 and 0.5 in
+// category 1 (the largest counts: 1.5), 0.25 in category 2 (summed: f = 1.75). Both sides field troopers (the Empire's
+// defenders, player 0; the Underworld's invading squad, player 1).
+std::string bounty_patch(std::string t) {
+    const std::string at = "<GroundInfantry Name=\"S10_Trooper\">";
+    if (const size_t p = t.find(at); p != std::string::npos)
+        t.insert(p + at.size(),
+                 "<Override_Bounty_SP>10</Override_Bounty_SP><Abilities SubObjectList=\"Yes\">"
+                 "<Bounty_On_Faction_Ability Name=\"B1\"><Bounty_Percentage_Amount>1.5</Bounty_Percentage_Amount>"
+                 "<Stacking_Category>1</Stacking_Category><Target_Faction_Names> EMPIRE, Rebel </Target_Faction_Names>"
+                 "<Apply_To_All_Allies>No</Apply_To_All_Allies></Bounty_On_Faction_Ability>"
+                 "<Bounty_On_Faction_Ability Name=\"B2\"><Bounty_Percentage_Amount>0.5</Bounty_Percentage_Amount>"
+                 "<Stacking_Category>1</Stacking_Category><Target_Faction_Names>Empire</Target_Faction_Names></Bounty_On_Faction_Ability>"
+                 "<Bounty_On_Faction_Ability Name=\"B3\"><Bounty_Percentage_Amount>0.25</Bounty_Percentage_Amount>"
+                 "<Stacking_Category>2</Stacking_Category><Target_Faction_Names>Empire</Target_Faction_Names>"
+                 "<Apply_To_All_Allies>Yes</Apply_To_All_Allies></Bounty_On_Faction_Ability></Abilities>");
+    return t;
+}
+
+// The fold 0x527260 (per category the largest value, the categories summed) and the payment max(1, round(f x B)) [H]; the
+// parse; then a land battle: the Underworld (1) crushes an Empire (0) trooper and is paid round(1.75 x 10) = 18 (17.5,
+// half away from zero), nobody else; the Empire crushes an Underworld trooper and nobody is paid (no Empire-held ability
+// names the Underworld).
+void test_tactical_bounty() {
+    const BountyEntry none[] = {{1, 0.0f}};
+    const BountyEntry mixed[] = {{2, 0.25f}, {1, 1.5f}, {1, 0.5f}, {3, -0.5f}};
+    CHECK(bounty_fold({}) == 0.0f && bounty_fold(none) == 0.0f);
+    CHECK(bounty_fold(mixed) == 0.25f + 1.5f - 0.5f);
+    CHECK(bounty_credits(1.75f, 10.0f) == 18 && bounty_credits(1.25f, 10.0f) == 13 && bounty_credits(0.01f, 10.0f) == 1);
+    g_temp_prefix = "alamo_sim_r3g_tests_bounty";
+    g_types_patch = bounty_patch;
+    auto d = make_data();
+    g_types_patch = nullptr;
+    const objects::TypeIndex trooper = d->types.resolve_name("S10_Trooper");
+    CHECK(trooper != objects::kNone);
+    const std::vector<BountyOnFactionDef> defs = parse_bounty_on_faction(d->types, static_cast<uint32_t>(trooper));
+    CHECK(defs.size() == 3);
+    if (defs.size() == 3) {
+        CHECK(defs[0].percentage == 1.5f && defs[0].category == 1 && !defs[0].all_allies);
+        CHECK(defs[0].factions == (std::vector<std::string>{"empire", "rebel"}));
+        CHECK(defs[2].percentage == 0.25f && defs[2].category == 2 && defs[2].all_allies);
+    }
+    std::vector<std::pair<int32_t, float>> paid;  // (player, credits) per Add_Credits
+    std::vector<std::pair<int32_t, float>> first, second;
+    uint32_t bounties = 0;
+    int stage = 0;  // 0 pick and kill 1; 1 kill 2; 2 read; 3 done
+    objects::ObjectId trooper_of[2] = {objects::kNoObjectId, objects::kNoObjectId};
+    objects::ObjectId other_of[2] = {objects::kNoObjectId, objects::kNoObjectId};
+    // the deaths are processed by the next battle tick (consume_kill_events): each crush is read one tick later
+    land_battle(*d, nullptr, 600, [&](TacticalBattle& b, TacticalMode& tm, SimHost&) {
+        if (b.frame() < 2) return true;
+        objects::ObjectStore& st = tm.primary();
+        if (stage == 0) {
+            b.set_credit_hooks([](int32_t) { return 0.0f; }, [&paid](int32_t p, float x) { paid.push_back({p, x}); });
+            for (const objects::ObjectHandle h : st.all_objects()) {
+                const objects::ObjectId id = st.id(h);
+                const int32_t o = st.owner(h);
+                if (!st.alive(h) || (o != 0 && o != 1) || !b.combat().has_unit(id) || !b.combat().alive(id)) continue;
+                if (st.type(h) == trooper && trooper_of[o] == objects::kNoObjectId) trooper_of[o] = id;
+                else if (other_of[o] == objects::kNoObjectId) other_of[o] = id;
+            }
+            CHECK(trooper_of[0] != objects::kNoObjectId && trooper_of[1] != objects::kNoObjectId);
+            CHECK(other_of[0] != objects::kNoObjectId && other_of[1] != objects::kNoObjectId);
+            if (trooper_of[0] == objects::kNoObjectId || trooper_of[1] == objects::kNoObjectId || other_of[0] == objects::kNoObjectId ||
+                other_of[1] == objects::kNoObjectId)
+                return false;
+            paid.clear();
+            CHECK(alamo::sim::TacticalBattleTestAccess::crush(b, other_of[1], trooper_of[0]));  // the Underworld kills an Empire trooper
+            stage = 1;
+            return true;
+        }
+        if (stage == 1) {
+            first = paid;
+            paid.clear();
+            CHECK(alamo::sim::TacticalBattleTestAccess::crush(b, other_of[0], trooper_of[1]));  // the Empire kills an Underworld trooper
+            stage = 2;
+            return true;
+        }
+        second = paid;
+        bounties = b.stats().bounties;
+        stage = 3;
+        return false;
+    });
+    std::printf("  #574 tactical bounty: Empire trooper killed -> %zu payment(s)%s; Underworld trooper killed -> %zu payment(s); "
+                "stats %u\n",
+                first.size(), first.size() == 1 && first[0].first == 1 && first[0].second == 18.0f ? " (Underworld +18)" : "",
+                second.size(), bounties);
+    CHECK(stage == 3);
+    CHECK(first.size() == 1 && first[0].first == 1 && first[0].second == 18.0f);
+    CHECK(second.empty() && bounties == 1);
+}
+
 // ---- #44 t01: the animation-timed abilities in a land battle ----
 // R3J_Walker: a DEPLOY_TROOPERS walker (S10_Squad, bones B_Trooper_00 / _01) with a skeleton model (bones 20 above its
 // origin, 10 to either side) and a Damage_Cable_Attack death clone (CA_DIE); R3J_Speeder: a FLYING_LOCOMOTOR speeder with
@@ -1226,6 +1319,8 @@ int main() {
     test_death_explosions_end();
     std::printf("mcx4 tac2: income streams\n");
     test_income_streams();
+    std::printf("#574: the tactical kill bounty (Bounty_On_Faction_Ability)\n");
+    test_tactical_bounty();
     std::printf("#44 t01: DEPLOY_TROOPERS in a land battle\n");
     test_deploy_troopers_battle();
     std::printf("#44 t01: a cable trip in a land battle\n");
