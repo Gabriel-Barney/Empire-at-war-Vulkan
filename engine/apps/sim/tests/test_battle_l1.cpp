@@ -663,11 +663,18 @@ struct LandRun {
     float dial_before = -1.0f, dial_at_start = -1.0f, dial_after = -1.0f;
     uint32_t wait_in_run = 0;
     bool dial_in_run_ok = true, dial_in_run_partial = false;
-    bool cmd_none_for_defender = false, cmd_in_progress_refused = false, cmd_bad_point_refused = false;
+    bool cmd_none_for_defender = false, cmd_in_progress_refused = false;
+    // #717 command 54 PlanetaryBombard: not ready yet (frame 1) / the defender (no record) / a second one in progress.
+    bool bombard_cmd_not_ready = false, bombard_cmd_defender = false, bombard_cmd_in_progress = false;
+    // the pb_switch queries: shown for the attacker only; the recharge bar before ready, at the start, in the strike.
+    bool bombard_shown = false, bombard_hidden_for_defender = false;
+    float recharge_first = -1.0f, recharge_ready = -1.0f, recharge_at_start = -1.0f;
+    bool recharge_partial = false, recharge_ok = true, bombard_ship = false;
 };
 
-// via_command: the run is started by command 28 BombingRun through TacticalBattle::handle_command instead of
-// the direct start_bombing_run call; both must give the same CRC log.
+// via_command: the run is started by command 28 BombingRun and the bombardment by command 54 PlanetaryBombard through
+// TacticalBattle::handle_command instead of the direct start_bombing_run / start_bombardment calls; both must give the
+// same CRC log.
 LandRun run_land(const Data& d, int32_t workers, bool via_command = false) {
     LandRun out;
     jobs::JobSystem js(jobs::JobSystemConfig{workers});
@@ -761,6 +768,17 @@ LandRun run_land(const Data& d, int32_t workers, bool via_command = false) {
                     break;
                 }
             out.refused_unavailable = !b->start_bombardment(*tm, 1, target, host.random().synced()) && !b->bombing_run_available(1);
+            out.bombard_shown = b->bombardment_shown(1);
+            out.bombard_hidden_for_defender = !b->bombardment_shown(0) && b->bombardment_recharge(0) == 0.0f;
+            out.bombard_ship = b->bombardment_ship_type(1) == static_cast<objects::TypeIndex>(type_of(d, "S10_Frigate")) &&
+                               b->bombardment_ship_type(0) == objects::kNone;
+            out.recharge_first = b->bombardment_recharge(1);
+            if (via_command) {
+                commands::EventData ev(commands::EventType::PlanetaryBombard);
+                ev.set_f("x", target.x).set_f("y", target.y).set_f("z", target.z);
+                out.bombard_cmd_not_ready = b->handle_command(*tm, 1, ev, host.random().synced()) == commands::RejectReason::AbilityNotReady;
+                out.bombard_cmd_defender = b->handle_command(*tm, 0, ev, host.random().synced()) == commands::RejectReason::NotAllowed;
+            }
         }
         if (f > 1 && b->weather().phase_index() != phase0) out.weather_advanced = true;
         if (b->weather().type() == tactical::combat::WeatherType::Rain && b->weather().intensity() > 0.5f && victim != objects::kNoObjectId)
@@ -771,9 +789,25 @@ LandRun run_land(const Data& d, int32_t workers, bool via_command = false) {
         }
         if (!out.bombard_started && b->bombardment_available(1)) {
             hp0 = b->combat().health(victim);
-            out.bombard_started = b->start_bombardment(*tm, 1, target, host.random().synced());
+            out.recharge_ready = b->bombardment_recharge(1);
+            // Both variants start at the dequantized wire point with |z| < 0.0001 snapped to 0, as the execute does.
+            commands::EventData ev(commands::EventType::PlanetaryBombard);
+            ev.set_f("x", target.x).set_f("y", target.y).set_f("z", target.z);
+            const Vec3 wire{ev.f("x"), ev.f("y"), std::fabs(ev.f("z")) < 0.0001f ? 0.0f : ev.f("z")};
+            if (via_command) {
+                out.bombard_started = b->handle_command(*tm, 1, ev, host.random().synced()) == commands::RejectReason::None;
+                out.bombard_cmd_in_progress = b->handle_command(*tm, 1, ev, host.random().synced()) == commands::RejectReason::AbilityNotReady;
+            } else {
+                out.bombard_started = b->start_bombardment(*tm, 1, wire, host.random().synced());
+            }
+            out.recharge_at_start = b->bombardment_recharge(1);
             out.bombard_fed = out.bombard_started && !b->strike_starts().empty() && b->strike_starts().back().bombard &&
                               b->strike_starts().back().player == 1;
+        }
+        if (out.bombard_started && !out.bombard_reset) {
+            const float rc = b->bombardment_recharge(1);
+            if (rc < 0.0f || rc > 1.0f) out.recharge_ok = false;
+            if (rc > 0.0f && rc < 1.0f) out.recharge_partial = true;
         }
         for (const TacticalBattle::BombardFlashEvent& e : b->bombard_flashes()) out.flashes.push_back(e);  // #314
         if (out.bombard_started && !out.bombard_hit && b->combat().has_unit(victim) && b->combat().health(victim) < hp0) out.bombard_hit = true;
@@ -928,6 +962,17 @@ void test_land(const Data& d) {
     CHECK(c.run_started && c.bombers_flew && c.run_done);
     CHECK(c.cmd_none_for_defender && c.cmd_in_progress_refused);
     CHECK(!first_divergence(a.crc, c.crc).diverged && a.trace == c.trace);
+    // #717 command 54 starts the bombardment exactly as the direct call; before ready it is refused AbilityNotReady, for
+    // the defender (no record) NotAllowed, and a second one while the strike runs AbilityNotReady.
+    CHECK(c.bombard_started && c.bombard_hit && c.bombard_reset);
+    CHECK(c.bombard_cmd_not_ready && c.bombard_cmd_defender && c.bombard_cmd_in_progress);
+    // the pb_switch queries (0x528a10 / 0x5294d0): shown for the attacker's record only, the bar 0 on the first frame
+    // (the record starts its interval there), 1 when ready, 0 at the strike's start and partial while it runs.
+    std::printf("  bombard recharge: first %.3f ready %.3f at start %.3f partial %d\n", static_cast<double>(a.recharge_first),
+                static_cast<double>(a.recharge_ready), static_cast<double>(a.recharge_at_start), a.recharge_partial);
+    CHECK(a.bombard_shown && a.bombard_hidden_for_defender && a.bombard_ship);
+    CHECK(a.recharge_first >= 0.0f && a.recharge_first < 0.1f && a.recharge_ready == 1.0f && a.recharge_at_start == 0.0f);
+    CHECK(a.recharge_ok && a.recharge_partial);
 }
 // ---- Set_New_Environment / the typed environment pick (CU8F_T03_T05_RE §2.2, L1_S4_REMAINING §3.2) ----
 // A land map with four environments (0 Rain_Test rain, 1 no scenario CLEAR, 2 Rain_Test rain, 3 "Cinematic" snow). The

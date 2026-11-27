@@ -1413,6 +1413,13 @@ public:
     bool start_bombardment(TacticalMode& mode, int32_t player, Vec3 target, SimRng& rng);
     bool bombardment_available(int32_t player) const;
     bool bombardment_target_valid(int32_t player, Vec3 target) const;
+    // #717 the land HUD's orbital-bombardment switch (pb_switch, 0x314360 [H]; docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md
+    // "Orbital bombardment switch"). Const, presentation only: the sim never reads them back. shown = 0x528a10: land, an
+    // enabled record (in a skirmish only with the special-weapons option); recharge = 0x5294d0's bar fraction 0..1;
+    // ship_type = the record's required ship type (its SFXEvent_Bombard_Incoming; objects::kNone = no record).
+    bool bombardment_shown(int32_t player) const;
+    float bombardment_recharge(int32_t player) const;
+    objects::TypeIndex bombardment_ship_type(int32_t player) const;
     void set_bombardment_disabled(int32_t player, bool disabled);  // Disable_Orbital_Bombardment (tactical list +0x250)
     void remove_bombardment(int32_t player, bool removed);        // Remove_Orbital_Bombardment: enabled := !removed
     bool start_bombing_run(TacticalMode& mode, int32_t player, Vec3 target);
@@ -3120,6 +3127,8 @@ private:
     std::vector<L1Bombard> l1_bombard_;
     std::vector<L1BombingRun> l1_runs_;
     int64_t l1_bombing_run_ready_frame(const L1BombingRun& r) const;  // 0x4950f0 absolute frame, -1 = disabled
+    objects::TypeIndex l1_bombard_ship_type(const L1Bombard& r) const;  // the first resolving required ship type
+    bool l1_strike_skirmish_gate() const;  // 0x494410 / 0x528a10: not a skirmish, or the skirmish's special-weapons option
     std::vector<std::pair<int32_t, int32_t>> l1_extra_projectiles_;  // (type, CombatData projectile) appended for strikes
     void l1_strikes_setup(TacticalMode& mode);  // setup(): records
     void l1_strikes(TacticalMode& mode, SimRng& rng);  // tick after consume_events

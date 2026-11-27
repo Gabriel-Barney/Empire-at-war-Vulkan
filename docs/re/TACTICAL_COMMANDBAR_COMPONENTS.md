@@ -198,6 +198,37 @@ Each slot is a clone of 0x232.
   [H]; hidden otherwise. Position: none set in code [L].
 - **ds_shell 0x106: dead [M].** No lookup; the Death Star switches are deathstar_switch etc. (port already handles them).
 
+### Orbital bombardment switch: pb_switch (0x379) and pb_switch_recharge (0x37a) [H]
+The human player's land orbital bombardment (#717). The commandbar data makes pb_switch a TextButton (Icon_Texture_Name
+`i_button_special_pb_switch_03`, Icon_Alternate_Texture_Name `_00`) and pb_switch_recharge a Smooth_Bar Bar.
+- **Update 0x314360, every frame.** In land (+0x211c == 3) with the PlanetaryBombardManager (mode +0x40): shown =
+  0x528a10(manager, local player), the record's enabled byte, gated as the bombing run's 0x494410 (no global suppress; not a
+  skirmish, or the skirmish's special-weapons flag 4). Shown: both unhidden; ready = 0x528970 (enabled, available +1, not
+  in progress +0x20); the icon is Icon_Alternate_Texture_Name entry 0 when ready, else 0x34c340 (the Icon_Texture_Name);
+  vf+0x80(!ready) disables it; the bar gets 0x5294d0's fraction (0x351a90). Not shown, or space: both hidden. Either way it
+  moves both components' bones in the shell model (z 8 shown, -10 hidden) [port: not done, the shell stays still].
+- **0x5294d0, the bar** (record 0x48 bytes: +0 enabled, +1 available, +4 ready frame, +8 interval, +0x10 last start, +0x20
+  in progress, +0x40 timer only). Not enabled: 0. Not timer only and the player's gate 0x5275a0 closed: 0. Available and
+  idle: 1. Else (now - S) / (E - S), with E = the ready frame when idle, now + interval in progress: 1 once now >= E, 0 when
+  E <= S, S == -1 or now <= S. [M] with the gate open the original also returns 1 in the game modes 0x28af80 / 0x28b060
+  name; not ported, as for the bombing-run dial 0x495250.
+- **Click 0x2e7bc0** (the switch's handler, through the thunk 0x347930): flips HUD +0x2ae6. Off -> on in land: 0x5296d0
+  plays the record's ship type's +0x1360, which is SFXEvent_Bomb_Run_Select_Target (SFXEvent_Bombard_Select_Target +0x1380
+  is read by nothing, so stock data starts the pick silently); then the blob (+0x2ae8) with the local faction's
+  Bombardment_Shadow_Blob_Material_Name (+0x2700), white. On -> off: the blob is freed and the local faction's
+  SFXEvent_Bombard_Cancelled (+0x2050) plays, 2D.
+- **While on** (0x30c3b0): the blob follows the cursor, green when 0x528a70 accepts the point, red otherwise, with a full
+  side of 2 x Bombardment_Blob_Size (+0x2720; the bombing run's is Bombing_Run_Blob_Size itself). The cursor is the
+  bombing run's (0x2f5c80 returns 0x21 for both).
+- **World click 0x2f6c30:** on a point 0x528a70 accepts it sends event 54 PlanetaryBombard (0x52afc0 / 0x5247a0, then
+  0x3b01f0), plays the ship type's SFXEvent_Bombard_Incoming (+0x1390) through 0x5295f0 (its only caller, so an AI or Lua
+  bombardment plays no Incoming line), frees the blob and clears +0x2ae6.
+- **Execute 0x52aff0:** dequantizes the point, |z| < 0.0001 becomes 0; with the manager, 0x528a70 then 0x528140 (the start).
+
+Port: `TacticalBattle::bombardment_shown` / `bombardment_recharge` / `bombardment_ship_type`, the PlanetaryBombard handler
+in `handle_command`, `ui::HudBombardSwitch` (`TacticalHud::apply_bombard_switch`, `build_bombard_recharge`),
+`game::bombard_switch` / `bombardment_style`, and `App::bombard_toggle` / `bombard_end` beside the bombing-run pick.
+
 ## 2. Port today and changes, ranked (smallest and most certain first)
 
 1. **garrison_respawn_counter** [H rule]. sim: TacticalBattle `std::optional<std::pair<float,bool>> garrison_respawn(player)`

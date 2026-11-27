@@ -759,19 +759,13 @@ void GameAudioHost::battle_tick(const sim::TacticalBattle& battle, const objects
                         ++stats_.strike_lines;
                     }
             }
-    // Land strikes started (MCX4_T13_RE_ANSWERS "Faction.SFXEvent_Bombard_Available family" / "GameObjectType.
-    // SFXEvent_Bombard_Incoming family"): a bombing run whose owner is the local player or not hostile to it plays the
-    // owner's faction crosstalk attached to the first bomber; the local player's bombardment plays the ship type's
-    // SFXEvent_Bombard_Incoming, 2D.
+    // Land strikes started (MCX4_T13_RE_ANSWERS "Faction.SFXEvent_Bombard_Available family"): a bombing run whose owner is
+    // the local player or not hostile to it plays the owner's faction crosstalk attached to the first bomber. A
+    // bombardment's SFXEvent_Bombard_Incoming is not played here: retail plays it only from the HUD's bombard click
+    // (0x2f6c30 -> 0x5295f0, "GameObjectType.SFXEvent_Bombard_Incoming family"), so the app plays it there (#717).
     if (local_player >= 0)
         for (const sim::TacticalBattle::StrikeEvent& e : battle.strike_starts()) {
-            if (e.bombard) {
-                if (e.player != local_player || e.ship_type == objects::kNone || e.ship_type >= types.size()) continue;
-                // ledger: consumes GameObjectType.SFXEvent_Bombard_Incoming
-                if (const std::string_view ev = types.get_string(e.ship_type, "SFXEvent_Bombard_Incoming"); !ev.empty() && game_->gui_sfx(ev))
-                    ++stats_.strike_lines;
-                continue;
-            }
+            if (e.bombard) continue;
             if (e.player < 0 || static_cast<size_t>(e.player) >= player_factions_.size() || e.first_bomber == objects::kNoObjectId) continue;
             if (e.player != local_player && cs.is_enemy(local_player, e.player)) continue;
             const audio::FactionAudio* f = game_data_->find_faction(player_factions_[static_cast<size_t>(e.player)]);

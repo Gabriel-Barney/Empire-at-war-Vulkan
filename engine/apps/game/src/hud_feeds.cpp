@@ -92,6 +92,22 @@ BombingRunStyle bombing_run_style(const galactic::FactionRules& faction) {
     return s;
 }
 
+BombingRunStyle bombardment_style(const galactic::FactionRules& faction) {
+    BombingRunStyle s;
+    s.blob_material = std::string(faction.xml_text("Bombardment_Shadow_Blob_Material_Name"));
+    if (const std::string_view v = faction.xml_text("Bombardment_Blob_Size"); !v.empty()) s.blob_size = 2.0f * static_cast<float>(objects::c_atof(v));
+    return s;
+}
+
+ui::HudBombardSwitch bombard_switch(bool land, bool shown, bool available, float recharge) {
+    ui::HudBombardSwitch s;
+    s.present = true;
+    s.shown = land && shown;
+    s.ready = s.shown && available;
+    s.recharge = recharge;
+    return s;
+}
+
 const char* hardpoint_type_name(uint8_t kind) {
     static const char* const kNames[] = {"HARD_POINT_ENGINE",        "HARD_POINT_SHIELD_GENERATOR", "HARD_POINT_GRAVITY_WELL",
                                          "HARD_POINT_FIGHTER_BAY",   "HARD_POINT_TRACTOR_BEAM",     "HARD_POINT_WEAPON_LASER",

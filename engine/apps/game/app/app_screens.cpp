@@ -1350,8 +1350,9 @@ void App::update_cursor(ui::HudDrawList& dl) {
                 c.targeting = ui::ability_pick_cursor(targeting_.target_kind(), targeting_.ability_type(), bview_.space(), hit_friendly);
             } else if (reinforce_unit_ != 0) {
                 c.targeting = ui::CursorContext::Targeting::Reinforcement;
-            } else if (bombing_targeting_) {
-                c.targeting = ui::CursorContext::Targeting::BombingRun;  // POINTER_BOMBING_RUN_TARGET (HUD_GAPS §9.5)
+            } else if (bombing_targeting_ || bombard_targeting_) {
+                // POINTER_BOMBING_RUN_TARGET (HUD_GAPS §9.5); #717 0x2f5c80 gives the bombardment pick the same cursor (0x21)
+                c.targeting = ui::CursorContext::Targeting::BombingRun;
             } else if (sw_weapon_ != objects::kNoObjectId) {  // POINTER_ATTACK_WITH_SPECIAL_WEAPON_n / _INVALID
                 c.targeting = ui::CursorContext::Targeting::SpecialWeapon;
                 c.special_weapon = sw_icon_;

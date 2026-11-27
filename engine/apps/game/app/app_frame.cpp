@@ -129,7 +129,7 @@ bool App::render_frame() {
             bview_.set_heal_selection({});
         }
         // cu9g t03 bombing-run blob; the reinforcement drop preview takes the same slot (one pick at a time).
-        bview_.set_bombing_blob(screen() != Screen::Battle ? std::nullopt : bombing_targeting_ ? bombing_blob_ : reinforce_blob_);
+        bview_.set_bombing_blob(screen() != Screen::Battle ? std::nullopt : bombing_targeting_ || bombard_targeting_ ? bombing_blob_ : reinforce_blob_);
         const auto prep0 = Clock::now();
         bview_.set_pulse_time(now_s_);  // light effects run on wall time
         bview_.prepare(gpu_, render_alpha());
@@ -616,7 +616,7 @@ void App::frame() {
     }
     if (!movie_key && session_ && !paused_ && (screen() == Screen::Galactic || screen() == Screen::Battle) && routed_.keys_to_world &&
         input_.key_pressed(ui::vk::kEscape) && script_.empty() &&
-        !(screen() == Screen::Battle && (targeting_.active() || reinforce_unit_ != 0 || bombing_targeting_ || beacon_pick_))) {
+        !(screen() == Screen::Battle && (targeting_.active() || reinforce_unit_ != 0 || bombing_targeting_ || bombard_targeting_ || beacon_pick_))) {
         // bkc1 t01 (BKC1_RE_ANSWERS Q1): with the story's cinematic camera on, Esc goes to the plots' Story_Handle_Esc
         // and consumes the key (no pause menu); otherwise it opens the pause menu.
         if (!session_->story_esc()) {

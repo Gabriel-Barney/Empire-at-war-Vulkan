@@ -249,6 +249,8 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
     shell_ = table.find("i_main_skirmish");
     retreat_ = table.find("b_retreat");
     special_weapon_ = table.find("b_special_weapon");
+    pb_switch_ = table.find("pb_switch");
+    pb_recharge_ = table.find("pb_switch_recharge");
     reinforce_button_ = table.find("b_reinforcement");
     beacon_button_ = table.find("b_special_weapon2");
     beacon_t_ = table.find("b_beacon_t");
@@ -808,8 +810,10 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         set_text(pop_text_, hud_pop_text(frame.pop, frame.pop_cap));
         apply_order_buttons(frame.order_buttons);
         apply_bombing_run_button(frame.bombing_run);
+        apply_bombard_switch(frame.bombard);
         apply_command_buttons(frame.command_buttons);
         build_buttons(frame);
+        build_bombard_recharge();
         build_garrison_respawn(frame);
         build_sell(frame);
         build_fly_texts(frame);
@@ -1365,6 +1369,44 @@ void TacticalHud::apply_bombing_run_button(const HudBombingRunButton& s) {
         r.icon_override = c.icon_alternate_texture[static_cast<size_t>(s.icon)];
     r.tooltip_index = s.tooltip >= 0 && c.tooltip_text.size() > static_cast<size_t>(s.tooltip) ? s.tooltip : -1;
     r.build_fill = s.dial < 0.0f ? -1.0f : std::clamp(s.dial, 0.0f, 1.0f) * 100.0f;
+}
+
+// #717 0x314360 [H]: pb_switch / pb_switch_recharge hidden unless `shown`; the switch enabled with Icon_Alternate_Texture_Name
+// entry 0 when ready, else disabled with its Icon_Texture_Name (0x34c340). [port] the original also raises the two bones of
+// the command-bar shell under them (z 8 shown, -10 hidden); the port's shell keeps them in place.
+void TacticalHud::apply_bombard_switch(const HudBombardSwitch& s) {
+    if (!s.present) return;
+    if (pb_switch_ >= 0) {
+        const auto ci = static_cast<uint32_t>(pb_switch_);
+        const CommandBarComponent& c = (*table_)[ci];
+        ButtonRuntime& r = buttons_.state(ci);
+        r.hidden = script_hidden(r.script_visible, !s.shown);
+        r.disabled = script_disabled(r.script_enabled, !s.ready);
+        r.icon_override = s.ready && !c.icon_alternate_texture.empty() ? c.icon_alternate_texture[0] : std::string();
+    }
+    if (pb_recharge_ >= 0) {
+        ButtonRuntime& r = buttons_.state(static_cast<uint32_t>(pb_recharge_));
+        r.hidden = script_hidden(r.script_visible, !s.shown);
+    }
+    bombard_recharge_ = std::clamp(s.recharge, 0.0f, 1.0f);
+}
+
+// pb_switch_recharge (a Smooth_Bar Bar): Bar_Texture_Name under the Bar_Overlay_Name clipped to the fill (0x351a90 [M]).
+void TacticalHud::build_bombard_recharge() {
+    if (pb_recharge_ < 0) return;
+    const auto ci = static_cast<uint32_t>(pb_recharge_);
+    const ButtonRuntime* r = buttons_.find_state(ci);
+    const ComponentPlacement& p = layout_.placement(ci);
+    if (!r || r->hidden || !p.placed) return;
+    const CommandBarComponent& c = (*table_)[ci];
+    const uint32_t layer = layer_of(c, p);
+    const Vec2f at = p.size.x > 0 ? p.rect_center : p.center;
+    if (!c.bar_texture.empty()) add_atlas_quad(dl_, layer, HudList::Alpha, *atlas_, c.bar_texture.front(), at, {}, c.scale, Rgba8{});
+    const std::string* ov = c.bar_overlay.empty() ? nullptr : &c.bar_overlay.back();
+    const Vec2f fb = p.size.x > 0 ? Vec2f{p.size.x - 2.0f, std::max(2.0f, p.size.y - 4.0f)} : Vec2f{40.0f, 4.0f};
+    if (!ov || !add_atlas_quad_clipped(dl_, layer + 1, HudList::Alpha, *atlas_, *ov, at, {}, c.scale, bombard_recharge_, Rgba8{}))
+        add_atlas_quad_clipped(dl_, layer + 1, HudList::Alpha, *atlas_, {}, at, {}, 1.0f, bombard_recharge_, Rgba8{40, 220, 40, 255}, fb);
+    stats_.bombard_bar = true;
 }
 
 // #474 garrison_respawn_counter (docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "Garrison respawn counter"): shown with the

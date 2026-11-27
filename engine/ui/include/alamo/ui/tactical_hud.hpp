@@ -344,6 +344,18 @@ struct HudBombingRunButton {
                                 // 1.0 draws nothing, as the ability buttons; HUD_GAPS §9.9 item 1 is a probe question)
 };
 
+// #717 the land orbital-bombardment switch pb_switch (0x379) and its recharge bar pb_switch_recharge (0x37a), updated every
+// frame by 0x314360 [H] (docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "Orbital bombardment switch"): both hidden unless the
+// local player has a bombardment record in land (`shown`); the switch shows Icon_Alternate_Texture_Name entry 0 and is
+// enabled when `ready`, else its Icon_Texture_Name, disabled; the bar is filled to `recharge`. `present` false (no battle
+// feed): both keep their state (hidden from init). Lua GUI_Component_Visibility / _Enable override as for the other buttons.
+struct HudBombardSwitch {
+    bool present = false;
+    bool shown = false;     // 0x528a10
+    bool ready = false;     // 0x528970: available and not in progress
+    float recharge = 0.0f;  // 0x5294d0, 0..1
+};
+
 // the other command-bar buttons the land / space HUD update enables in the same pass as c_button00..05
 // (HUD_GAPS §5.1: "reinforcement availability, retreat allowed") and the reinforcement window's texts. `present` false
 // (no battle feed): the components keep their data state. Lua GUI_Component_Visibility / _Enable override (mods).
@@ -488,6 +500,7 @@ struct TacticalHudFrame {
     std::span<const HudOrderQueue> order_queues;
     HudOrderButtons order_buttons;  // c_button00..05 enable state (HUD_GAPS §5)
     HudBombingRunButton bombing_run;  // b_special_weapon in land (HUD_GAPS §9)
+    HudBombardSwitch bombard;         // pb_switch / pb_switch_recharge in land (#717)
     // #474 garrison_respawn_counter (0x231): the local player's skirmish start-force re-delivery fill 0..1 (the sim's
     // garrison_respawn), drawn as the component's Build_Texture_Name dial; < 0 hides it.
     float garrison_respawn = -1.0f;
@@ -549,6 +562,7 @@ struct TacticalHudStats {
     bool sell_button = false;           // #477 tactical_sell button drawn
     uint32_t fly_texts = 0;             // #664 generic_flytext texts drawn
     uint32_t sidebar_slots = 0;         // #478 skirmish_upgrade slots drawn
+    bool bombard_bar = false;           // #717 pb_switch_recharge drawn
     uint32_t objectives = 0, objective_lines = 0;
     bool drag_box = false;              // drag-select box drawn
     uint32_t wings = 0;                 // [port: Gabriel] squadron wing buttons drawn
@@ -637,6 +651,8 @@ private:
     void build_markers(const TacticalHudFrame& f, std::span<const HudUnit> units, HudDrawList& dl);
     void apply_order_buttons(const HudOrderButtons& s);
     void apply_bombing_run_button(const HudBombingRunButton& s);
+    void apply_bombard_switch(const HudBombardSwitch& s);
+    void build_bombard_recharge();
     void build_garrison_respawn(const TacticalHudFrame& f);
     void build_sell(const TacticalHudFrame& f);
     void build_fly_texts(const TacticalHudFrame& f);
@@ -703,6 +719,8 @@ private:
     int32_t sell_ = -1;                                   // tactical_sell (#477)
     uint32_t sell_drawn_ = 0;                             // the object of the sell button drawn this frame (0 = none)
     int32_t special_weapon_ = -1;                         // b_special_weapon (land: the bombing-run button)
+    int32_t pb_switch_ = -1, pb_recharge_ = -1;           // pb_switch / pb_switch_recharge (#717)
+    float bombard_recharge_ = 0.0f;                       // the bar's fill of this frame
     int32_t reinforce_button_ = -1, beacon_button_ = -1, beacon_t_ = -1, camera_t_ = -1;  // ui3 t03
     int32_t reinforce_counter_ = -1, r_pop_icon_ = -1, r_pop_text_ = -1;                 // ui3 t04
     bool reinforce_list_open_ = false;                                                   // #463

@@ -628,6 +628,13 @@ private:
     bool bombing_run_ready() const;  // 0x312570's `ready`: controls not locked and the local run available
     void bombing_toggle();           // 0x2e7950 (cancel = 0): start (Select_Target SFX) or cancel (Cancelled SFX)
     void bombing_end(bool cancel_sfx);
+    // #717 the land orbital-bombardment pick (HUD +0x2ae6), toggled by pb_switch (0x2e7bc0): on plays the bombarding ship
+    // type's SFXEvent_Bomb_Run_Select_Target (retail's +0x1360 read), a cancel the local faction's SFXEvent_Bombard_Cancelled.
+    // It shares bombing_blob_ and the strike counters with the bombing-run pick (one pick at a time).
+    bool bombard_targeting_ = false;
+    bool bombard_ready() const;
+    void bombard_toggle();
+    void bombard_end(bool cancel_sfx);
     // t04 (app_tactical_keys.cpp): tactical hotkeys / command-bar buttons beyond the camera and move toggles.
     void tactical_hotkeys(const std::vector<ui::HotkeyEvent>& hk, std::vector<commands::EventData>& cmds,
                           std::vector<ui::HudAction>& acts);
