@@ -789,7 +789,7 @@ public:
     std::span<const BombardFlashEvent> bombard_flashes() const { return bombard_flashes_; }
     // #664 (presentation feed; 0x392600's tactical branch [H]): the kill bounties paid this tick, one per paid player, for
     // the floating "+n" text at the victim (0x2de390). `at` = the victim's position, `type` its type (the host adds the
-    // type's +0x4dc height, Ranged_Target_Z_Adjust [M]). Not saved or hashed.
+    // type's +0x4dc height, Ranged_Target_Z_Adjust [H]). Not saved or hashed.
     struct BountyPaid {
         int32_t player = -1;
         int32_t amount = 0;

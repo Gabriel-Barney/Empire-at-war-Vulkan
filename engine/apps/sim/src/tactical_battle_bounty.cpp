@@ -105,7 +105,7 @@ void TacticalBattle::pay_kill_bounty(const TacticalMode& mode, const Unit& victi
     // with its current owner; #542: then the corruption upgrades of the players who are not fighting (set_absent_upgrades),
     // which retail creates as objects and the port does not.
     // #664: each payment goes to the bounties_paid feed for the local player's floating "+n" text (0x2de390, the host).
-    // [port] Not modelled: the log line.
+    // [port] Not modelled: the log line (a debug log, no game state or presentation; tier 3).
     if (!credits_add_ || killer < 0) return;
     if (!galaxy_->story_gates().bounty_collection) return;
     const auto& ps = galaxy_->players();

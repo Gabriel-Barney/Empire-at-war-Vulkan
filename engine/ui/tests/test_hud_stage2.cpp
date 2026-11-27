@@ -1628,7 +1628,8 @@ void test_fly_texts() {
     bool found = false;
     for (uint32_t l = 0; l < kHudLayers && !found; ++l)
         for (const HudQuad& q : hud.draw_list().items(l, HudList::Text))
-            if (q.color.r == 255 && q.color.g == 255 && q.color.b == 0 && q.color.a == 127 && 0.5f * (q.min.y + q.max.y) > at.y + 40.0f)
+            if (q.color.r == 255 && q.color.g == 255 && q.color.b == 0 && q.color.a == 127 &&
+                0.5f * (q.min.y + q.max.y) > at.y + 40.0f * hud.canvas().units_per_pixel_y)
                 found = true;
     CHECK2(found);
 }

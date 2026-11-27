@@ -1438,7 +1438,7 @@ void TacticalHud::build_fly_texts(const TacticalHudFrame& f) {
         st.color.a = static_cast<uint8_t>(st.color.a * t.alpha / 255);
         st.emboss_color.a = static_cast<uint8_t>(st.emboss_color.a * t.alpha / 255);
         const Vec2f at = canvas_.pixel_to_canvas(t.anchor_px.x, t.anchor_px.y);
-        add_text(dl_, layer, HudList::Text, *fonts_, canvas_, t.text, {at.x, at.y + t.rise}, st);
+        add_text(dl_, layer, HudList::Text, *fonts_, canvas_, t.text, {at.x, at.y + t.rise * canvas_.units_per_pixel_y}, st);
         ++stats_.fly_texts;
     }
 }

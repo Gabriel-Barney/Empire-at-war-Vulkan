@@ -391,13 +391,13 @@ struct HudSellButton {
 // #664 generic_flytext (component 0x37d; 0x2de390 spawns, 0x305890 steps, 0x2ff5a0 places [H]): a short text that
 // floats at a world point, e.g. the local player's kill bounty "%+d". Retail steps each record once per HUD update with
 // age = game frame - start: past 60 frames it is removed; the alpha is (1 - max(age - 30, 0) / 30) x 255 (solid for 30
-// frames, then a 30-frame fade); its 2D offset is (0, -70 x age / 60) added to the projected point. [port] The offset's
-// sign in the port's canvas (+Y up) is taken as a rise: retail's HUD space orientation at 0x352650 is [M].
+// frames, then a 30-frame fade); its 2D offset is (0, -70 x age / 60) added to the projected point in pixels (0x261e40's
+// y runs top-down, scaled by +0x100c to pixels, then 0x352650), so the text rises 70 pixels.
 inline constexpr int32_t kFlyTextFrames = 60;
 struct FlyTextLook {
     bool alive = false;
     uint8_t alpha = 0;
-    float rise = 0.0f;  // canvas units up
+    float rise = 0.0f;  // pixels up
 };
 FlyTextLook fly_text_look(int32_t age);
 struct HudFlyText {
