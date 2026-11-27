@@ -580,6 +580,20 @@ if(_alamo_sim)
     alamo_add_worker_count_check(alamo_headless_skirmish_ai_foc_ai_lane
         COMMAND alamo_headless --skirmish-ai foc --ticks 3000 --quiet --ai-lane
         TIMEOUT 1800 SLOW)
+    # #752: a skirmish battle has no parent galaxy, so with workers its AI jobs run on the lane's own thread (foc: the
+    # skirmish invasion of the port's skirmish galaxy, inline before #752; foc-land / map skirmishes: no conflict planet);
+    # a campaign battle keeps its parent galaxy (Evaluate_In_Galactic_Context evaluates), so its lane stays inline (#636).
+    # The worker-count checks above compare the threaded runs against the 0-worker inline one; a live read fails these too.
+    add_test(NAME alamo_headless_skirmish_ai_foc_ai_lane_thread
+             COMMAND alamo_headless --skirmish-ai foc --ticks 600 --quiet --ai-lane --workers 4)
+    add_test(NAME alamo_headless_skirmish_ai_foc_land_campaign_ai_lane_inline
+             COMMAND alamo_headless --skirmish-ai foc-land-campaign --ticks 600 --quiet --ai-lane --workers 4)
+    set_tests_properties(alamo_headless_skirmish_ai_foc_ai_lane_thread PROPERTIES TIMEOUT 900
+                         PASS_REGULAR_EXPRESSION "AI lane: [0-9]+ battle\\(s\\).* [1-9][0-9]* job\\(s\\) on the lane thread, 0 inline"
+                         FAIL_REGULAR_EXPRESSION "read the live battle")
+    set_tests_properties(alamo_headless_skirmish_ai_foc_land_campaign_ai_lane_inline PROPERTIES TIMEOUT 900
+                         PASS_REGULAR_EXPRESSION "AI lane: [0-9]+ battle\\(s\\).* 0 job\\(s\\) on the lane thread, [1-9][0-9]* inline"
+                         FAIL_REGULAR_EXPRESSION "read the live battle")
     if(TARGET alamo_anim)
       # A battle with the animation on (anim worlds of the galaxy and the battle mode).
       add_test(NAME alamo_headless_save_skirmish_anim

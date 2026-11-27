@@ -65,6 +65,7 @@ namespace {
 std::atomic<uint64_t> g_lane_live_reads{0};       // ref5 t06 [diagnostic]
 std::atomic<const char*> g_lane_live_first{nullptr};
 std::atomic<uint64_t> g_lane_battles{0}, g_lane_mismatches{0}, g_lane_refused_spawns{0};  // #634 [diagnostic]
+std::atomic<uint64_t> g_lane_threaded_jobs{0}, g_lane_inline_jobs{0};                       // #752 [diagnostic]
 // #634: the AI whose lane code this thread runs (BattleAi::set_thinking; carried into fan-outs by lane_context_pf)
 thread_local const BattleAi* t_lane_ai = nullptr;
 struct LaneContext {
@@ -100,7 +101,10 @@ uint64_t ai_lane_live_reads(const char** first) {
     if (first) *first = g_lane_live_first.load();
     return g_lane_live_reads.load();
 }
-AiLaneCounts ai_lane_counts() { return {g_lane_battles.load(), g_lane_mismatches.load(), g_lane_refused_spawns.load()}; }
+AiLaneCounts ai_lane_counts() {
+    return {g_lane_battles.load(), g_lane_mismatches.load(), g_lane_refused_spawns.load(), g_lane_threaded_jobs.load(),
+            g_lane_inline_jobs.load()};
+}
 ParallelFor ai_lane_context_pf(ParallelFor inner) {  // the AI's goal candidates, its solves
     return [inner = std::move(inner)](uint32_t n, uint32_t grain, const RangeFn& fn) {
         const LaneContext ctx = LaneContext::now();
@@ -1054,8 +1058,10 @@ void BattleAi::update() {
         jobs::JobSystem& js = host_->jobs();
         const lua::TacticalGalacticContext* galaxy = world_->player_world().tactical_galactic();
         if (js.serial() || (galaxy && galaxy->target >= 0 && galaxy->source.resolver)) {
+            g_lane_inline_jobs.fetch_add(1);
             lane_job_body();
         } else {
+            g_lane_threaded_jobs.fetch_add(1);
             if (!lane_thread_) lane_thread_ = std::make_unique<LaneThread>(js);
             lane_thread_->run([this] { lane_job_body(); });
             lane_wait_ = [t = lane_thread_.get()] { t->wait(); };

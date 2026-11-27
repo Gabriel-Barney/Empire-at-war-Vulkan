@@ -216,7 +216,7 @@ Off by default (`TacticalAiConfig::ai_lane`, process default `sim::ai_lane_defau
 it is a tier-2 change ("Flag-gated tier-2 changes"). `think()` runs on the AI lane's own thread (one per `BattleAi`, at the
 job system's AI priority, so what it fans out is AI work) while the critical lane runs on. It runs inline with 0 workers
 and in a battle whose `Evaluate_In_Galactic_Context` evaluates (a campaign battle with a conflict planet: its equations
-read the live galaxy, which the battle writes between AI slots). The results are those of the inline lane (#636). The job is joined at its collect (the next AI slot, or the due tick when
+read the live galaxy, which the battle writes between AI slots; never a skirmish, which has no parent galaxy, #752). The results are those of the inline lane (#636). The job is joined at its collect (the next AI slot, or the due tick when
 k_ai = 1), by `BattleAi::lane_sync()` before a save, at a scheduled save's in-flight check, at a load and at the end of
 the battle, and in the destructor. The world's Lua VMs follow the job (`TacticalAiWorld::claim_scripts`): the job's
 thread claims every one (plan pools and pristine VMs included) before `think()`, the joining thread takes them back. A
