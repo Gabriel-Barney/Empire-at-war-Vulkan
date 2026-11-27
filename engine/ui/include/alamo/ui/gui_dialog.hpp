@@ -380,6 +380,9 @@ public:
     GuiRect tooltip_box(Vec2f cursor, Vec2f size) const;
     // Closed-field height of combo i: the skin's Combo_Box_Popdown_Button height (25 units, legacy docs/re/UI.md §3.7.1), else 15 [port].
     float combo_field_height(const GuiDialog& d, size_t i) const;
+    // #576: slider i's thumb (Dial_Tab at the value, as drawn; 6 units wide without the art [port]). A press on it is a
+    // thumb drag, whose mouse-up sends SliderReleased; a press on the track moves the value without one.
+    GuiRect slider_thumb(const GuiDialog& d, size_t i) const;
 
 private:
     enum class ScrollPart : uint8_t { None, Up, Down, PageUp, PageDown, Thumb };
@@ -447,6 +450,7 @@ private:
     GuiDialog* press_dialog_ = nullptr;
     int32_t press_control_ = -1;
     bool slider_drag_ = false;
+    bool slider_thumb_ = false;  // #576: the slider press was on its thumb (retail's drag flag +0x90)
     ScrollPart scroll_part_ = ScrollPart::None;  // scroll bar part held (press_dialog_ / press_control_)
     double scroll_repeat_at_ = 0.0;
     float scroll_grab_ = 0.0f;                   // thumb drag: cursor distance below the thumb's top edge

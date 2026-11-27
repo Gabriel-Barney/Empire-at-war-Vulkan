@@ -606,8 +606,18 @@ void test_routing_and_controls() {
         CHECK(env.sfx.size() == 2 && env.sfx[1] == "GUI_Common_Dialog_Button_Press");
         ev = env.frame(left, true);
         CHECK(has_event(ev, GuiEvent::Kind::ValueChanged, "IDC_TEST_SLIDER", 0));
-        ev = env.frame(left, false);  // #62 t01: the drag ends on the mouse-up (retail trackbar event 5, 0x1d6290)
-        CHECK(has_event(ev, GuiEvent::Kind::SliderReleased, "IDC_TEST_SLIDER", 0));
+        ev = env.frame(left, false);  // #576: that press was on the track (the thumb sat at the left), so no release
+        CHECK(!has_event(ev, GuiEvent::Kind::SliderReleased, "IDC_TEST_SLIDER"));
+        {  // #62 t01 / #576: a drag from the thumb ends on the mouse-up with the release (retail trackbar event 5, 0x1d6290)
+            const GuiRect th = env.gui.slider_thumb(*d, static_cast<size_t>(d->find("IDC_TEST_SLIDER")));
+            const Vec2f on = env.gui.canvas().canvas_to_pixel(0.5f * (th.min.x + th.max.x), 0.5f * (th.min.y + th.max.y));
+            env.frame(on, true);
+            env.frame(right, true);
+            ev = env.frame(left, true);
+            CHECK(has_event(ev, GuiEvent::Kind::ValueChanged, "IDC_TEST_SLIDER", 0));
+            ev = env.frame(left, false);
+            CHECK(has_event(ev, GuiEvent::Kind::SliderReleased, "IDC_TEST_SLIDER", 0));
+        }
         ev = env.frame(left, false, {vk::kRight});  // focused by the press
         CHECK(!has_event(ev, GuiEvent::Kind::SliderReleased, "IDC_TEST_SLIDER", 1));  // a key moves it: no release
         CHECK(d->get("IDC_TEST_SLIDER")->value == 1);
@@ -1352,9 +1362,24 @@ void test_menus() {
             int sfx, speech;
         } cases[] = {{"IDC_SLIDER_SOUND_EFFECTS_VOLUME", 1, 0}, {"IDC_SLIDER_DIALOG_VOLUME", 0, 1}};
         for (const auto& c : cases) {
+            const auto si = static_cast<size_t>(au->find(c.slider));
+            const GuiRect r = au->control_rect(si);
+            // #576: a press on the track (here its far end from the thumb) moves the value but sends no release, so no test.
             acts.clear();
-            const GuiRect r = au->control_rect(static_cast<size_t>(au->find(c.slider)));
+            const GuiRect th = env.gui.slider_thumb(*au, si);
+            const bool thumb_left = 0.5f * (th.min.x + th.max.x) < 0.5f * (r.min.x + r.max.x);
+            const Vec2f track = env.gui.canvas().canvas_to_pixel(thumb_left ? r.max.x - 1.0f : r.min.x + 1.0f, 0.5f * (r.min.y + r.max.y));
+            CHECK(!th.contains(env.gui.canvas().pixel_to_canvas(track.x, track.y)));
+            step(env.frame(track, true));
+            step(env.frame(track, false));
+            CHECK(count(K::TestAudioSfx) == 0 && count(K::TestAudioSpeech) == 0);
+            CHECK(count(K::PreviewAudio) > 0);  // the value moved
+            // A press on the thumb, dragged and released: one release, the test sound.
+            acts.clear();
+            const GuiRect t2 = env.gui.slider_thumb(*au, si);
+            const Vec2f on = env.gui.canvas().canvas_to_pixel(0.5f * (t2.min.x + t2.max.x), 0.5f * (t2.min.y + t2.max.y));
             const Vec2f mid = env.gui.canvas().canvas_to_pixel(0.5f * (r.min.x + r.max.x), 0.5f * (r.min.y + r.max.y));
+            step(env.frame(on, true));
             step(env.frame(mid, true));
             CHECK(count(K::TestAudioSfx) == 0 && count(K::TestAudioSpeech) == 0);  // the press and the drag only preview
             step(env.frame(mid, false));
