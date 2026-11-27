@@ -628,8 +628,11 @@ const ModernOrganiserPad* ModernGalacticHud::org_pad(int32_t id) const {
 GalacticDropTarget ModernGalacticHud::drop_target(int32_t component, Vec2f px) const {
     using Target = GalacticDropTarget;
     if (component >= 0) {
-        if (const ModernOrganiserPad* p = org_pad(component))  // a fleet's row (header or stack), or a land unit
+        if (const ModernOrganiserPad* p = org_pad(component)) {  // a fleet's row (header or stack), or a land unit
+            // #669 a lead tile takes only a lead drop (lead_drop), as the Classic header pad: no organiser drop.
+            if (p->lead) return Target{Target::Kind::Other};
             return p->land ? Target{Target::Kind::LandForces} : Target{Target::Kind::Fleet, p->fleet, false};
+        }
         if (component == kModernGalacticLandRowHit && land_row_) return Target{Target::Kind::LandForces};
         if (const size_t r = static_cast<size_t>(component - kModernGalacticRowBase);  // a fleet row's back
             component >= kModernGalacticRowBase && r < rows_.size())
@@ -653,6 +656,9 @@ GalacticDropTarget ModernGalacticHud::drop_target(int32_t component, Vec2f px) c
 bool ModernGalacticHud::organiser_target(int32_t component, GalacticDropTarget& out) const {
     if (component < 0) return false;
     out = drop_target(component, {});
+    // #669: a Classic drag (the map fleet buttons) released on a lead tile is this HUD's and does nothing, as on the
+    // Classic header pad (GalacticHud::lead_drop refuses a fleet).
+    if (const ModernOrganiserPad* p = org_pad(component); p && p->lead) return true;
     return out.kind != GalacticDropTarget::Kind::Other;
 }
 
@@ -718,6 +724,8 @@ void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool
         drag_.over_component = routed.hover_component;
         const GalacticDropTarget t = drop_target(drag_.over_component, cur);
         drag_.over_fleet = t.kind == GalacticDropTarget::Kind::Fleet && t.fleet != drag_.fleet;
+        if (const ModernOrganiserPad* lp = org_pad(drag_.over_component); lp && lp->lead)  // #669 a lead drop that sets one
+            drag_.over_fleet = lp->fleet != drag_.fleet && lead_drop(*lp, nullptr);
         drag_.over_planet = -1;
         if (t.kind == GalacticDropTarget::Kind::World && t.on_planet)
             for (const GalacticPlanetScreen& s : planet_px_)

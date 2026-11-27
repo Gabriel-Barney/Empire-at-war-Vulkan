@@ -141,7 +141,8 @@ struct Env {
         modern.build(f);
     }
     int32_t id(const std::string& name) const { return t.find(name); }
-    // The Modern organiser tile of `fleet`'s header (unit 0) or stack starting with `unit`, or of land unit `unit`.
+    // The Modern organiser tile of `fleet`'s header (unit 0; it comes before an empty lead tile) or stack starting with
+    // `unit`, or of land unit `unit`.
     int32_t pad(uint32_t fleet, uint32_t unit, bool is_land = false) const {
         for (const ModernOrganiserPad& p : modern.organiser_pads())
             if (p.land == is_land && p.fleet == fleet && p.unit == unit) return p.id;
@@ -690,6 +691,7 @@ void test_lead_parity() {
         {"a unit -> an empty lead pad: merge, set", "q1_0001", "q2_0000", e.pad(900, 9002), empty_tile,
          {fleet_management_event(commands::kFleetMerge, 901, 900, 9002), commands::ev::set_gui_index(9002, commands::kPathfinderGuiIndex)}},
         {"a land unit -> the lead pad: refused", "land_fleet_00", "q1_0000", e.pad(0, 8001, true), lead_tile, {}},
+        {"a whole fleet -> the lead pad: refused", "q2_fleet", "q1_0000", e.pad(901, 0), lead_tile, {}},
     };
     for (const Case& c : cases) {
         const Out co = e.classic_drag(c.classic_from, c.classic_to);
@@ -705,6 +707,27 @@ void test_lead_parity() {
     // An empty lead tile neither drags nor selects.
     const Out click = e.click(e.modern, empty_tile, 50.0);
     CHECK(click.acts.empty() && click.cmds.empty());
+    {
+        RoutedInput r;
+        const Vec2f px = e.modern_px(empty_tile);
+        r.world.mouse_x = static_cast<int32_t>(px.x);
+        r.world.mouse_y = static_cast<int32_t>(px.y);
+        r.hover_component = empty_tile;
+        r.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+        r.hud = {{HudPointerEvent::Kind::Press, Button::Left, empty_tile, r.world.mouse_x, r.world.mouse_y}};
+        std::vector<commands::EventData> cmds;
+        e.modern.update_input(r, false, false, 60.0, cmds);
+        r.hud.clear();
+        r.world.mouse_x += 30;
+        e.modern.update_input(r, false, false, 60.05, cmds);
+        CHECK(!e.modern.drag().active);
+        r.owner = {};
+        e.modern.update_input(r, false, false, 60.1, cmds);
+    }
+    // A lead tile is no organiser drop target for a Classic drag (the map fleet buttons): it takes the drop and does
+    // nothing, as the Classic header pad refuses a fleet.
+    GalacticDropTarget t;
+    CHECK(e.modern.organiser_target(lead_tile, t) && t.kind == GalacticDropTarget::Kind::Other);
 }
 
 int main() {
