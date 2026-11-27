@@ -591,6 +591,15 @@ private:
     bool menu_dialog_open() const override;  // the in-game menu or one of its option / save / load / quit dialogs is open
     uint32_t reinforce_unit_ = 0;       // reinforcement chosen on the pad, waiting for its drop point (0 = none)
     uint32_t sell_object_ = 0;          // #477: the object whose tactical_sell button is open (0 = none)
+    // #664 generic_flytext (0x2de390): the local player's kill-bounty texts, by battle frame; a record outside its 60
+    // frames (or from an earlier battle, whose frames restart) is dropped when the HUD frame is built.
+    struct FlyTextRecord {
+        Vec3 at{};
+        uint32_t start = 0;
+        std::u32string text;
+    };
+    std::vector<FlyTextRecord> fly_texts_;
+    std::vector<ui::HudFlyText> fly_hud_;
     // cu9g t03 (HUD_GAPS §9.4 - §9.6): the land bombing-run targeting state (HUD +0x20b2): toggled by the b_special_weapon
     // click and the super-weapon hotkey; the world's next left click on a valid point sends command 28.
     bool bombing_targeting_ = false;

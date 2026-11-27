@@ -375,6 +375,13 @@ void App::post_tick() {
                     }
             }
             bview_.bombard_tick(b->bombard_flashes());  // #314 the bombardment lights, once per tick
+            for (const sim::TacticalBattle::BountyPaid& e : b->bounties_paid()) {  // #664 0x392600: the local player's only
+                if (e.player != local_player()) continue;
+                char n[16];
+                std::snprintf(n, sizeof n, "%+d", e.amount);  // DAT_14085ceb0 L"%+d"
+                const float z = e.type >= 0 ? shot_z_adjust(static_cast<objects::TypeIndex>(e.type)) : 0.0f;
+                fly_texts_.push_back({Vec3{e.at.x, e.at.y, e.at.z + z}, b->frame(), std::u32string(n, n + std::strlen(n))});
+            }
             audio_.battle_tick(*b, st, data_.types, local_player(),
                                [gs](objects::ObjectId id) { return gs->script_hidden(id); });  // q6 t19 §10.3
             // #479 (docs/re/RADAR_BLIPS_AND_BOX.md §3 [H]): a 4 s pulsing radar_blip where the base was attacked.

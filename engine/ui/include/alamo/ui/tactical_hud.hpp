@@ -388,6 +388,25 @@ struct HudSellButton {
     std::u32string name;     // the type's name (Text_ID)
     int32_t refund = 0;      // TacticalBattle::sell_refund
 };
+// #664 generic_flytext (component 0x37d; 0x2de390 spawns, 0x305890 steps, 0x2ff5a0 places [H]): a short text that
+// floats at a world point, e.g. the local player's kill bounty "%+d". Retail steps each record once per HUD update with
+// age = game frame - start: past 60 frames it is removed; the alpha is (1 - max(age - 30, 0) / 30) x 255 (solid for 30
+// frames, then a 30-frame fade); its 2D offset is (0, -70 x age / 60) added to the projected point. [port] The offset's
+// sign in the port's canvas (+Y up) is taken as a rise: retail's HUD space orientation at 0x352650 is [M].
+inline constexpr int32_t kFlyTextFrames = 60;
+struct FlyTextLook {
+    bool alive = false;
+    uint8_t alpha = 0;
+    float rise = 0.0f;  // canvas units up
+};
+FlyTextLook fly_text_look(int32_t age);
+struct HudFlyText {
+    Vec2f anchor_px{};    // the world point's projected pixel (+Y down)
+    float rise = 0.0f;    // fly_text_look
+    uint8_t alpha = 255;
+    std::u32string text;  // "%+d"
+};
+
 // 0x2dd250's caption, L" %s %s ($ %d) ": the localized TEXT_BUTTON_SELL, the type's name and the refund.
 std::u32string tactical_sell_text(std::u32string_view sell, std::u32string_view name, int32_t refund);
 
@@ -502,6 +521,7 @@ struct TacticalHudFrame {
     // object with a sell offer (object 0 = none), at its projected pixel; text tactical_sell_text(TEXT_BUTTON_SELL, name,
     // refund). A left click sends TacticalSell {object}.
     HudSellButton sell;
+    std::span<const HudFlyText> fly_texts;  // #664 generic_flytext records in front of the camera
 };
 
 struct TacticalHudStats {
@@ -515,6 +535,7 @@ struct TacticalHudStats {
     bool tooltip = false;
     bool pause_banner = false;          // Game Paused banner drawn
     bool sell_button = false;           // #477 tactical_sell button drawn
+    uint32_t fly_texts = 0;             // #664 generic_flytext texts drawn
     uint32_t objectives = 0, objective_lines = 0;
     bool drag_box = false;              // drag-select box drawn
     uint32_t wings = 0;                 // [port: Gabriel] squadron wing buttons drawn
@@ -605,6 +626,7 @@ private:
     void apply_bombing_run_button(const HudBombingRunButton& s);
     void build_garrison_respawn(const TacticalHudFrame& f);
     void build_sell(const TacticalHudFrame& f);
+    void build_fly_texts(const TacticalHudFrame& f);
     void apply_command_buttons(const HudCommandButtons& s);
     void build_pause_banner(const TacticalHudFrame& f);
     void build_objectives(const TacticalHudFrame& f);
@@ -661,6 +683,7 @@ private:
     int32_t radar_ = -1, radar_blip_ = -1, credits_ = -1, shell_ = -1, retreat_ = -1;
     int32_t order_button_[6] = {-1, -1, -1, -1, -1, -1};  // c_button00..05
     int32_t garrison_respawn_ = -1;                       // garrison_respawn_counter (#474)
+    int32_t flytext_ = -1;                                // generic_flytext (#664)
     int32_t sell_ = -1;                                   // tactical_sell (#477)
     uint32_t sell_drawn_ = 0;                             // the object of the sell button drawn this frame (0 = none)
     int32_t special_weapon_ = -1;                         // b_special_weapon (land: the bombing-run button)

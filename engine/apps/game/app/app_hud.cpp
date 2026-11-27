@@ -1245,6 +1245,23 @@ void App::build_tactical_hud() {
             }
         }
     }
+    // #664 generic_flytext: each live record at its projected point (behind the camera: not drawn, 0x2ff5a0's vf +0x78).
+    fly_hud_.clear();
+    if (const sim::TacticalBattle* b = battle()) {
+        const int64_t now = b->frame();
+        std::erase_if(fly_texts_, [now](const FlyTextRecord& r) {
+            return !ui::fly_text_look(static_cast<int32_t>(std::clamp<int64_t>(now - r.start, -1, ui::kFlyTextFrames + 1))).alive;
+        });
+        for (const FlyTextRecord& r : fly_texts_) {
+            const ui::FlyTextLook l = ui::fly_text_look(static_cast<int32_t>(now - r.start));
+            float sx = 0.0f, sy = 0.0f;
+            if (!ui::project(hf.world.view, {r.at.x, r.at.y, r.at.z}, sx, sy)) continue;
+            fly_hud_.push_back({{sx, sy}, l.rise, l.alpha, r.text});
+        }
+        hf.fly_texts = fly_hud_;
+    } else {
+        fly_texts_.clear();
+    }
     // Tactical buy bar: the first selected own builder with production options (skirmish space stations), its options
     // with price / queued count / block reason, anchored at the builder's projected pixel.
     // q6 [port]: the buttons are the i_build_buttons model at the builder in the world (legacy docs/re/UI.md: tactical build pads), so a

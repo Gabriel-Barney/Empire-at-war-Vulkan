@@ -787,6 +787,16 @@ public:
         float seconds = 0.0f;
     };
     std::span<const BombardFlashEvent> bombard_flashes() const { return bombard_flashes_; }
+    // #664 (presentation feed; 0x392600's tactical branch [H]): the kill bounties paid this tick, one per paid player, for
+    // the floating "+n" text at the victim (0x2de390). `at` = the victim's position, `type` its type (the host adds the
+    // type's +0x4dc height, Ranged_Target_Z_Adjust [M]). Not saved or hashed.
+    struct BountyPaid {
+        int32_t player = -1;
+        int32_t amount = 0;
+        Vec3 at{};
+        int32_t type = -1;
+    };
+    std::span<const BountyPaid> bounties_paid() const { return bounties_paid_; }
     // mcx4 t13 (presentation; MCX4_T13_RE_ANSWERS "Tractor_Beam_Attack_Ability.SFXEvent_Unit_Summoned",
     // "Radioactive_Contaminate_Ability.SFXEvent_Radioactive", "Buzz_Droids_Ability.Activate_SFX"): objects a Summon /
     // Radioactive_Contaminate / Buzz_Droids ability created since the last tick, request order. `ability` = the unit
@@ -2851,6 +2861,8 @@ private:
     size_t strike_starts_mark_ = 0;
     std::vector<BombardFlashEvent> bombard_flashes_;   // #314 presentation only (not saved / hashed)
     size_t bombard_flashes_mark_ = 0;
+    std::vector<BountyPaid> bounties_paid_;            // #664 presentation only (not saved / hashed)
+    size_t bounties_paid_mark_ = 0;
     std::vector<SummonSpawn> summon_spawns_;           // presentation only (not saved / hashed)
     size_t summon_spawns_mark_ = 0;
     size_t ability_toggles_mark_ = 0;

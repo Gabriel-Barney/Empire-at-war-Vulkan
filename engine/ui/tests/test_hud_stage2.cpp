@@ -1591,6 +1591,48 @@ void test_tactical_sell_button() {
     CHECK2(!hud.stats().sell_button && !sell_box() && cmds.empty());
 }
 
+// #664 generic_flytext (0x305890 / 0x2ff5a0 [H]): solid for 30 frames, a 30-frame fade, gone after 60; rising 70 over its
+// life; drawn at the projected point in the component's font.
+void test_fly_texts() {
+    const FlyTextLook a = fly_text_look(0), b = fly_text_look(30), c = fly_text_look(45), d = fly_text_look(60), e = fly_text_look(61);
+    CHECK2(a.alive && a.alpha == 255 && a.rise == 0.0f);
+    CHECK2(b.alive && b.alpha == 255 && near2(b.rise, 35.0f));
+    CHECK2(c.alive && c.alpha == 127 && near2(c.rise, 52.5f));
+    CHECK2(d.alive && d.alpha == 0 && near2(d.rise, 70.0f));
+    CHECK2(!e.alive && !fly_text_look(-1).alive);
+    const std::string xml =
+        "<CommandBarComponents><CommandBarComponent Name=\"generic_flytext\"><Type>TextButton</Type>"
+        "<Font_Name>EmpireAtWar-Medium</Font_Name><Font_Point_Size>7</Font_Point_Size><Text_Emboss>True</Text_Emboss>"
+        "<Text_Color>255 255 0 255</Text_Color><No_Shell>true</No_Shell><Base_Layer>1</Base_Layer>"
+        "</CommandBarComponent></CommandBarComponents>";
+    ComponentTable t;
+    const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(xml), "fly.xml");
+    CHECK2(doc.ok());
+    t.parse(doc.root());
+    TextureAtlas atlas = stage2_atlas();
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    TacticalHud hud;
+    hud.init(t, atlas, fonts);
+    hud.resize(1024, 768);
+    TacticalHudFrame fr;
+    fr.world.view = top_view2(1024, 768);
+    hud.build(fr, {}, {});
+    CHECK2(hud.stats().fly_texts == 0);
+    const std::vector<HudFlyText> texts = {{{512.0f, 300.0f}, c.rise, c.alpha, U"+18"}, {{100.0f, 100.0f}, 0.0f, 255, U"+5"}};
+    fr.fly_texts = texts;
+    hud.build(fr, {}, {});
+    CHECK2(hud.stats().fly_texts == 2);
+    // The first text's glyphs are yellow at half alpha, above (canvas +Y up) its projected point.
+    const Vec2f at = hud.canvas().pixel_to_canvas(512.0f, 300.0f);
+    bool found = false;
+    for (uint32_t l = 0; l < kHudLayers && !found; ++l)
+        for (const HudQuad& q : hud.draw_list().items(l, HudList::Text))
+            if (q.color.r == 255 && q.color.g == 255 && q.color.b == 0 && q.color.a == 127 && 0.5f * (q.min.y + q.max.y) > at.y + 40.0f)
+                found = true;
+    CHECK2(found);
+}
+
 // Drag-select box (Playtest 3): drawn from the drag threshold on, over exactly the bounds box_select uses on release.
 void test_drag_box() {
     ComponentTable t;
@@ -2084,6 +2126,7 @@ int run_stage2_tests() {
     test_bombing_run_button();
     test_garrison_respawn_counter();  // #474
     test_tactical_sell_button();  // #477
+    test_fly_texts();             // #664
     test_drag_box();
     return g_fail2;
 }
