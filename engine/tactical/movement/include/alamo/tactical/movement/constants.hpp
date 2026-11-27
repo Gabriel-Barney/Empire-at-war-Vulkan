@@ -104,6 +104,8 @@ struct MovementConstants {
     // approximation_thinning set, which stays off until a golden refresh takes it (FoC: 0.9962).
     float approximation_smooth_cos_angle = 0.9962f;
     bool approximation_thinning = false;  // [port] off: the sweep keeps every approximation point (the goldens' path)
+    // foot_path_contact's `thin_cos`: the value with the thinning on, else 2 (no thinning)
+    float thin_cos() const { return approximation_thinning ? approximation_smooth_cos_angle : 2.0f; }
     // mcx4 t11 (BKR2_RE_ANSWERS Q8 [H], MOVEMENT §4.2 step 2 item 7 test 3): ShouldInfantryTeamsSplitAcrossFormations
     // (GC +0x149d); set, a seed with a parent team recruits nobody (its team splits across formations).
     bool should_infantry_teams_split_across_formations = true;

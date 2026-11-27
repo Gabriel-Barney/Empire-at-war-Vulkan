@@ -2372,7 +2372,7 @@ float MovementSystem::mvs_contact(const Unit& a, const Unit& b) const {
     }
     return foot_path_contact(a.m.pos, sp.pts, sp.next, ha, foot_of(b), look, turn_yaw,
                              cfg_.constants.approximation_forward_distance,  // mcx4 t11
-                             cfg_.constants.approximation_thinning ? cfg_.constants.approximation_smooth_cos_angle : 2.0f);  // #713
+                             cfg_.constants.thin_cos());  // #713
 }
 
 // StoppedVsStopped contact 0x686500 (MOVEMENT §5.3 / §5.3.1 item 1): the garrison-host gate (no hover test), then the
