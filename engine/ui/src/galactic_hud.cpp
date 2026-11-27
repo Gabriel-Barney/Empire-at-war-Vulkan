@@ -1501,10 +1501,10 @@ void GalacticHud::build_special_abilities(const GalacticHudFrame& f) {
     }
 }
 
-// [port: Gabriel, original screenshot] galactic minimap over radar_galactic: one g_radar_blip per visible planet in its
-// owner colour (Selected_Texture for the selected planet) and the camera's footprint on the galaxy plane as a g_radar_view
-// outline (i_radar_view is in no atlas: 1-unit lines in the same layer). Mapping [port]: the planets' bounding box,
-// squared and padded 10 %, fills the radar rectangle (+X right, +Y up).
+// The galactic minimap over radar_galactic: one g_radar_blip per visible planet in its owner colour (Selected_Texture for
+// the selected planet) and the camera's footprint on the galaxy plane as a g_radar_view outline (i_radar_view is in no
+// atlas: 1-unit lines in the same layer). #575: the mapping is retail's fixed +-380 x +-460 extent (galactic_radar_fit,
+// 0x3d1260 [H]; +X right, +Y up). A planet outside that extent gets no blip (GalacticRadarFit::shows, [port] there).
 void GalacticHud::build_radar(const GalacticHudFrame& f) {
     // ui4 t04 (GALACTIC_PLANET_MAP §8): while the planet map is open the blips are laid out on radar_galactic_adv_map.
     const int32_t radar = map_open_ && radar_adv_ >= 0 ? radar_adv_ : radar_;
@@ -1524,7 +1524,7 @@ void GalacticHud::build_radar(const GalacticHudFrame& f) {
     // draw over both. [port] colour = the faceplate's dark radar ground.
     add_atlas_quad(dl_, 0, HudList::Opaque, *atlas_, {}, rc_at, {}, 1.0f, kGalacticRadarBackdrop, size);
     stats_.radar_backdrop = true;
-    radar_fit_.half = 0.0f;
+    radar_fit_ = {};
     hit(radar, static_cast<uint32_t>(std::max(0, rc.base_layer)), rc_at, size);  // the radar takes clicks
     if (f.planets.empty()) return;
     const GalacticRadarFit fit = galactic_radar_fit(f.planets);  // #613 shared with the Modern map
@@ -1536,6 +1536,7 @@ void GalacticHud::build_radar(const GalacticHudFrame& f) {
     const uint32_t blip_layer = bc ? static_cast<uint32_t>(bc->base_layer) : 3u;
     for (const GalacticPlanetInfo& p : f.planets) {
         if (!p.visible) continue;
+        if (!fit.shows(p.position.x, p.position.y)) continue;  // #575: off the extent
         const Vec2f at = to_radar(p.position.x, p.position.y);
         const std::string* t = nullptr;
         if (bc) t = p.selected && !bc->selected_texture.empty() ? &bc->selected_texture[0] : pick(bc->icon_texture, 0);
@@ -1846,18 +1847,11 @@ void GalacticHud::build(const GalacticHudFrame& f) {
 GalacticRadarFit galactic_radar_fit(std::span<const GalacticPlanetInfo> planets) {
     GalacticRadarFit fit;
     if (planets.empty()) return fit;
-    float x0 = planets[0].position.x, x1 = x0, y0 = planets[0].position.y, y1 = y0, z = 0.0f;
-    for (const GalacticPlanetInfo& p : planets) {
-        x0 = std::min(x0, p.position.x);
-        x1 = std::max(x1, p.position.x);
-        y0 = std::min(y0, p.position.y);
-        y1 = std::max(y1, p.position.y);
-        z += p.position.z;
-    }
+    float z = 0.0f;
+    for (const GalacticPlanetInfo& p : planets) z += p.position.z;
     fit.z = z / static_cast<float>(planets.size());
-    fit.half = 0.5f * std::max({x1 - x0, y1 - y0, 1.0f}) * 1.2f;
-    fit.cx = 0.5f * (x0 + x1);
-    fit.cy = 0.5f * (y0 + y1);
+    fit.half_x = kGalacticRadarHalfX;
+    fit.half_y = kGalacticRadarHalfY;
     return fit;
 }
 
@@ -1879,11 +1873,12 @@ bool galactic_radar_view(const GalacticRadarFit& fit, const View& view, Vec2f at
 }
 
 // ui4 t07 (HUD_GAPS §10.1, 0x3d1260): a left click on the galactic radar moves the camera to that point; it never selects a
-// planet. [port] the point is the inverse of the blips' fit to the planets, so the click lands where the radar shows it;
-// retail maps the radar to a fixed +-380 x +-460 galaxy extent.
+// planet. #575: the point is retail's fixed-extent mapping, the inverse of the blips'. [port] retail hands 0x448c20 the
+// point with z = 10 (0x41200000); whether that is the camera's height or the look point's is not traced, and the host's
+// RadarCameraJump keeps its camera height. Camera feel, tier 1: a known gap until 0x448c20 is read.
 bool galactic_radar_click(const GalacticRadarFit& fit, Vec2f at, Vec2f size, Vec2f c, int32_t component, const std::string& name,
                           Button button, HudAction& out) {
-    if (button != Button::Left || fit.half <= 0.0f || size.x <= 0.0f || size.y <= 0.0f) return false;
+    if (button != Button::Left || !fit.mapped() || size.x <= 0.0f || size.y <= 0.0f) return false;
     const Vec2f w = fit.to_world(at, size, c);
     out = {};
     out.kind = HudAction::Kind::RadarCameraJump;

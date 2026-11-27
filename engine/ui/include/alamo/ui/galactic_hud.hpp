@@ -34,6 +34,7 @@
 #pragma once
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <span>
@@ -503,19 +504,28 @@ struct GalacticPlanetScreen {
 void galactic_planet_screens(const GalacticHudFrame& f, std::vector<GalacticPlanetScreen>& out);
 // The nearest planet within max(1.2 r, 24 px) of pixel (px, py): its index in `planets`, -1 none.
 int32_t galactic_planet_at(std::span<const GalacticPlanetScreen> planets, float px, float py);
-// [port] the galactic radar's mapping (GalacticHud::build_radar): the planets' bounding box, squared and padded 10 %, fills
-// the radar rectangle (centre `at`, `size`; +X right, +Y up).
+// The galactic radar's mapping (GalacticHud::build_radar; the Modern map since #613): centre `at`, `size`; +X right, +Y up.
+// #575 (legacy HUD_GAPS §10.1, the radar click 0x3d1260 [H]): retail maps the galactic radar to a fixed galaxy extent,
+// x in +-380 and y in +-460 about the origin (cursor offset from the radar's centre / its half size x 380 / x 460). The
+// port draws and clicks on that one mapping (maintainer decision 2026-11-25), whatever the planets' spread.
+inline constexpr float kGalacticRadarHalfX = 380.0f;
+inline constexpr float kGalacticRadarHalfY = 460.0f;
 struct GalacticRadarFit {
-    float cx = 0.0f, cy = 0.0f;  // galaxy centre
-    float half = 0.0f;           // half extent; 0: no planets, no mapping
-    float z = 0.0f;              // the planets' mean height (the camera footprint's plane)
+    float half_x = 0.0f, half_y = 0.0f;  // half extents; 0: no planets, no mapping
+    float z = 0.0f;                      // the planets' mean height (the camera footprint's plane)
     Vec2f to_canvas(Vec2f at, Vec2f size, float wx, float wy) const {
-        return {at.x + (wx - cx) / half * 0.5f * size.x, at.y + (wy - cy) / half * 0.5f * size.y};
+        return {at.x + wx / half_x * 0.5f * size.x, at.y + wy / half_y * 0.5f * size.y};
     }
     Vec2f to_world(Vec2f at, Vec2f size, Vec2f c) const {
-        return {cx + (c.x - at.x) / (0.5f * size.x) * half, cy + (c.y - at.y) / (0.5f * size.y) * half};
+        return {(c.x - at.x) / (0.5f * size.x) * half_x, (c.y - at.y) / (0.5f * size.y) * half_y};
     }
+    bool mapped() const { return half_x > 0.0f && half_y > 0.0f; }
+    // [port] whether a galaxy point gets a blip: inside the extent. Retail's blip draw is not traced; a point outside would
+    // draw over the HUD around the radar. Every FoC Galactic_Position lies inside (|x| <= 300, |y| <= 370; checked
+    // 2026-11-26), so only a mod galaxy wider than the extent differs (tier 1 for that mod, a known gap).
+    bool shows(float wx, float wy) const { return std::fabs(wx) <= half_x && std::fabs(wy) <= half_y; }
 };
+// The fixed extent above, at the planets' mean height; no mapping without planets.
 GalacticRadarFit galactic_radar_fit(std::span<const GalacticPlanetInfo> planets);
 // The camera's footprint on that radar: the bounding box (a = min, b = max corner, canvas) of `view`'s four ground corners
 // at the fit's height, clipped to the rectangle; false when less than a unit wide or high (not drawn).
