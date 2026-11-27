@@ -83,7 +83,6 @@ alamo_render_sim_particles_check         vulkan
 
 # --- CPU checks + GPU parts -------------------------------------------------------------------------------------
 alamo_rhi_gpu_tests                      synthetic vulkan
-alamo_ui_draw_tests                      synthetic vulkan
 
 # --- CPU checks + GPU parts + parts that need the game and a GPU together -----------------------------------------
 # No retail-only companion: their data parts render. <name>_vulkan runs without data, <name>_retail_vulkan with both.
@@ -99,6 +98,7 @@ alamo_render_space_tests                 synthetic vulkan retail+vulkan
 alamo_render_taa_tests                   synthetic vulkan retail+vulkan
 alamo_render_tests                       synthetic vulkan retail+vulkan
 alamo_shaderxlat_gpu_tests               synthetic vulkan retail+vulkan:foc,eaw
+alamo_ui_draw_tests                      synthetic vulkan retail+vulkan
 alamo_ui_gui_draw_tests                  synthetic vulkan retail+vulkan
 
 # --- Needs the game exe on real data with a window --------------------------------------------------------------
