@@ -24,6 +24,7 @@ void MovementSystem::tick_space(uint32_t frame, const ParallelFor& pf) {
                 q.goal = u.goal;
                 q.start_heading = u.m.yaw;
                 q.speed = std::min(u.lp.max_speed, u.cohesion_speed);  // [port] fleet cohesion cap (3e38: none)
+                if (u.idle_drift) q.speed = std::max(q.speed, k.space_idle_movement_speed);  // #714: the getters' minimum
                 q.turn_rate = u.lp.turn_rate;
                 q.radius = u.d.radius;
                 q.layer = u.d.space_layer;
@@ -211,6 +212,11 @@ void MovementSystem::hash_units(StateHasher& h) const {
             if (u.exit_host >= 0) {  // the garrison-host gate of a unit that left, only while set
                 bh.u8(0xE7);
                 bh.i32(u.exit_host);
+            }
+            if (u.idle_due >= 0 || u.idle_drift) {  // #714: the idle drift state, only while set (FoC never sets it)
+                bh.u8(0x5D);
+                bh.i32(u.idle_due);
+                bh.u8(u.idle_drift ? 1 : 0);
             }
             if (u.d.no_locomotor) {  // s78n t20 batch 1: an object without a locomotor (a death clone), only for such a unit
                 bh.u8(0xD1);

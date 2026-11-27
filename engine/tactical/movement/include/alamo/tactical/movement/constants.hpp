@@ -105,6 +105,16 @@ struct MovementConstants {
     // member of a land formation of 2+ first walks a lead-in path to its form-up point (its slot in the layout at the
     // formation path's start), and a queued order draws the start delay only for a one-member formation's member.
     bool should_skip_land_formup = true;
+    // #714 (legacy MCX4_T11_T12_RE_ANSWERS B4 [H read, M meaning]): space idle drift 0x420a40. ShouldUseSpaceIdleMovement
+    // (GC +0x1551) set: an arrived, idle space ship waits int(IdleMovementFrames + synced float(0, IdleMovementFrames / 2)
+    // + 0.5) frames, then drifts ahead along its facing (inside the map less 300), at least SpaceIdleMovementSpeed fast
+    // (GC +0x1554, the SimpleSpace speed getters' minimum). IdleMovementFrames (GC +0x155c) is also the drift distance
+    // [port: 0x413100's distance was not read; IdleMovementFrames is its fallback]. FoC: false, 30, 0 (no drift).
+    // Not modelled: IdleMovementFrames as the locomotor pack's idle-timer start (+0x2ac, 0x553f00; nothing in the port
+    // reads that timer).
+    bool should_use_space_idle_movement = false;
+    float idle_movement_frames = 30.0f;
+    float space_idle_movement_speed = 0.0f;
     // mcx4 t11 (MOVEMENT §2.2 obstacle test item 1): SpaceStaticObstacleAvoidanceBonusDistance (GC +0x1414, int), added
     // to the clearance of the space planner's static-map test ([port] read as a radius margin).
     float space_static_obstacle_avoidance_bonus_distance = 0.0f;

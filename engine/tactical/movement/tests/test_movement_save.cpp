@@ -2087,7 +2087,9 @@ void test_rejections() {
     CHECK(rejects(u.sys, bad));
     put_u32(bad, 0, 38);  // 38: before #649's air speed fit (Unit::air_fit, the fit / type-2 goal counters) (39)
     CHECK(rejects(u.sys, bad));
-    put_u32(bad, 0, 40);
+    put_u32(bad, 0, 39);  // 39: before #714's idle drift state (Unit::idle_due / idle_drift) (40)
+    CHECK(rejects(u.sys, bad));
+    put_u32(bad, 0, 41);
     CHECK(rejects(u.sys, bad));
     bad = good;
     bad[4] = static_cast<uint8_t>(bad[4] ^ 3);  // mode
