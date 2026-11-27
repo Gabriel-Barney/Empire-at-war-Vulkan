@@ -200,7 +200,7 @@ bool visit_triangles(const AvoidModel::Mesh& mesh, F3 o, F3 d, Visit&& visit) {
                 if (visit(mesh.order[k])) return true;
             continue;
         }
-        if (top + 2 > kMaxTraversalStack) {  // never for a median split: every triangle of the mesh (a superset)
+        if (top > kMaxTraversalStack - 2) {  // never for a median split: every triangle of the mesh (a superset)
             for (size_t i = 0; i + 2 < mesh.tris.size(); i += 3)
                 if (visit(static_cast<uint32_t>(i / 3))) return true;
             return false;

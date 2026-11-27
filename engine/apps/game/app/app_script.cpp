@@ -875,7 +875,7 @@ ScriptStep step_move_ground(bool shift = false) {
                             ++*shifts;
                             // across the view (perpendicular to the yaw heading), alternate sides, growing: +1, -1, +2, -2 ...
                             const float yaw = cam.yaw_deg() * 3.14159265f / 180.0f;
-                            const float d = cam.distance() * 0.5f * static_cast<float>((*shifts + 1) / 2) * (*shifts % 2 ? 1.0f : -1.0f);
+                            const float d = cam.distance() * 0.5f * static_cast<float>((*shifts + 1) / 2) * ((*shifts % 2) != 0 ? 1.0f : -1.0f);
                             cam.jump_to({origin->x - std::sin(yaw) * d, origin->y + std::cos(yaw) * d, origin->z});
                             *settle = 1;
                             return false;
@@ -2065,7 +2065,10 @@ std::vector<ScriptStep> script::make_script(const Options& opt, AppProbe& probe)
         // and close steps are skipped. Vanilla campaigns always have one.
         auto no_summary = std::make_shared<bool>(false);
         s.push_back(step_wait("holocron button opens the story summary", [no_summary](AppProbe& a) {
-            if ((a.holocron_chapters() == 0)) return *no_summary = true;  // no story chapter in this campaign
+            if (a.holocron_chapters() == 0) {  // no story chapter in this campaign
+                *no_summary = true;
+                return true;
+            }
             ui::HudAction act;
             act.kind = ui::HudAction::Kind::Button;
             act.name = "b_story_arc_g";
@@ -2154,7 +2157,10 @@ std::vector<ScriptStep> script::make_script(const Options& opt, AppProbe& probe)
         *gated = s.size() - fleet_steps;
         for (size_t k = fleet_steps; k < s.size(); ++k) s[k] = needs_fleet(std::move(s[k]));
         // The galaxy stands still from here (presentation-only hold: no AI conflict interrupts the screen checks).
-        s.push_back(step_wait("hold the galaxy", [](AppProbe& a) { return a.control().script_hold = true; }, 10));
+        s.push_back(step_wait("hold the galaxy", [](AppProbe& a) {
+            a.control().script_hold = true;
+            return true;
+        }, 10));
         // In-game options (legacy docs/re/MAIN_LOOP.md §1.5): the HUD's options button opens the game menu, which pauses the session; the
         // options and their video page keep it paused (the video page lists the display modes); Esc x3 closes them all and
         // the session runs again. The galaxy is held already (no tick moves).

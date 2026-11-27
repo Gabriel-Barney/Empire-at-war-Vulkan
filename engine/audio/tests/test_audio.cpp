@@ -963,7 +963,7 @@ void test_music_end_rules() {
         a.update(0.0);
         const LogEntry* t = last_op(a, LogOp::MusicTrack);
         CHECK(a.current_music() == "Stream" && t && t->sample == "STREAM.MP3" && t->voice != v);
-        CHECK(rig.backend.playing(t->voice) && rig.backend.voice(t->voice)->params.loop);
+        CHECK(t && rig.backend.playing(t->voice) && rig.backend.voice(t->voice)->params.loop);
         CHECK(a.active_voices(Bus::Music) == 1);
     }
 }
