@@ -158,3 +158,17 @@ does not use a RADARMAP.XML event.
 - The exact canvas size of a Size-less Button (30x30 from the atlas) [M].
 - The defaults of land mode +0x418/+0x424 when a map lacks 0x103 corners [L]. The vanilla maps have them.
 - The meaning of diplomacy relation 0 in 0x2823e0 [M].
+
+## Use_Event_System and the guide rectangle (#727)
+
+- **`Use_Event_System`** (RadarMapSettings +0x51d, FoC `Yes`) [H]:
+  - the constructor `0x355650` sets it to 1;
+  - the event add `0x355e00(radar, type_id, position, ...)` places an event only when `DAT_140b155c4` is 0 and this flag
+    is set. What `DAT_140b155c4` is (set to 1 by `0x22f10`, cleared by `0x16fa0` / `0x22bf0` / `0x22d80`) is not traced [M];
+  - the story blips and the under-attack ping use the `radar_blip` component (sections 1 and 3), not this add.
+  - Port: `RadarSettings::use_event_system`; `RadarEvents::add` places nothing when it is off.
+- **`Space_Is_Guide_Rectangle` / `Land_Is_Guide_Rectangle`** (+0xc0 / +0x130, FoC `No` for both) [H read, M use]:
+  - read by the camera-box draw `0x358ea0`: land mode uses +0x130, space mode +0xc0;
+  - with the flag set, the draw zeroes one component of two of the box's four corner points before it hands them to the
+    radar box (`0x26a310`). What that does to the shape is not traced [M];
+  - the port draws the camera footprint (`camera_footprint`), which is FoC's `No` case. The rows stay open.

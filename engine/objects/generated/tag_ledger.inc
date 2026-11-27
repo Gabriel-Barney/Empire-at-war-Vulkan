@@ -1700,7 +1700,7 @@
 {"RadarMapSettings", "Land_Is_Guide_Rectangle", 0x0, LedgerState::Unread, "docs/re/xml_reference_index.md", 1, 1},
 {"RadarMapSettings", "Space_Asteroid_Field_Color", 0x16, LedgerState::Consumed, "", 1, 1},
 {"RadarMapSettings", "Space_Asteroid_Field_Border_Color", 0x16, LedgerState::Consumed, "", 1, 1},
-{"RadarMapSettings", "Use_Event_System", 0x0, LedgerState::Unread, "docs/re/xml_reference_index.md", 1, 1},
+{"RadarMapSettings", "Use_Event_System", 0x0, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"Radar_Map_Event", "Event_Model_Name", 0x17, LedgerState::Consumed, "docs/re/xml_reference_index.md", 8, 1},
 {"Radar_Map_Event", "Event_Model_Scale", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 8, 1},
 {"Radar_Map_Event", "Event_Duration", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 7, 1},

@@ -50,6 +50,9 @@ struct RadarSettings {
     Rgba8 space_fow{25, 66, 120, 100}, land_fow{10, 10, 10, 100};
     Rgba8 space_asteroid{103, 130, 139, 127}, space_asteroid_border{174, 171, 200, 127};
     std::map<std::string, PassabilityPalette> palettes;  // by upper-case biome name ("DEFAULT", "TEMPERATE", ...)
+    // #727 Use_Event_System (docs/re/RADAR_BLIPS_AND_BOX.md "Use_Event_System"): false = RadarEvents::add places no
+    // event. The constructor sets it (0x355650 [H]); FoC Yes.
+    bool use_event_system = true;
 
     bool parse(const data::XmlNode& root);
     bool load(const FileProvider& files, std::string* error = nullptr);  // Data\XML\RadarMap.xml
@@ -144,7 +147,7 @@ struct RadarEvent {
 class RadarEvents {
 public:
     // Adds an event of a RadarMap.xml type (unknown types: 1 s); single-instance types replace their previous
-    // ping. Returns its id.
+    // ping. Returns its id, or 0 (no event) when the settings' use_event_system is off (0x355e00 [H]).
     uint32_t add(const RadarSettings& s, std::string_view type, float x, float y);
     void remove(uint32_t id);
     // Lua Add_Radar_Blip(object, name) / Remove_Radar_Blip(name) (legacy docs/re/UI.md §1.7; #320: the radar_blip component's
