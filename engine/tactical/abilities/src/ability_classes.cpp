@@ -1695,6 +1695,7 @@ void AbilitySystem::class_update(Obj& o, SpecialState& sp, uint32_t frame) {
             if (sp.phase == kCablePulling) {  // 0x6f3180: +1 per service; at Drop + Pull the wrapping starts (counter 0)
                 sp.counter += 1;
                 if (static_cast<float>(sp.counter) >= s.cable_drop_phase + s.cable_pull_phase) {
+                    if (host_.cable_stop_circling) host_.cable_stop_circling(o.id);  // #266: Stop_Circling (vf +0x280)
                     sp.phase = kCableWrapping;
                     sp.counter = 0;
                 }

@@ -432,6 +432,7 @@ bool MovementSystem::remove_impl(ObjectId id) {
     if (cfg_.mode == MoveMode::Land) tree_.remove(static_cast<EntityHandle>(id));
     else space_.clear_track(id);
     fighter_removed(id);  // FIGHTER_FLYING: squadrons, cells, locks, targets naming it
+    circled_removed(id);  // #266: flyers circling it stop circling (0x63b900 [H])
     const bool steering = units_[static_cast<size_t>(i)].anchor >= 0 || units_[static_cast<size_t>(i)].d.team_container;
     units_.erase(units_.begin() + i);
     for (Unit& m : units_)  // a removed container releases its members
