@@ -576,17 +576,18 @@ float TacticalPerceptionGrid::cells_danger(const PerceptionWorld& w, int32_t pla
 }
 
 void TacticalPerceptionGrid::hash(StateHasher& h) const {
-    // the fields are gathered into one contiguous buffer (their little-endian bytes, in the order the typed
-    // feeds had) and hashed with one bytes() call: the same byte stream and digest, without a feed per field.
-    thread_local std::vector<unsigned char> buf;
-    buf.clear();
-    const auto put = [](auto v) {
-        static_assert(std::endian::native == std::endian::little);
+    // #631: a tree hash (docs/SIMULATION.md "Tree hash of per-item loops"): the header, then the per-cell lists and each
+    // player's per-cell layers and the per-object records through hash_blocks, so the capture spreads them over its workers;
+    // the digest is the same for every worker count. Each block gathers its fields' little-endian bytes into one buffer
+    // and hashes it with one bytes() call (a feed per field is slower).
+    static_assert(std::endian::native == std::endian::little);
+    using Buf = std::vector<unsigned char>;
+    const auto put = [](Buf& buf, auto v) {
         const size_t at = buf.size();
         buf.resize(at + sizeof v);
         std::memcpy(buf.data() + at, &v, sizeof v);
     };
-    const auto put_entries = [&](const std::vector<uint32_t>& list) {
+    const auto put_entries = [this](Buf& buf, const std::vector<uint32_t>& list) {
         const size_t at = buf.size();
         buf.resize(at + 4 + 8 * list.size());
         unsigned char* o = buf.data() + at;
@@ -599,58 +600,92 @@ void TacticalPerceptionGrid::hash(StateHasher& h) const {
             o += 8;
         }
     };
-    put(static_cast<uint8_t>(mode_));
-    put(fow_x_);
-    put(fow_y_);
-    put(nx_);
-    put(ny_);
-    put(left_);
-    put(top_);
-    put(cell_w_);
-    put(cell_h_);
-    put(half_diag_);
-    put(category_union_);
-    put(players_);
+    // a block's buffer: one per thread, filled and hashed inside one block call (a block never waits)
+    const auto block = [](StateHasher& bh, auto&& fill) {
+        thread_local Buf buf;
+        buf.clear();
+        fill(buf);
+        bh.bytes(buf.data(), buf.size());
+    };
+    Buf head;
+    put(head, static_cast<uint8_t>(mode_));
+    put(head, fow_x_);
+    put(head, fow_y_);
+    put(head, nx_);
+    put(head, ny_);
+    put(head, left_);
+    put(head, top_);
+    put(head, cell_w_);
+    put(head, cell_h_);
+    put(head, half_diag_);
+    put(head, category_union_);
+    put(head, players_);
+    h.bytes(head.data(), head.size());
     const uint32_t cells = cell_count();
-    buf.reserve(buf.size() + 4 * static_cast<size_t>(cells) * (1 + 4 * players_));
-    for (uint32_t c = 0; c < cells; ++c) put_entries(live_[c]);
+    hash_blocks(h, cells, [&](StateHasher& bh, uint32_t b, uint32_t e) {
+        block(bh, [&](Buf& buf) {
+            for (uint32_t c = b; c < e; ++c) put_entries(buf, live_[c]);
+        });
+    });
     for (uint32_t p = 0; p < players_; ++p) {
         const std::vector<float>& threat = threat_[p];
         const std::vector<float>& snapshot = snapshot_[p];
         const std::vector<int32_t>& last_seen = last_seen_[p];
         const std::vector<std::vector<uint32_t>>& memory = memory_[p];
-        for (uint32_t c = 0; c < cells; ++c) {
-            const size_t at = buf.size();
-            buf.resize(at + 12);
-            std::memcpy(buf.data() + at, &threat[c], 4);
-            std::memcpy(buf.data() + at + 4, &snapshot[c], 4);
-            std::memcpy(buf.data() + at + 8, &last_seen[c], 4);
-            put_entries(memory[c]);
-        }
-        put(static_cast<uint32_t>(player_objects_[p].size()));
-        for (const int32_t id : player_objects_[p]) put(id);
+        hash_blocks(h, cells, [&](StateHasher& bh, uint32_t b, uint32_t e) {
+            block(bh, [&](Buf& buf) {
+                for (uint32_t c = b; c < e; ++c) {
+                    const size_t at = buf.size();
+                    buf.resize(at + 12);
+                    std::memcpy(buf.data() + at, &threat[c], 4);
+                    std::memcpy(buf.data() + at + 4, &snapshot[c], 4);
+                    std::memcpy(buf.data() + at + 8, &last_seen[c], 4);
+                    put_entries(buf, memory[c]);
+                }
+            });
+        });
+        h.u32(static_cast<uint32_t>(player_objects_[p].size()));
+        h.bytes(player_objects_[p].data(), player_objects_[p].size() * sizeof(int32_t));
     }
-    put(static_cast<uint32_t>(objects_.size()));
-    for (const auto& [id, g] : objects_) {
-        put(id);
-        put(g.owner);
-        put(g.next_check);
-        for (const uint8_t f : g.fogged) put(f);
-        for (const uint32_t ei : g.entries) {
-            const Entry& e = entries_[ei];
-            put(e.hard_point);
-            put(e.radius);
-            put(e.gx);
-            put(e.gy);
-            put(e.area);
-            put(e.center_cell);
-            put(static_cast<uint8_t>(e.projected ? 1 : 0));
-            put(e.v);
-        }
-    }
-    put(static_cast<uint32_t>(registration_order_.size()));
-    for (const int32_t id : registration_order_) put(id);
-    h.bytes(buf.data(), buf.size());
+    std::vector<const std::pair<const int32_t, GridObject>*> objects;  // id order
+    objects.reserve(objects_.size());
+    for (const auto& kv : objects_) objects.push_back(&kv);
+    hash_blocks(h, static_cast<uint32_t>(objects.size()), [&](StateHasher& bh, uint32_t b, uint32_t e) {
+        block(bh, [&](Buf& buf) {
+            for (uint32_t i = b; i < e; ++i) {
+                const auto& [id, g] = *objects[i];
+                constexpr size_t kEntryBytes = sizeof(Entry::hard_point) + sizeof(Entry::radius) + sizeof(Entry::gx) +
+                                               sizeof(Entry::gy) + sizeof(Entry::area) + sizeof(Entry::center_cell) + 1 +
+                                               sizeof(Entry::v);
+                static_assert(sizeof(GridObject::owner) + sizeof(GridObject::next_check) + sizeof(id) == 12);
+                const size_t at = buf.size();
+                buf.resize(at + 12 + g.fogged.size() + kEntryBytes * g.entries.size());
+                unsigned char* o = buf.data() + at;
+                const auto out = [&o](const auto& v) {
+                    std::memcpy(o, &v, sizeof v);
+                    o += sizeof v;
+                };
+                out(id);
+                out(g.owner);
+                out(g.next_check);
+                if (!g.fogged.empty()) std::memcpy(o, g.fogged.data(), g.fogged.size());
+                o += g.fogged.size();
+                for (const uint32_t ei : g.entries) {
+                    const Entry& en = entries_[ei];
+                    out(en.hard_point);
+                    out(en.radius);
+                    out(en.gx);
+                    out(en.gy);
+                    out(en.area);
+                    out(en.center_cell);
+                    out(static_cast<uint8_t>(en.projected ? 1 : 0));
+                    out(en.v);
+                }
+            }
+        });
+    });
+    h.u32(static_cast<uint32_t>(registration_order_.size()));
+    h.bytes(registration_order_.data(), registration_order_.size() * sizeof(int32_t));
 }
 
 }  // namespace alamo::ai::tactical

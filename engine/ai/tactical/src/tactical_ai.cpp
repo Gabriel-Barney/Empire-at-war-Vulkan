@@ -4710,6 +4710,7 @@ void TacticalAiWorld::hash(StateHasher& h) const {
     };
     h.u32(static_cast<uint32_t>(w.ai.size()));
     for (const auto& a : w.ai) {
+        ALAMO_PROFILE_SCOPE("crc.ai.players");
         h.boolean(a != nullptr);
         if (!a) continue;
         a->ctx.hash(h);
@@ -4723,24 +4724,33 @@ void TacticalAiWorld::hash(StateHasher& h) const {
             if (a->path_job.in_flight()) h.i64(a->path_job.ready_frame());  // OPT2 t02 (nothing extra in the original timing)
         }
     }
-    w.perc.hash(h);
-    records(w.plans);
-    records(w.tfs);
-    records(w.pps);  // A2 tactical: PotentialPlans and reservations
-    for (const auto* m : {&w.pool_reserved, &w.pad_reserved}) {
-        h.u32(static_cast<uint32_t>(m->size()));
-        for (const auto& [k, v] : *m) {
-            h.i32(k);
-            h.i32(v);
+    {
+        ALAMO_PROFILE_SCOPE("crc.ai.perception");
+        w.perc.hash(h);
+    }
+    {
+        ALAMO_PROFILE_SCOPE("crc.ai.records");  // plans, task forces, PPs, reservations, statuses, globals
+        records(w.plans);
+        records(w.tfs);
+        records(w.pps);  // A2 tactical: PotentialPlans and reservations
+        for (const auto* m : {&w.pool_reserved, &w.pad_reserved}) {
+            h.u32(static_cast<uint32_t>(m->size()));
+            for (const auto& [k, v] : *m) {
+                h.i32(k);
+                h.i32(v);
+            }
+        }
+        records(w.statuses);
+        h.u32(static_cast<uint32_t>(w.globals.size()));
+        for (const auto& [k, v] : w.globals) {
+            h.str(k);
+            lua::hash_global_value(h, v);  // L1 final: same bytes for non-table values
         }
     }
-    records(w.statuses);
-    h.u32(static_cast<uint32_t>(w.globals.size()));
-    for (const auto& [k, v] : w.globals) {
-        h.str(k);
-        lua::hash_global_value(h, v);  // L1 final: same bytes for non-table values
+    {
+        ALAMO_PROFILE_SCOPE("crc.ai.bridge");
+        w.bridge.hash(h);
     }
-    w.bridge.hash(h);
     h.u64(w.orders);
     h.u64(w.rejected);
     if (!w.attack_pos.empty()) {  // only once a land Enable_Attack_Positioning ran (base FoC never calls it)

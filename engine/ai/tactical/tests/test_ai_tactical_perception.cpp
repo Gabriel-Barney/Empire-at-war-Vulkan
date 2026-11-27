@@ -7,6 +7,7 @@
 //
 //   alamo_ai_tactical_perception_tests [--golden <file>] [--write-golden <file>]
 #include <algorithm>
+#include <atomic>
 #include <bit>
 #include <cinttypes>
 #include <cmath>
@@ -986,6 +987,7 @@ static uint64_t g_scn_ok = 0, g_scn_total = 0;
 // save_at != 0 (N1 save / load): at that frame the perception is written, read into a fresh one init()ed alike
 // (truncated images refused first, the reader unchanged) and the run continues on the restored one.
 static size_t g_scn_save_bytes = 0;
+static uint32_t g_scn_hash_fanouts = 0;  // #631: parallel-for calls made by the final perception hash
 static uint64_t scenario_crc(const ParallelFor& pf, TacticalMode mode, uint32_t save_at = 0) {
     SimRng rng(mode == TacticalMode::Land ? 0xA1B0u : 0xA1B1u);
     PerceptionWorld w = land_world(kLandOff);
@@ -1127,7 +1129,17 @@ static uint64_t scenario_crc(const ParallelFor& pf, TacticalMode mode, uint32_t 
             p = owner.get();
         }
     }
+    // #631: the final state hashed through this run's parallel-for (the capture's), as the battle.ai checksum is: the grid,
+    // targets and leaf cache are tree hashes, so the digest must not depend on the worker count.
+    std::atomic<uint32_t> fanouts{0};
+    const ParallelFor counted = [&](uint32_t n, uint32_t grain, const RangeFn& fn) {
+        ++fanouts;
+        pf(n, grain, fn);
+    };
+    h.set_parallel(&counted);
     p->hash(h);
+    h.set_parallel(nullptr);
+    g_scn_hash_fanouts = fanouts.load();
     rng.hash(h);
     return h.digest();
 }
@@ -1141,6 +1153,7 @@ static void test_scenario(const char* golden, const char* write_golden) {
         std::printf("scenario %s: %" PRIu64 " of %" PRIu64 " evaluations succeeded\n", m == 0 ? "land" : "space", g_scn_ok, g_scn_total);
         CHECK(g_scn_ok * 3 > g_scn_total);
         r[m][1] = scenario_crc(make_thread_pf(4), modes[m]);
+        CHECK(g_scn_hash_fanouts > 1);  // #631: the perception hash fanned out (its parts and the grid's blocks)
         r[m][2] = scenario_crc(make_thread_pf(std::max(2u, std::thread::hardware_concurrency())), modes[m]);
         CHECK(r[m][0] == r[m][1] && r[m][0] == r[m][2]);
     }

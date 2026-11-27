@@ -1,8 +1,10 @@
 // Q1 harness unit tests: StateHasher, CrcRegistry, CrcLog + compare, ByteWriter/Reader, SimRng.
 #include <algorithm>
+#include <atomic>
 #include <bit>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -489,7 +491,53 @@ static void test_hash_blocks() {
     CHECK(none.digest() == zero.digest());  // no items: just the count
 }
 
+// #631: hash_parts - independent parts hashed side by side, the same digest for any worker count, a fixed layout.
+static void test_hash_parts() {
+    std::vector<uint32_t> big(3000);
+    for (uint32_t i = 0; i < big.size(); ++i) big[i] = i * 40503u;
+    const auto part_a = [](alamo::StateHasher& ph) { ph.u32(11); };
+    const auto part_b = [&](alamo::StateHasher& ph) {  // a part with its own tree hash inside
+        alamo::hash_blocks(ph, static_cast<uint32_t>(big.size()), [&](alamo::StateHasher& bh, uint32_t b, uint32_t e) {
+            for (uint32_t i = b; i < e; ++i) bh.u32(big[i]);
+        });
+    };
+    const auto part_c = [](alamo::StateHasher& ph) { ph.str("c"); };
+    std::atomic<uint32_t> calls{0};
+    const auto digest = [&](const alamo::ParallelFor* pf) {
+        alamo::StateHasher h;
+        h.set_parallel(pf);
+        h.u8(3);
+        alamo::hash_parts(h, part_a, part_b, part_c);
+        return h.digest();
+    };
+    const uint64_t serial = digest(nullptr);
+    const alamo::ParallelFor backwards = [&](uint32_t n, uint32_t, const alamo::RangeFn& f) {
+        ++calls;
+        for (uint32_t i = n; i-- > 0;) f(i, i + 1);
+    };
+    const alamo::ParallelFor threads = [&](uint32_t n, uint32_t, const alamo::RangeFn& f) {
+        ++calls;
+        std::vector<std::thread> th;
+        for (uint32_t i = 0; i < n; ++i) th.emplace_back([&f, i] { f(i, i + 1); });
+        for (std::thread& t : th) t.join();
+    };
+    CHECK(digest(&backwards) == serial && digest(&threads) == serial);
+    CHECK(calls.load() >= 4);  // the parts fan out, and part b's blocks inside them
+    // The layout: u8(3), u32(3 parts), then each part's own digest in order (part b hashed with no parallel-for).
+    alamo::StateHasher expect;
+    expect.u8(3);
+    expect.u32(3);
+    for (const auto& fn : {std::function<void(alamo::StateHasher&)>(part_a), std::function<void(alamo::StateHasher&)>(part_b),
+                           std::function<void(alamo::StateHasher&)>(part_c)}) {
+        alamo::StateHasher ph;
+        fn(ph);
+        expect.u64(ph.digest());
+    }
+    CHECK(expect.digest() == serial);
+}
+
 int main() {
+    test_hash_parts();
     test_hasher();
     test_registry_and_log();
     test_checkpoints();

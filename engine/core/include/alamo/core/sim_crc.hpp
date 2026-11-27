@@ -33,6 +33,7 @@
 // the pending word without a call per field, which is what the per-field hashers of the big systems spend their time on.
 #pragma once
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <bit>
 #include <cstdint>
@@ -204,6 +205,30 @@ void hash_blocks(StateHasher& h, uint32_t count, Fn&& fn, CrcBlockCache* cache) 
         if (cache) cache->store(blk, digests[blk]);
     }
     if (cache) cache->valid_ = true;
+}
+
+// hash_parts(h, fn...) (#631): independent parts of one system's state hashed side by side. Each fn(ph) feeds its own
+// StateHasher ph (seed 0, fresh per part, with h's parallel-for, so a part may use hash_blocks inside); the parts run in
+// parallel through h.parallel() when it is set; then h receives u32(part count) and every part's digest, in order. The
+// same digest for any worker count (fn must only read state). Fixed forever, like hash_blocks.
+template <class... Fns>
+void hash_parts(StateHasher& h, Fns&&... fns) {
+    constexpr uint32_t n = sizeof...(Fns);
+    const std::array<std::function<void(StateHasher&)>, n> parts{std::function<void(StateHasher&)>(fns)...};
+    std::array<uint64_t, n> digests{};
+    const ParallelFor* pf = h.parallel();
+    const RangeFn body = [&](uint32_t b, uint32_t e) {
+        for (uint32_t i = b; i < e; ++i) {
+            StateHasher ph;
+            ph.set_parallel(pf);
+            parts[i](ph);
+            digests[i] = ph.digest();
+        }
+    };
+    if (pf && *pf && n > 1) (*pf)(n, 1, body);
+    else body(0, n);
+    h.u32(n);
+    for (const uint64_t d : digests) h.u64(d);
 }
 
 // ---- Parity CRC: the original's frame CRC (legacy docs/re/COMMANDS.md §7.1, legacy docs/re/OBJECT_RUNTIME.md §5/§8) --------

@@ -7,6 +7,7 @@
 #include <string>
 
 #include "alamo/core/ascii.hpp"
+#include "alamo/core/profile.hpp"
 #include "alamo/core/sim_crc.hpp"
 #include "alamo/objects/enums.hpp"
 
@@ -1401,18 +1402,32 @@ ZoneThreatFn TacticalPerception::zone_threat_fn(const PerceptionWorld& w, int32_
 }
 
 void TacticalPerception::hash(StateHasher& h) const {
-    grid_.hash(h);
-    h.u32(static_cast<uint32_t>(targets_.size()));
-    for (const PerceptionTarget& t : targets_) {
-        h.u8(static_cast<uint8_t>(t.kind));
-        h.i32(t.object_id);
-        h.i32(t.owner_at_registration);
-        h.boolean(t.released);
-        h.i32(t.zone);
-        h.i32(t.cell_x);
-        h.i32(t.cell_y);
-    }
-    cache_.hash(h);
+    // #631: the grid, the targets and the leaf cache side by side (hash_parts), each a tree hash inside
+    // (docs/SIMULATION.md "Tree hash of per-item loops"); the same digest for every worker count.
+    hash_parts(
+        h,
+        [this](StateHasher& ph) {
+            ALAMO_PROFILE_SCOPE("crc.ai.grid");
+            grid_.hash(ph);
+        },
+        [this](StateHasher& ph) {
+            hash_blocks(ph, static_cast<uint32_t>(targets_.size()), [this](StateHasher& bh, uint32_t b, uint32_t e) {
+                for (uint32_t i = b; i < e; ++i) {
+                    const PerceptionTarget& t = targets_[i];
+                    bh.u8(static_cast<uint8_t>(t.kind));
+                    bh.i32(t.object_id);
+                    bh.i32(t.owner_at_registration);
+                    bh.boolean(t.released);
+                    bh.i32(t.zone);
+                    bh.i32(t.cell_x);
+                    bh.i32(t.cell_y);
+                }
+            });
+        },
+        [this](StateHasher& ph) {
+            ALAMO_PROFILE_SCOPE("crc.ai.leaf_cache");
+            cache_.hash(ph);
+        });
 }
 
 }  // namespace alamo::ai::tactical
