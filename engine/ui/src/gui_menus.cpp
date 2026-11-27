@@ -758,10 +758,20 @@ CampaignMenu build_campaign_menu(std::span<const data::CampaignDef* const> sorte
         };
         s->factions.push_back({c.name, faction, int_field("Min_Custom_Tech_Level", 1), int_field("Max_Custom_Tech_Level", 5)});
     };
+    // bool fields (code 0x0: "1" or a first Y / T; the last entry wins), `fallback` when absent.
+    const auto bool_field = [](const data::CampaignDef& c, std::string_view tag, bool fallback) {
+        bool b = fallback;
+        for (std::string_view v : c.raw_values(tag)) {
+            const std::string t = trimmed(v);
+            b = t == "1" || (!t.empty() && (t[0] == 'Y' || t[0] == 'y' || t[0] == 'T' || t[0] == 't'));
+        }
+        return b;
+    };
     for (const data::CampaignDef* c : sorted) {
         if (!c) continue;
         const std::string faction = trimmed(c->starting_active_player);
         if (faction.empty()) continue;  // multiplayer sets
+        if (bool_field(*c, "Is_Multiplayer", false)) continue;  // +0xC8
         const std::string set = trimmed(c->campaign_set).empty() ? c->name : trimmed(c->campaign_set);
         const std::string_view cs = c->raw_value("Supports_Custom_Settings");
         const bool custom = ascii_iequals(trimmed(cs), "true") || ascii_iequals(trimmed(cs), "yes") || trimmed(cs) == "1";
@@ -769,16 +779,15 @@ CampaignMenu build_campaign_menu(std::span<const data::CampaignDef* const> sorte
         // false hides the campaign from the setup-screen lists (0x478f90 with listed_only, 0xfb950) - here the custom
         // (conquest) list. Retail's tutorial chooser does not filter on it, and its story campaigns (all Is_Listed false
         // in FoC) are started by name, so the story and tutorial lists keep them.
-        bool listed = true;
-        for (std::string_view v : c->raw_values("Is_Listed")) {
-            const std::string t = trimmed(v);
-            listed = t == "1" || (!t.empty() && (t[0] == 'Y' || t[0] == 'y' || t[0] == 'T' || t[0] == 't'));
-        }
+        const bool listed = bool_field(*c, "Is_Listed", true);
         // [port-text-begin: the Campaign_Set name prefix, not shown]
-        if (custom && !listed && !ascii_istarts_with(set, "Tutorial")) continue;
-        if (ascii_istarts_with(set, "Tutorial")) add(m.tutorials, *c, set, faction, custom);
+        if (ascii_istarts_with(set, "Tutorial")) {
+            add(m.tutorials, *c, set, faction, custom);
+            continue;
+        }
         // [port-text-end]
-        else add(custom ? m.custom : m.story, *c, set, faction, custom);
+        if (listed) add(m.custom, *c, set, faction, custom);  // #695: whatever Supports_Custom_Settings says
+        if (!custom) add(m.story, *c, set, faction, custom);
     }
     return m;
 }

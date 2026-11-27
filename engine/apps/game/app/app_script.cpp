@@ -402,6 +402,14 @@ void add_control_group_steps(std::vector<ScriptStep>& s) {
 // Encyclopedia: the camera looks at a world object (battle: a local unit, galactic: a planet) so it sits under the
 // cursor at the screen centre (where the idle script frames keep it, through the following shot too); done once the
 // pop-up was drawn for a few frames.
+// #695 the galactic pick at a pixel: the planet under it, 0 = none (the hover's own test, app_screens.cpp).
+uint32_t galactic_planet_at(AppProbe& a, int32_t x, int32_t y) {
+    const ui::View v = ui::make_view(a.galactic_view().camera_params(a.width(), a.height()), a.width(), a.height());
+    const std::vector<ui::PickSphere> items = a.galactic_view().pick_items();
+    const auto hit = ui::pick_spheres(items, ui::pixel_ray(v, x, y));
+    return hit && items[*hit].kind == ui::PickKind::Planet ? items[*hit].id : 0u;
+}
+
 ScriptStep step_encyclopedia(std::string name) {
     auto aimed = std::make_shared<bool>(false);
     auto shown0 = std::make_shared<uint64_t>(~uint64_t{0});
@@ -410,7 +418,7 @@ ScriptStep step_encyclopedia(std::string name) {
     auto since_aim = std::make_shared<uint32_t>(0);
     auto target = std::make_shared<ui::Vec3>();
     auto target_id = std::make_shared<uint32_t>(0);
-    return {std::move(name), [aimed, shown0, waited, aims, since_aim, target, target_id](AppProbe& a, ui::InputFrame&) {
+    return {std::move(name), [aimed, shown0, waited, aims, since_aim, target, target_id](AppProbe& a, ui::InputFrame& f) {
                 // The pop-up's delay is wall time: the sim is held meanwhile (presentation-only) so the ticks of the
                 // run stay independent of the machine's speed (the CRC log compares across compilers).
                 a.control().hold_sim = true;
@@ -419,6 +427,22 @@ ScriptStep step_encyclopedia(std::string name) {
                 // (a mod's first local unit can be one the pick cannot hit: the Remake's and FotR's start fighters sit in the
                 // station's hangar). The camera only; the sim stays held.
                 if (*aimed && a.screen() == Screen::Battle && a.hover_ship() == 0 && a.encyclopedia_shown() <= *shown0 && ++*since_aim >= 60) *aimed = false;
+                // #695 on the galactic map the cursor goes to the aimed planet's pixel: the look-at sits on the
+                // Galactic_Scroll_Plane, so under the pitched camera a planet off that plane is not at the screen's centre
+                // (EAW-Remake's Web Way planets). Still no planet under it 60 frames after an aim: the next planet.
+                // mouse_inside stays as the idle frame has it (false: no edge scrolling), and the pixel stays on screen.
+                if (*aimed && a.screen() == Screen::Galactic) {
+                    const ui::View v = ui::make_view(a.galactic_view().camera_params(a.width(), a.height()), a.width(), a.height());
+                    float sx = 0.0f, sy = 0.0f;
+                    if (ui::project(v, *target, sx, sy)) {
+                        f.mouse_x = std::clamp(static_cast<int32_t>(sx), 0, static_cast<int32_t>(a.width()) - 1);
+                        f.mouse_y = std::clamp(static_cast<int32_t>(sy), 0, static_cast<int32_t>(a.height()) - 1);
+                    }
+                }
+                if (*aimed && a.screen() == Screen::Galactic && a.encyclopedia_shown() <= *shown0 && ++*since_aim >= 60) {
+                    if (galactic_planet_at(a, a.mouse_x(), a.mouse_y()) == 0) *aimed = false;
+                    *since_aim = 0;
+                }
                 if (!*aimed) {
                     if (a.screen() == Screen::Battle && a.battle_view().active()) {
                         // The local units: the selection the control-group steps left, else the owner test.
@@ -446,12 +470,18 @@ ScriptStep step_encyclopedia(std::string name) {
                             *aimed = true;
                         }
                     } else if (a.screen() == Screen::Galactic) {
+                        std::vector<ui::PickSphere> planets;
                         for (const ui::PickSphere& s : a.galactic_view().pick_items())
-                            if (s.kind == ui::PickKind::Planet) {
-                                a.galactic_camera().set_look_at(s.center);
-                                *aimed = true;
-                                break;
-                            }
+                            if (s.kind == ui::PickKind::Planet) planets.push_back(s);
+                        if (!planets.empty()) {
+                            const ui::PickSphere& s = planets[*aims % planets.size()];
+                            a.galactic_camera().set_look_at(s.center);
+                            *target = s.center;
+                            *target_id = s.id;
+                            ++*aims;
+                            *since_aim = 0;
+                            *aimed = true;
+                        }
                     }
                     return false;
                 }
@@ -470,9 +500,19 @@ ScriptStep step_encyclopedia(std::string name) {
                                     a.encyclopedia().stage() == ui::EncyclopediaPanel::Stage::Shown ? "shown" : "hidden", a.encyclopedia().shown_object(),
                                     static_cast<size_t>(a.encyclopedia_shown() - *shown0), *aims, mx, my, a.hover_component(),
                                     a.ui().gui.hit(mx, my) ? 1 : 0);
-                        const ui::Vec3 la = a.battle_camera().look_at();
+                        const ui::Vec3 la = a.screen() == Screen::Galactic ? a.galactic_camera().look_at() : a.battle_camera().look_at();
                         std::printf("script:   last aim %.0f,%.0f,%.0f, camera look-at %.0f,%.0f,%.0f\n", target->x, target->y,
                                     target->z, la.x, la.y, la.z);
+                        if (a.screen() == Screen::Galactic) {  // the aimed planet, its type and the planet under the mouse
+                            const uint32_t under = galactic_planet_at(a, mx, my);
+                            int64_t type = -1;
+                            for (const render::GalacticPlanetSnap& p : a.galactic_view().frame().planets)
+                                if (static_cast<uint32_t>(p.id) == *target_id) type = static_cast<int64_t>(p.type);
+                            const std::string tname = type >= 0 && static_cast<size_t>(type) < a.data().types.size()
+                                                          ? std::string(a.data().types.name(static_cast<objects::TypeIndex>(type)))
+                                                          : std::string("-");
+                            std::printf("script:   galactic aim planet %u type %s, planet under the mouse %u\n", *target_id, tname.c_str(), under);
+                        }
                         if (const ui::WorldPickTests* pt = a.world_pick_tests(); pt && pt->precise) {
                             const uint32_t w = a.width(), h = a.height();
                             const ui::View v = ui::make_view(a.battle_view().camera_params(w, h), w, h);

@@ -1815,7 +1815,7 @@
 {"Campaign", "AI_Player_Control", 0x1b, LedgerState::Consumed, "docs/re/xml_reference_index.md", 266, 1},
 {"Campaign", "Starting_Active_Player", 0x17, LedgerState::Consumed, "docs/re/xml_reference_index.md", 112, 1},
 {"Campaign", "Campaign_Set", 0x17, LedgerState::Consumed, "docs/re/xml_reference_index.md", 118, 1},
-{"Campaign", "Is_Multiplayer", 0x0, LedgerState::Stored, "docs/re/xml_reference_index.md", 8, 1},
+{"Campaign", "Is_Multiplayer", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 8, 1},
 {"Campaign", "Is_Listed", 0x0, LedgerState::Verified, "docs/re/xml_reference_index.md", 12, 1},
 {"Campaign", "Is_Quickmatch_Allowed", 0x0, LedgerState::OutOfScope, "docs/xml-scope.md \"Out-of-scope tag-ledger rows\": multiplayer", 2, 1},
 {"Campaign", "Markup_Filename", 0x1b, LedgerState::Consumed, "docs/re/xml_reference_index.md", 240, 1},

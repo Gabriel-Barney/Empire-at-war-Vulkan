@@ -35,7 +35,8 @@
       "reference": true,
       "space_map": "_MP_SPACE_GEONOSIS",
       "land_map": "_MP_LAND_UTAPAU",
-      "campaign": "GC_Mini_Web_Way_Imperial"
+      "campaign": "GC_Mini_Web_Way_Imperial",
+      "smoke_env": {"ALAMO_SMOKE_CAMPAIGN_SET": "Web_Way2"}
     },
     "2858787558": {
       "name": "Star Wars: Age of Legends",
@@ -54,14 +55,16 @@
       "space_map": "_MP_SPACE_KUAT",
       "land_map": "_MP_LAND_QUELLOR",
       "campaign": "Sandbox_GCW_Empire",
-      "blockers": ["2026-11-26 G2: smoke_campaign stops at step 6 of 102 (the campaign menu, #695)", "smoke_skirmish 86 of 86 with findings: attract hull facing (#696), select-all delay, no procedural laser bolt", "209 static honour gaps (#77 tag-ledger tickets)"]
+      "smoke_env": {"ALAMO_SMOKE_CAMPAIGN_SET": "Sandbox_GCW"},
+      "blockers": ["2026-11-27 (#695): smoke_campaign 104 of 104 on Sandbox_GCW from the Galactic Conquest list", "smoke_skirmish 86 of 86 with findings: attract hull facing (#696), select-all delay, no procedural laser bolt", "209 static honour gaps (#77 tag-ledger tickets)"]
     },
     "3387971722": {
       "name": "AotCW 1.2.1 (patch notes in the item)",
       "space_map": "_MP_SPACE_KUAT",
       "land_map": "_MP_LAND_QUELLOR",
       "campaign": "Sandbox_Awakening_of_the_Clone_Wars_Republic",
-      "blockers": ["2026-11-26 G2: smoke_campaign stops at step 6 of 102 (the AotR campaign menu it inherits, #695)", "197 static honour gaps (#77 tag-ledger tickets)"]
+      "smoke_env": {"ALAMO_SMOKE_CAMPAIGN_SET": "Sandbox_Awakening_of_the_Clone_Wars"},
+      "blockers": ["2026-11-27 (#695): smoke_campaign 104 of 104 on Sandbox_Awakening_of_the_Clone_Wars", "197 static honour gaps (#77 tag-ledger tickets)"]
     },
     "2083545253:subA": {"name": "Thrawn's Revenge Shield Pierce Submod (2083545253 subA)",
                         "blockers": ["2026-11-26 G2: static only, 179 honour gaps (#77 tag-ledger tickets); runs and smokes pass"]},

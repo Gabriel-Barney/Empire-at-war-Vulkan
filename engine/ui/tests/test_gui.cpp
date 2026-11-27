@@ -941,6 +941,8 @@ void test_widgets_ui5() {
 
 // mcx4 t07 (legacy docs/re/MCX4_RE_ANSWERS_GALACTIC.md Q7.3): Is_Listed false hides a custom (conquest) campaign from the
 // setup list; story and tutorial entries stay (retail starts story campaigns by name, its tutorial list ignores the flag).
+// #695 (0x943c0 -> 0xfb950 -> 0x478f90): the conquest list takes every listed single-player set whatever its
+// Supports_Custom_Settings (AotR's conquests all say False); an Is_Multiplayer campaign is in neither list.
 // ledger: verifies Campaign.Is_Listed
 void test_campaign_menu_is_listed() {
     auto def = [](const char* name, const char* set, bool custom, const char* listed) {
@@ -952,14 +954,19 @@ void test_campaign_menu_is_listed() {
         if (listed) c.raw.emplace_back("Is_Listed", listed);
         return c;
     };
-    const data::CampaignDef defs[] = {def("GC_Shown", "Set_Shown", true, nullptr), def("GC_Hidden", "Set_Hidden", true, "False"),
+    data::CampaignDef defs[] = {def("GC_Shown", "Set_Shown", true, nullptr), def("GC_Hidden", "Set_Hidden", true, "False"),
                                       def("GC_Yes", "Set_Yes", true, "yes"), def("Story_Hidden", "Story", false, "False"),
-                                      def("Tutorial_Hidden", "Tutorial_One", true, "false")};
+                                      def("Tutorial_Hidden", "Tutorial_One", true, "false"), def("Conquest", "Set_Conquest", false, nullptr),
+                                      def("MP_Conquest", "Set_MP", true, nullptr)};
     std::vector<const data::CampaignDef*> sorted;
-    for (const data::CampaignDef& c : defs) sorted.push_back(&c);
+    for (data::CampaignDef& c : defs) {
+        if (c.name == "MP_Conquest") c.raw.emplace_back("Is_Multiplayer", " Yes ");
+        sorted.push_back(&c);
+    }
     const CampaignMenu m = build_campaign_menu(std::span<const data::CampaignDef* const>(sorted));
-    CHECK(m.custom.size() == 2u && m.custom[0].set == "Set_Shown" && m.custom[1].set == "Set_Yes");
-    CHECK(m.story.size() == 1u && m.tutorials.size() == 1u);
+    CHECK(m.custom.size() == 3u && m.custom[0].set == "Set_Shown" && m.custom[1].set == "Set_Yes" && m.custom[2].set == "Set_Conquest");
+    CHECK(!m.custom[2].custom);  // Supports_Custom_Settings is kept for the set
+    CHECK(m.story.size() == 2u && m.story[0].set == "Story" && m.story[1].set == "Set_Conquest" && m.tutorials.size() == 1u);
 }
 
 // #452 (docs/re/SINGLE_PLAYER_DIALOGS.md "IDD_MAIN_CAMPAIGN_DIALOG", retail FoC 0xe9920 / 0xc4d90 / 0xc5250 [H]): FoC's New
