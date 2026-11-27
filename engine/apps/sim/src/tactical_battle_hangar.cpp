@@ -761,16 +761,22 @@ uint8_t TacticalBattle::hg_build_check(const objects::ObjectStore& st, int32_t p
         if (!cfg_.skirmish_options.heroes && types.get(type, objects::tags::Is_Named_Hero)) return 1;
         if (!cfg_.skirmish_options.super_weapons && types.get(type, objects::tags::Is_Skirmish_Tactical_Super_Weapon)) return 1;
     }
+    // #663 (0x497140 [H]): the builder is the player's or an ally's (0x39a2c0: relation 0, bt_allied).
     const objects::ObjectHandle bh = st.find(builder);
-    if (!st.alive(bh) || st.owner(bh) != player) return 1;
+    if (!st.alive(bh)) return 1;
+    const int32_t builder_owner = st.owner(bh);
+    if (builder_owner != player && !bt_allied(player, builder_owner)) return 1;
     bool unit = false;
     for (const Unit& u : units_)
         if (u.id == builder) unit = u.alive && !u.retreated;
     if (!unit) return 1;
-    // The builder type's buildable list (buildable_list_tag, #660), the row of the player's faction.
+    // The builder type's buildable list (buildable_list_tag, #660), the row of the builder owner's faction (#663, 0x497140
+    // [H]: an ally's builder offers its own faction's row).
     std::string faction;
-    const uint32_t f = galaxy_->players()[static_cast<size_t>(player)].faction;
-    if (f < galaxy_->rules().factions.size()) faction = galaxy_->rules().factions[f].name;
+    if (builder_owner >= 0 && static_cast<size_t>(builder_owner) < galaxy_->players().size()) {
+        const uint32_t f = galaxy_->players()[static_cast<size_t>(builder_owner)].faction;
+        if (f < galaxy_->rules().factions.size()) faction = galaxy_->rules().factions[f].name;
+    }
     const std::string name = type < galaxy_->rules().types.size() ? galaxy_->rules().types[type].name : std::string();
     bool listed = false, in_row = false;
     for (const std::string_view tok : types.get(st.type(bh), buildable_list_tag())) {
@@ -781,6 +787,13 @@ uint8_t TacticalBattle::hg_build_check(const objects::ObjectStore& st, int32_t p
         listed = listed || (in_row && hg_same(tok, name));
     }
     if (!listed) return 1;
+    // #663 (0x497140 [H]): the price 0x496d80 (tactical_price) and the build time 0x496f00 (Tactical_Build_Time_Seconds x
+    // the GC Tactical_Build_Time_Multiplier; the AI and corruption factors are > 0) must both be > 0. [port] tested here,
+    // after the list (retail: after the build limits): parity tier 1, the same types are buildable (only the port's HUD
+    // block code of a type failing both differs).
+    if (tactical_price(type) <= 0) return 1;
+    if (!(static_cast<float>(types.get(type, objects::tags::Tactical_Build_Time_Seconds)) * catalog_->tactical_build_time_multiplier() > 0.0f))
+        return 1;
     // Tactical_Build_Prerequisites: every listed type owned alive by the player [port: all-of].
     for (const std::string_view tok : types.get(type, objects::tags::Tactical_Build_Prerequisites)) {
         const objects::TypeIndex pre = types.resolve_name(hg_trim(tok));
