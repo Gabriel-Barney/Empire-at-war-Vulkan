@@ -744,6 +744,8 @@ void App::build_galactic_hud(ui::GalacticHudFrame& f, std::vector<ui::GalacticPl
     // Playtest 3 (base 40.jpg): a selected fleet / fleet unit shows every planet's fleet-slot ovals.
     f.show_fleet_slots = !orders_.selection().empty();
     if (g) f.empty_slot_color = faction_rgba(*g, local_player(), false, ui::Rgba8{});
+    f.left_queue_tint = hud_consts_.left_queue_tint;  // #727
+    f.right_queue_tint = hud_consts_.right_queue_tint;
     f.simplified_colors = simplified_colors_now();  // #468
     f.paused = session_ && session_->pause_requested();
     for (ui::GalacticPlanetInfo& p : planets) p.selected = p.planet == selected_planet_;

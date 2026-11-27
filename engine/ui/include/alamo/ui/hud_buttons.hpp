@@ -188,6 +188,11 @@ struct HudConstants {
     Rgba8 win_message_color{223, 243, 255, 255};      // Win_Message_Color
     Rgba8 lose_message_color{255, 244, 223, 255};     // Lose_Message_Color
     int32_t cb_flash_count = 4;                       // CB_Flash_Count (b_reinforcement flashes on a pool add)
+    // #727 the galactic build-queue pad tints (docs/re/GALACTIC_BUILD_QUEUE.md "The queue tints", 0x3e6220 [H]): the space
+    // queue's pads take the left tint, the ground queue's the right one. [port] (tier 1: docs/SIMULATION.md "Parity
+    // tiers") FoC's values as the defaults, the exe's own not traced: harmless, as base GameConstants.xml sets both tags.
+    Rgba8 left_queue_tint{128, 128, 255, 215};        // Left_Queue_Tint
+    Rgba8 right_queue_tint{255, 128, 128, 215};       // Right_Queue_Tint
     int32_t icons_per_column = 13;                    // Icons_Per_Column (#478: the skirmish_upgrade sidebar's rows)
     // #296 lt_weather_icon thresholds (MCX4_PRES_RE_ANSWERS_3 Q5, GC +0x13bc / +0x13c0 [H]; FoC 0.4 / 0.5)
     float min_accuracy_for_icon = 0.4f;               // Min_Accuracy_For_Icon
