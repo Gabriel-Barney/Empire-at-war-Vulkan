@@ -286,7 +286,8 @@ struct UnitView {
     bool arrived = false;    // reached its last ordered destination
     bool failed = false;     // the last order could not be pathed
     bool pushed = false;     // walking a collision-owned path on top of its order path (A1_READINGS §40.3)
-    // the top record's kind - 0 none, 1 a push (0x6859a0), 2 a Path Around detour, 3 a StoppedVsStopped move;
+    // the top record's kind - 0 none, 1 a push (0x6859a0), 2 a Path Around detour, 3 a StoppedVsStopped move, 4 a form-up
+    // lead-in (#715, MovementSystem::kFormupRecord; not collision-owned);
     // push_flee: it is a crush-flee path (kind 7); form_id: the unit's formation of its last land order (0 none)
     uint8_t push_kind = 0;
     bool push_flee = false;
@@ -1701,6 +1702,7 @@ private:
     bool push_aside(const CollisionObject& c, const Unit& a, Unit& b, bool flee, uint32_t frame);
     // s78n t18 (MOVEMENT §5.4.1 / §5.4.2; movement_system.cpp)
     static constexpr uint32_t kNoDetour = 0xFFFFFFFFu;
+    static constexpr uint8_t kFormupRecord = 4;  // #715: push_kind of a form-up lead-in (no collision owner, weight 0)
     bool collision_valid(const CollisionObject& c) const;
     // s78n t23 (vf +0x40): the speed a record answers participant a (else b) - a MovingVsMoving record in state 0
     // answers max speed (kInf) whatever it stores
@@ -1720,6 +1722,7 @@ private:
     //     waypoint (the unit has arrived where it stands).
     bool claim(Unit& u, const CollisionObject& c, bool force, uint32_t frame);
     void push_top(Unit& u, std::vector<V2> path, uint8_t kind, bool flee, const CollisionObject& c, uint32_t frame);
+    void push_formup(Unit& u, V2 point, uint32_t frame);  // #715
     // s78n t23 (MOVEMENT §5.4.1 "The stamp in full" items 2 - 4, 0x50a020 -> 0x5c7cb0 -> vf +0x78 0x680ef0): a path lands
     // on u - every MovingVsMoving record of u in which u is the held unit (state 1 with u = M, state 4 with u = S) is
     // stamped NOW + 2 (overwritten by a later stamp).

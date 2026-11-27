@@ -145,6 +145,26 @@ void MovementSystem::stamp_held(const Unit& u, uint32_t frame) {
     }
 }
 
+// #715: the lead-in path of a land formation member to its form-up point (ShouldSkipLandFormup clear): a top record
+// that no collision owns (owner kNoDetour, weight 0), kind kFormupRecord.
+void MovementSystem::push_formup(Unit& u, V2 point, uint32_t frame) {
+    if (!(length_sq(point - u.m.pos) > 0.0f)) return;  // already there
+    end_push(u);
+    u.pushed = true;
+    u.push_kind = kFormupRecord;
+    u.push_path = {u.m.pos, point};
+    u.push_next = 1;
+    u.around.clear();
+    u.path_change = frame;
+    u.approx_countdown = 0;
+    if (u.d.team_container) {  // as push_top: a squad container starts the record at once (FIGHTER_FLYING §7.2 caller 4)
+        u.relay.push_back(u.push_path[1] - u.push_path[0]);
+        u.coast = false;
+        if (u.m.state == LocoState::WalkEndMove) u.m.state = LocoState::WalkMoving;
+        else if (u.m.state != LocoState::WalkMoving) u.m.state = LocoState::WalkStopped;
+    }
+}
+
 bool MovementSystem::pop_top(Unit& u, bool walked, uint32_t frame) {
     const uint8_t kind = u.push_kind;
     const uint32_t resume = u.push_resume;

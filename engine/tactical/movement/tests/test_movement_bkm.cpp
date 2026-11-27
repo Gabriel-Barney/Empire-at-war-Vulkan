@@ -625,6 +625,94 @@ void test_mov3_recruit_rules() {
 
 }  // namespace
 
+// #715 (MOVEMENT §3.2.1 item 2, the plan 0x41c1a0 [H gate]): GameConstants ShouldSkipLandFormup. Two vehicles one behind
+// the other at cells (9, 20) / (11, 20) ordered to (40, 20) as one land formation (the formation path 0x417520), whose
+// layout puts them side by side.
+//   - set (FoC and every installed mod): both start on their lanes at once - no top record at the order;
+//   - clear: each first walks a lead-in record (kind 4, no collision owner) to its form-up point, its slot in the layout at
+//     the formation path's start; the lane underneath resumes when the lead-in ends, and both arrive.
+// The queued-order start delay (int(0, Max_Move_Frame_Delay)) is drawn per member while the flag is set, and only for a
+// one-member formation while it is clear: a queued order to the same pair draws 2, then 0 (and keeps its lead-in through
+// the plan on the next tick); a one-member queued order draws 1 with either setting.
+// ledger: verifies GameConstants.ShouldSkipLandFormup
+void formup_scene(bool skip, bool& lead_in, float& lead_in_walk, bool& arrived, uint64_t& queued_draws, float& queued_walk,
+                  uint64_t& solo_draws) {
+    MovementConfig cfg;
+    cfg.constants.should_skip_land_formup = skip;
+    MovementSystem sys{cfg};
+    land_system(sys, 60);
+    const V2 s1 = cell_center(9, 20), s2 = cell_center(11, 20);
+    CHECK(sys.add_unit(vehicle(1, s1)));
+    CHECK(sys.add_unit(vehicle(2, s2)));
+    SimRng rng(7);
+    MoveOrder o;
+    o.units = {1, 2};
+    o.destination = cell_center(40, 20);
+    sys.move(o, rng, 1);
+    lead_in = sys.view(1).push_kind == 4 && sys.view(2).push_kind == 4 && sys.view(1).pushed && sys.view(2).pushed;
+    // the distance each unit covered under its lead-in (it is walked to the form-up point, not dropped at the first plan)
+    float walked1 = -1.0f, walked2 = -1.0f;
+    uint32_t f = 1;
+    for (; f < 3000 && !(sys.view(1).arrived && sys.view(2).arrived); ++f) {
+        sys.tick(f, rng);
+        if (walked1 < 0.0f && sys.view(1).push_kind != 4) walked1 = distance(sys.view(1).pos, s1);
+        if (walked2 < 0.0f && sys.view(2).push_kind != 4) walked2 = distance(sys.view(2).pos, s2);
+    }
+    lead_in_walk = std::min(walked1, walked2);
+    arrived = sys.view(1).arrived && sys.view(2).arrived && distance(sys.view(1).pos, cell_center(40, 20)) < 60.0f &&
+              distance(sys.view(2).pos, cell_center(40, 20)) < 60.0f;
+    std::printf("  formup %s: lead-in at the order %d, shorter lead-in walk %.1f, arrived %d at frame %u\n", skip ? "skipped" : "on",
+                lead_in ? 1 : 0, static_cast<double>(lead_in_walk), arrived ? 1 : 0, f);
+    // a queued order to the arrived pair (one formation of two)
+    MoveOrder q;
+    q.units = {1, 2};
+    q.destination = cell_center(20, 20);
+    q.flags = kMoveFlagQueue;
+    const uint64_t before = rng.draws();
+    sys.move(q, rng, f);
+    queued_draws = rng.draws() - before;
+    // a queued order to a fresh pair in the same column (no composition, start delay 0: planned on the next tick): its
+    // lead-in must survive that plan (the planner keeps a kFormupRecord over the new lane) - the distance walked under it
+    {
+        MovementSystem qs{cfg};
+        land_system(qs, 60);
+        CHECK(qs.add_unit(vehicle(1, s1)));
+        CHECK(qs.add_unit(vehicle(2, s2)));
+        SimRng qr(7);
+        MoveOrder qo = o;
+        qo.flags = kMoveFlagQueue;
+        qs.move(qo, qr, 1);
+        queued_walk = 0.0f;
+        for (uint32_t g = 1; g < 400 && qs.view(1).push_kind == 4; ++g) {
+            qs.tick(g, qr);
+            queued_walk = distance(qs.view(1).pos, s1);
+        }
+    }
+    // a one-member queued order draws its start delay with either setting
+    MoveOrder one;
+    one.units = {2};
+    one.destination = cell_center(30, 30);
+    one.flags = kMoveFlagQueue;
+    const uint64_t b2 = rng.draws();
+    sys.move(one, rng, f + 400);
+    solo_draws = rng.draws() - b2;
+}
+
+void test_skip_land_formup() {
+    ::alamo::test::section("skip_land_formup");
+    bool lead_in = true, arrived = false;
+    float walk = 0.0f, qwalk = 0.0f;
+    uint64_t draws = 0, solo = 0;
+    formup_scene(true, lead_in, walk, arrived, draws, qwalk, solo);
+    CHECK(!lead_in && arrived && draws == 2 && qwalk == 0.0f && solo == 1);
+    std::printf("  queued delay draws (skipped): %llu, one-member queued draws %llu\n", static_cast<unsigned long long>(draws),
+                static_cast<unsigned long long>(solo));
+    formup_scene(false, lead_in, walk, arrived, draws, qwalk, solo);
+    CHECK(lead_in && walk > 20.0f && arrived && draws == 0 && qwalk > 10.0f && solo == 1);  // each walks to its slot first
+    std::printf("  queued delay draws (on): %llu, queued lead-in walk %.1f, one-member queued draws %llu\n",
+                static_cast<unsigned long long>(draws), static_cast<double>(qwalk), static_cast<unsigned long long>(solo));
+}
+
 int main() {
     std::setvbuf(stdout, nullptr, _IONBF, 0);  // unbuffered: a crash keeps the log
     test_shield_class();  // bkm1 t03
@@ -638,5 +726,6 @@ int main() {
     test_attack_validation_failure();  // bkm3 t01
     test_object_goal_validation();  // mov2 t06
     test_mov3_recruit_rules();  // mov3 t02
+    test_skip_land_formup();    // #715
     return ::alamo::test::report("alamo_tactical_movement_bkm_tests");
 }

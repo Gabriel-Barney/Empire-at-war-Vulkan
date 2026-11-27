@@ -100,6 +100,11 @@ struct MovementConstants {
     // mcx4 t11 (BKR2_RE_ANSWERS Q8 [H], MOVEMENT §4.2 step 2 item 7 test 3): ShouldInfantryTeamsSplitAcrossFormations
     // (GC +0x149d); set, a seed with a parent team recruits nobody (its team splits across formations).
     bool should_infantry_teams_split_across_formations = true;
+    // #715 (MOVEMENT §3.2.1 item 2 / §3.5.2 G, s78n t26 RE 2 [H gate]): ShouldSkipLandFormup (GC +0x149c, FoC and every
+    // installed mod: true). Set, every member of a land formation starts on its lane at once (the port's plan). Clear, a
+    // member of a land formation of 2+ first walks a lead-in path to its form-up point (its slot in the layout at the
+    // formation path's start), and a queued order draws the start delay only for a one-member formation's member.
+    bool should_skip_land_formup = true;
     // mcx4 t11 (MOVEMENT §2.2 obstacle test item 1): SpaceStaticObstacleAvoidanceBonusDistance (GC +0x1414, int), added
     // to the clearance of the space planner's static-map test ([port] read as a radius margin).
     float space_static_obstacle_avoidance_bonus_distance = 0.0f;
