@@ -136,8 +136,12 @@ void TacticalBattle::prepare_models(const BattleCatalog& catalog, const galactic
     const objects::GameObjectTypes& types = catalog.types();
     const bool space = request.info.kind == galactic::ConflictKind::Space;
     std::vector<uint32_t> list;
+    std::vector<uint8_t> listed(types.size(), 0);
     auto use = [&](uint32_t t) {
-        if (t < types.size() && std::find(list.begin(), list.end(), t) == list.end()) list.push_back(t);
+        if (t < types.size() && !listed[t]) {
+            listed[t] = 1;
+            list.push_back(t);
+        }
     };
     const objects::ObjectStore& gs = galaxy.store();
     for (const galactic::BattleForces& f : request.forces)
@@ -150,11 +154,9 @@ void TacticalBattle::prepare_models(const BattleCatalog& catalog, const galactic
                 for (const auto& [mt, n] : ti.members) use(mt);
             }
     const TypeCrcIndex index(types);
-    for (const terrain::ObjectPlacement& pl : map.objects) {
-        const objects::TypeIndex t = index.find(pl.type_crc);
-        if (t == objects::kNone || t >= types.size()) continue;
+    const auto placed = [&](objects::TypeIndex t) {
         use(static_cast<uint32_t>(t));
-        if (pad_behavior() == objects::kNoBehavior || !types.has_behavior(t, objects::BehaviorSet::Union, pad_behavior())) continue;
+        if (pad_behavior() == objects::kNoBehavior || !types.has_behavior(t, objects::BehaviorSet::Union, pad_behavior())) return;
         for (const objects::ListTag* tag : {&objects::tags::Tactical_Buildable_Objects_Multiplayer, &objects::tags::Tactical_Buildable_Objects_Campaign})
             for (const std::string_view tok : types.get(t, *tag)) {
                 const objects::TypeIndex uc = types.raw().find(tok);
@@ -163,6 +165,48 @@ void TacticalBattle::prepare_models(const BattleCatalog& catalog, const galactic
                 const objects::TypeIndex ft = types.resolve_name(types.get(uc, objects::tags::Tactical_Buildable_Constructed));
                 if (ft != objects::kNone) use(static_cast<uint32_t>(ft));
             }
+    };
+    for (const terrain::ObjectPlacement& pl : map.objects) {
+        const objects::TypeIndex t = index.find(pl.type_crc);
+        if (t == objects::kNone || t >= types.size()) continue;
+        placed(t);
+        // #109: a land skirmish team marker becomes the pad (or point) of its slot's faction in the setup's prepass
+        // (bt_map_prepass): every faction's entry of its Marker_For_Specific_Object_Type counts as placed.
+        for (const std::string_view tok : types.get(t, objects::tags::Marker_For_Specific_Object_Type)) {
+            const objects::TypeIndex x = types.resolve_name(ascii_trim(tok));
+            if (x != objects::kNone && x < types.size()) placed(x);
+        }
+    }
+    // #109: the types setup adds after the map's (TacticalBattle::hg_add_types, up to three passes): every listed type's
+    // tactical production lists (both), its Company_Units / Squadron_Units members, its spawner tech lists (Starting /
+    // Reserve_Spawned_Units_Tech_0..5) and its Next_Level_Base. A superset is harmless (the cache is a memo of the model
+    // files); what it covers no longer loads inside the first battle tick.
+    {
+        const objects::ListTag* kLists[] = {
+            &objects::tags::Tactical_Buildable_Objects_Multiplayer, &objects::tags::Tactical_Buildable_Objects_Campaign,
+            &objects::tags::Company_Units, &objects::tags::Squadron_Units,
+            &objects::tags::Starting_Spawned_Units_Tech_0, &objects::tags::Starting_Spawned_Units_Tech_1,
+            &objects::tags::Starting_Spawned_Units_Tech_2, &objects::tags::Starting_Spawned_Units_Tech_3,
+            &objects::tags::Starting_Spawned_Units_Tech_4, &objects::tags::Starting_Spawned_Units_Tech_5,
+            &objects::tags::Reserve_Spawned_Units_Tech_0, &objects::tags::Reserve_Spawned_Units_Tech_1,
+            &objects::tags::Reserve_Spawned_Units_Tech_2, &objects::tags::Reserve_Spawned_Units_Tech_3,
+            &objects::tags::Reserve_Spawned_Units_Tech_4, &objects::tags::Reserve_Spawned_Units_Tech_5};
+        size_t done = 0;
+        for (int pass = 0; pass < 3 && done < list.size(); ++pass) {
+            const size_t end = list.size();
+            for (size_t i = done; i < end; ++i) {
+                const auto ti = static_cast<objects::TypeIndex>(list[i]);
+                for (const objects::ListTag* tag : kLists)
+                    for (const std::string_view tok : types.get(ti, *tag)) {
+                        const objects::TypeIndex x = types.resolve_name(ascii_trim(tok));
+                        if (x != objects::kNone) use(static_cast<uint32_t>(x));
+                    }
+                const std::string_view next = ascii_trim(types.get(ti, objects::tags::Next_Level_Base));
+                if (!next.empty())
+                    if (const objects::TypeIndex x = types.resolve_name(next); x != objects::kNone) use(static_cast<uint32_t>(x));
+            }
+            done = end;
+        }
     }
     catalog.preload(list, space,
                     BattleCatalog::kPreloadBones | BattleCatalog::kPreloadAvoid | (space ? 0u : BattleCatalog::kPreloadExtents), pf);
