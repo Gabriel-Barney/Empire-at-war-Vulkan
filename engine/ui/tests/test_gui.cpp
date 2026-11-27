@@ -593,7 +593,7 @@ void test_routing_and_controls() {
     ev = env.click(*d, "IDC_TEST_RB");
     CHECK(has_event(ev, GuiEvent::Kind::Checked, "IDC_TEST_RB", 1) && d->get("IDC_TEST_RB")->checked &&
           !d->get("IDC_TEST_RA")->checked && d->get("IDC_TEST_RC")->checked);
-    // Slider: press at the right end -> 100; drag to the left edge -> 0; keys.
+    // Slider: a track press at the right end -> 100; a thumb drag to the left edge -> 0 and the release; keys.
     {
         const GuiRect r = d->control_rect(static_cast<size_t>(d->find("IDC_TEST_SLIDER")));
         const Vec2f right = env.gui.canvas().canvas_to_pixel(r.max.x - 0.5f, 0.5f * (r.min.y + r.max.y));
@@ -604,9 +604,9 @@ void test_routing_and_controls() {
         ev = env.frame(right, true);
         CHECK(has_event(ev, GuiEvent::Kind::ValueChanged, "IDC_TEST_SLIDER", 100));
         CHECK(env.sfx.size() == 2 && env.sfx[1] == "GUI_Common_Dialog_Button_Press");
-        ev = env.frame(left, true);
-        CHECK(has_event(ev, GuiEvent::Kind::ValueChanged, "IDC_TEST_SLIDER", 0));
-        ev = env.frame(left, false);  // #576: that press was on the track (the thumb sat at the left), so no release
+        ev = env.frame(left, true);  // #576: that press was on the track (the thumb sat at the left): no drag follows
+        CHECK(!has_event(ev, GuiEvent::Kind::ValueChanged, "IDC_TEST_SLIDER") && d->get("IDC_TEST_SLIDER")->value == 100);
+        ev = env.frame(left, false);  // and no release
         CHECK(!has_event(ev, GuiEvent::Kind::SliderReleased, "IDC_TEST_SLIDER"));
         {  // #62 t01 / #576: a drag from the thumb ends on the mouse-up with the release (retail trackbar event 5, 0x1d6290)
             const GuiRect th = env.gui.slider_thumb(*d, static_cast<size_t>(d->find("IDC_TEST_SLIDER")));

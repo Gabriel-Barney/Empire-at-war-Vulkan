@@ -1153,7 +1153,7 @@ void GuiManager::update(const InputFrame& raw, const RoutedInput& routed, double
             }
         }
     }
-    if (slider_drag_ && press_dialog_ && press_control_ >= 0 && (raw.buttons_down & lb) != 0)
+    if (slider_drag_ && slider_thumb_ && press_dialog_ && press_control_ >= 0 && (raw.buttons_down & lb) != 0)  // #576
         slider_from_cursor(*press_dialog_, static_cast<size_t>(press_control_));
     if (scroll_part_ != ScrollPart::None && (raw.buttons_down & lb) != 0) scroll_held(now);
     if (edit_drag_ && press_dialog_ && press_control_ >= 0 && (raw.buttons_down & lb) != 0 && !pressed) {
@@ -1169,7 +1169,10 @@ void GuiManager::update(const InputFrame& raw, const RoutedInput& routed, double
     if (released && press_dialog_) {
         // #62 t01 (trackbar 0x1d6290 [H]): the mouse-up of a slider drag sends the release (retail event 5) after the value.
         // #576: only for a drag that started on the thumb: the original sends event 5 only when its drag flag (+0x90) is
-        // set, which is a press on the thumb [M]; a press on the track moves the value and sends none.
+        // set, which is a press on the thumb [M] (the hit test is the drawn tab quad +0xf8). Only a thumb drag follows the
+        // cursor (0x1d7cf0 runs on +0x90 alone). [port] A press on the track sets the value at the cursor once, as #576's
+        // maintainer decision asks; retail's track press (+0xb0) changes only its art states and moves nothing. Options
+        // menu presentation, no sim state: tier 3, kept by that decision.
         if (slider_drag_ && slider_thumb_ && press_control_ >= 0 &&
             static_cast<size_t>(press_control_) < press_dialog_->controls_.size())
             events.push_back(make_event(GuiEvent::Kind::SliderReleased, *press_dialog_, press_control_,
