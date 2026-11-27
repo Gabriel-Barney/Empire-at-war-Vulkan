@@ -43,12 +43,62 @@ uint32_t dotted(HudDrawList& dl, uint32_t layer, const HudCanvas& cv, float x0, 
 
 }  // namespace
 
+std::vector<std::pair<float, float>> waypoint_dashes(float length, float dash, float gap, float phase) {
+    std::vector<std::pair<float, float>> out;
+    const float period = dash + std::max(0.0f, gap);
+    if (!(dash > 0.0f) || !(length > 0.0f) || !(period > 0.0f)) return out;
+    float s = std::fmod(phase, period);
+    if (s > 0.0f) s -= period;  // the first dash starts at or before 0
+    for (; s < length; s += period) {
+        const float a = std::max(0.0f, s), b = std::min(length, s + dash);
+        if (b > a) out.emplace_back(a, b);
+    }
+    return out;
+}
+
+namespace {
+// One solid free quad between pixel points a and b, `half` pixels to each side.
+bool solid_segment(HudDrawList& dl, uint32_t layer, const HudCanvas& canvas, float ax, float ay, float bx, float by, float half,
+                   Rgba8 color) {
+    const float dx = bx - ax, dy = by - ay, len = std::sqrt(dx * dx + dy * dy);
+    if (!(len > 0.0f)) return false;
+    const float nx = dy / len * half, ny = -dx / len * half;
+    HudQuad q;
+    q.has_corners = true;
+    q.corners = {canvas.pixel_to_canvas(ax + nx, ay + ny), canvas.pixel_to_canvas(bx + nx, by + ny),
+                 canvas.pixel_to_canvas(bx - nx, by - ny), canvas.pixel_to_canvas(ax - nx, ay - ny)};
+    q.min = {std::min({q.corners[0].x, q.corners[1].x, q.corners[2].x, q.corners[3].x}),
+             std::min({q.corners[0].y, q.corners[1].y, q.corners[2].y, q.corners[3].y})};
+    q.max = {std::max({q.corners[0].x, q.corners[1].x, q.corners[2].x, q.corners[3].x}),
+             std::max({q.corners[0].y, q.corners[1].y, q.corners[2].y, q.corners[3].y})};
+    q.color = color;
+    dl.add(layer, HudList::Alpha, q);
+    return true;
+}
+}  // namespace
+
 uint32_t add_waypoint_lines(HudDrawList& dl, const HudCanvas& canvas, const View& view, std::span<const HudWaypointLine> lines,
                             uint32_t layer) {
     uint32_t dots = 0;
     const float line_scale = std::max(1.0f, static_cast<float>(canvas.screen_height) / 1080.0f);
     for (const HudWaypointLine& l : lines) {
-        if (l.width_px > 0.0f) {  // solid: one free quad per projected segment
+        if (l.dash_world > 0.0f) {  // #727 world-space dashes along the whole polyline, the pattern continuing over corners
+            const float half = 0.5f * l.dot_px * line_scale;
+            float base = 0.0f;  // distance of the segment's start along the line
+            for (size_t i = 0; i + 1 < l.points.size(); ++i) {
+                const Vec3 a = l.points[i], b = l.points[i + 1];
+                const Vec3 d{b.x - a.x, b.y - a.y, b.z - a.z};
+                const float len = std::sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
+                for (const auto& [s0, s1] : waypoint_dashes(len, l.dash_world, l.gap_world, l.phase_world - base)) {
+                    const Vec3 p0{a.x + d.x * (s0 / len), a.y + d.y * (s0 / len), a.z + d.z * (s0 / len)};
+                    const Vec3 p1{a.x + d.x * (s1 / len), a.y + d.y * (s1 / len), a.z + d.z * (s1 / len)};
+                    float ax = 0, ay = 0, bx = 0, by = 0;
+                    if (project(view, p0, ax, ay) && project(view, p1, bx, by) && solid_segment(dl, layer, canvas, ax, ay, bx, by, half, l.color))
+                        ++dots;
+                }
+                base += len;
+            }
+        } else if (l.width_px > 0.0f) {  // solid: one free quad per projected segment
             const float half = 0.5f * l.width_px * line_scale;
             for (size_t i = 0; i + 1 < l.points.size(); ++i) {
                 float ax = 0, ay = 0, bx = 0, by = 0;
