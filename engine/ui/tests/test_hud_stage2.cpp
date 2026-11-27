@@ -863,6 +863,14 @@ void test_buttons() {
         const HudConstants h4 = hud_constants_from(g4.root());
         CHECK2(h4.win_lose_font == "Arial" && near2(h4.win_lose_font_size, 24.0f) && (h4.win_message_color == Rgba8{1, 2, 3, 255}) &&
                (h4.lose_message_color == Rgba8{4, 5, 6, 7}));
+        // #727 the build-queue pad tints (0x3e6220 [H], FoC 128 128 255 215 / 255 128 128 215).
+        // ledger: verifies GameConstants.Left_Queue_Tint
+        // ledger: verifies GameConstants.Right_Queue_Tint
+        CHECK2((h0.left_queue_tint == Rgba8{128, 128, 255, 215}) && (h0.right_queue_tint == Rgba8{255, 128, 128, 215}));
+        const data::XmlDocument gqt = data::XmlDocument::parse(std::string_view(
+            "<GameConstants><Left_Queue_Tint>1 2 3 4</Left_Queue_Tint><Right_Queue_Tint>5 6 7</Right_Queue_Tint></GameConstants>"));
+        const HudConstants hqt = hud_constants_from(gqt.root());
+        CHECK2((hqt.left_queue_tint == Rgba8{1, 2, 3, 4}) && (hqt.right_queue_tint == Rgba8{5, 6, 7, 255}));
         // ledger: verifies GameConstants.CB_Flash_Count
         const data::XmlDocument g5 = data::XmlDocument::parse(std::string_view("<GameConstants><CB_Flash_Count>7</CB_Flash_Count></GameConstants>"));
         CHECK2(h0.cb_flash_count == 4 && hud_constants_from(g5.root()).cb_flash_count == 7);  // CB_Flash_Count (FoC 4)

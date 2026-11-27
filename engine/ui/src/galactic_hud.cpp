@@ -836,6 +836,9 @@ void GalacticHud::build_bar(const GalacticHudFrame& f) {
             continue;
         }
         const HudQueueEntry& e = *slot_entry[k];
+        // #727 docs/re/GALACTIC_BUILD_QUEUE.md "The queue tints" (0x3e6220 [H]): the tint by the queue the entry is in (the
+        // space queue Left_Queue_Tint, the ground queue Right_Queue_Tint). The flicker [M] is a known gap (#727).
+        r.tint = e.land ? f.right_queue_tint : f.left_queue_tint;
         r.icon_override = e.icon;
         r.build_fill = std::clamp(e.progress, 0.0f, 1.0f) * 100.0f;
         r.text = e.count > 1 ? num32(e.count) : std::u32string();

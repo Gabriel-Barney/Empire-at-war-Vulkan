@@ -16,6 +16,7 @@
 #include "alamo/data/xml.hpp"
 #include "alamo/ui/camera.hpp"
 #include "alamo/ui/galactic_hud.hpp"
+#include "alamo/ui/hud_buttons.hpp"
 #include "alamo/ui/gui_dialog.hpp"
 #include "alamo/ui/gui_menus.hpp"
 #include "alamo/ui/gui_resource.hpp"
@@ -1829,6 +1830,9 @@ void test_galactic_dialogs() {
         e.land = false;
         out.push_back(e);  // space -> queue01
     };
+    const HudConstants foc_consts{};
+    f.left_queue_tint = foc_consts.left_queue_tint;
+    f.right_queue_tint = foc_consts.right_queue_tint;
     hud.build(f);
     auto state = [&](const char* n) { return hud.buttons().find_state(static_cast<uint32_t>(table.find(n))); };
     auto has_hit = [&](const char* n) {
@@ -1895,6 +1899,13 @@ void test_galactic_dialogs() {
     // §5.2 queue: space entries on queue00.., ground on queue05...
     CHECK(has_hit("queue00") && has_hit("queue01") && has_hit("queue05") && !has_hit("queue02") && !has_hit("queue06") &&
           hud.stats().queue_entries == 3);
+    {  // #727 0x3e6220: the space queue's pads take Left_Queue_Tint, the ground queue's Right_Queue_Tint
+        const ButtonRuntime* q0 = state("queue00");
+        const ButtonRuntime* q1 = state("queue01");
+        const ButtonRuntime* q5 = state("queue05");
+        CHECK(q0 && q1 && q5 && q0->tint == foc_consts.left_queue_tint && q1->tint == foc_consts.left_queue_tint &&
+              q5->tint == foc_consts.right_queue_tint && !(q0->tint == q5->tint));
+    }
     {
         const ComponentPlacement& q0 = hud.layout().placement(static_cast<uint32_t>(table.find("queue00")));
         CHECK(q0.placed && std::fabs(q0.center.y - (-384.0f + 174.0f)) < 1e-3f);  // dome row (fallback = the bone)

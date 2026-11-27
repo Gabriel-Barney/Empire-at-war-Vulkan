@@ -328,6 +328,9 @@ struct GalacticHudFrame {
     // Tint of the empty ovals (R5, base 40.jpg: Empire blue on every planet, unowned Felucia too). [inferred] the local
     // player's Factions.xml <Color> (host); no base shot of another faction's ovals.
     Rgba8 empty_slot_color{255, 255, 255, 255};
+    // #727 the build-queue pad tints (HudConstants::left_queue_tint / right_queue_tint, host): a filled pad of a space entry
+    // takes the left one, of a ground entry the right one (0x3e6220 [H]). White = untinted.
+    Rgba8 left_queue_tint{255, 255, 255, 255}, right_queue_tint{255, 255, 255, 255};
     bool objectives_open = true;
     std::u32string objectives_header;  // "" = TEXT_TEST_OBJECTIVE_HEADER (#45 t08)
     double time = 0.0;
