@@ -1358,7 +1358,7 @@
 {"GameConstants", "ShouldUseSpaceIdleMovement", 0x0, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "SpaceIdleMovementSpeed", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "SpaceIdlePathCullCoefficient", 0x8, LedgerState::RetailUnused, "docs/re/xml_reference_index.md GameConstants.SpaceIdlePathCullCoefficient", 1, 1},
-{"GameConstants", "IdleMovementFrames", 0x8, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
+{"GameConstants", "IdleMovementFrames", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "GripperCombatGridSnapDistance", 0x8, LedgerState::Stored, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "Damage_Types", 0x1b, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "Armor_Types", 0x1b, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},

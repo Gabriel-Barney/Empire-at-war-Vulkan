@@ -110,6 +110,8 @@ struct MovementConstants {
     // + 0.5) frames, then drifts ahead along its facing (inside the map less 300), at least SpaceIdleMovementSpeed fast
     // (GC +0x1554, the SimpleSpace speed getters' minimum). IdleMovementFrames (GC +0x155c) is also the drift distance
     // [port: 0x413100's distance was not read; IdleMovementFrames is its fallback]. FoC: false, 30, 0 (no drift).
+    // Not modelled: IdleMovementFrames as the locomotor pack's idle-timer start (+0x2ac, 0x553f00; nothing in the port
+    // reads that timer).
     bool should_use_space_idle_movement = false;
     float idle_movement_frames = 30.0f;
     float space_idle_movement_speed = 0.0f;

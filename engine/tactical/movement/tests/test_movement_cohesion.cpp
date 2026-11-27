@@ -242,7 +242,6 @@ DriftRun drift_run(bool on, float frames, float speed) {
 }
 
 // ledger: verifies GameConstants.ShouldUseSpaceIdleMovement
-// ledger: verifies GameConstants.IdleMovementFrames
 void test_idle_drift() {
     const DriftRun off = drift_run(false, 30.0f, 0.0f), on = drift_run(true, 30.0f, 0.0f), slow = drift_run(true, 60.0f, 6.0f);
     for (const auto& [name, r] : {std::pair{"off", &off}, std::pair{"on (30)", &on}, std::pair{"on (60, speed 6)", &slow}})

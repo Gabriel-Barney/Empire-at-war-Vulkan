@@ -1872,29 +1872,33 @@ void MovementSystem::idle_drift_pass(uint32_t frame, SimRng& rng) {
     // composition, as a formation's own re-path), and any other move cancels the wait.
     const MovementConstants& k = cfg_.constants;
     const float f = k.idle_movement_frames;
+    constexpr float kInset = 300.0f;  // the drift point stays this far inside the map box
+    const auto inset = [](float v, float lo, float hi) {  // a box narrower than 2 x kInset: its centre
+        return lo + kInset <= hi - kInset ? std::clamp(v, lo + kInset, hi - kInset) : 0.5f * (lo + hi);
+    };
     for (Unit& u : units_) {
         if (is_fighter(u) || u.hidden || !(u.lp.max_speed > 0.0f)) continue;
         const bool idle = u.arrived && !u.has_goal && !u.following && !u.turning;
         if (!idle) continue;
+        u.idle_drift = false;  // a drift that arrived is over
         if (u.idle_due < 0) {
             u.idle_due = static_cast<int32_t>(frame) + static_cast<int32_t>(f + rng.range_float(0.0f, f / 2.0f) + 0.5f);
             continue;
         }
         if (static_cast<int32_t>(frame) < u.idle_due) continue;
         V2 dest = u.m.pos + dir_from_deg(u.m.yaw) * f;
-        if (space_.has_box()) {  // inside the map less 300
-            const V2 lo = space_.box_min(), hi = space_.box_max();
-            dest.x = lo.x + 300.0f <= hi.x - 300.0f ? std::clamp(dest.x, lo.x + 300.0f, hi.x - 300.0f) : 0.5f * (lo.x + hi.x);
-            dest.y = lo.y + 300.0f <= hi.y - 300.0f ? std::clamp(dest.y, lo.y + 300.0f, hi.y - 300.0f) : 0.5f * (lo.y + hi.y);
+        if (space_.has_box()) {
+            dest.x = inset(dest.x, space_.box_min().x, space_.box_max().x);
+            dest.y = inset(dest.y, space_.box_min().y, space_.box_max().y);
         }
         MoveOrder mo;
         mo.units = {u.d.id};
         mo.destination = dest;
         const ObjectId id = u.d.id;
-        const bool was = fform_internal_;
-        fform_internal_ = true;  // a formation's own move: no new coordinator, no fighter formation
+        const bool internal_before = fform_internal_;
+        fform_internal_ = true;  // a formation's own move: no new coordinator, no fighter formation, the wait kept
         move(mo, rng, frame);
-        fform_internal_ = was;
+        fform_internal_ = internal_before;
         if (Unit* w = unit_ptr(id)) {
             w->idle_due = -1;
             w->idle_drift = w->has_goal;
