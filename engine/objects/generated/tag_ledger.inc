@@ -538,7 +538,7 @@
 {"GameObjectType", "Describe_Tactical", 0x17, LedgerState::Consumed, "docs/re/xml_reference_index.md", 64, 1},
 {"GameObjectType", "Describe_Advantage", 0x17, LedgerState::Consumed, "docs/re/xml_reference_index.md", 64, 1},
 {"GameObjectType", "Describe_History", 0x17, LedgerState::Consumed, "docs/re/xml_reference_index.md", 64, 1},
-{"GameObjectType", "Attach_To_Flagship_During_Space_Battle", 0x0, LedgerState::Stored, "docs/re/xml_reference_index.md", 51, 1},
+{"GameObjectType", "Attach_To_Flagship_During_Space_Battle", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 51, 1},
 {"GameObjectType", "Stay_In_Transport_During_Ground_Battle", 0x0, LedgerState::Verified, "docs/re/xml_reference_index.md", 48, 1},
 {"GameObjectType", "Can_Participate_In_Space_Battle", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameObjectType", "Unique_Space_Unit", 0x1d, LedgerState::Consumed, "docs/re/xml_reference_index.md", 3, 1},

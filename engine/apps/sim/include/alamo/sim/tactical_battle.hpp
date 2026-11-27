@@ -684,6 +684,20 @@ public:
     // it yet]; the landing objects of `player` that have not finished their unload (timed mode; untimed ones finish at the
     // order).
     bool landing_hidden(objects::ObjectId landing) const;
+    // #754 (#710 slice 1; legacy MCX4_T11_T12_RE_ANSWERS B2 note step 3, FIGHTER_FLYING §7.4 [H]): the units that ride
+    // inside a flagship (BattleRequest forces' flagship_contents, space). Retail creates each at the flagship and adds it
+    // to its contents (0x379d30): hidden at the host, out of the player's list, the coordinators and the object grid.
+    // [port] a contained unit has no battle object while it is inside - nothing can see, select, target or move it - so
+    // it is a record: the galactic unit, its flagship's galactic id, the owner. contained_host(i) is the flagship's
+    // battle unit (kNoObjectId when it is not, or no longer, in the battle).
+    struct ContainedUnit {
+        objects::ObjectId galactic = objects::kNoObjectId;
+        objects::ObjectId flagship = objects::kNoObjectId;  // galactic id
+        int32_t owner = -1;
+        uint32_t type = 0;
+    };
+    const std::vector<ContainedUnit>& contained() const { return contained_; }
+    objects::ObjectId contained_host(size_t i) const;
     uint32_t landings_in_flight(int32_t player) const;
     // mcx4 tac2 (MCX4_T10_RE_ANSWERS §15 / §16a [H]): Apply_Elevated_Vulnerability (0x3a8550) on a combat unit - one
     // appended Defense entry "Elevated_Vulnerability" (category 0, value = the mode's factor, for its duration; source = the
@@ -2855,6 +2869,7 @@ private:
     SimAnimation* anim_ = nullptr;
     int32_t dummy_type_ = -1;           // Dummy_Barrage_Target
     std::vector<Participant> parts_;
+    std::vector<ContainedUnit> contained_;  // #754: from the request (not saved yet: #758)
     std::vector<Unit> units_;  // ascending object id
     bool despawning_ = false;  // ref2 t04 review: inside script_despawn (a TEAM container leaving with it is no loss)
     std::vector<Container> containers_;

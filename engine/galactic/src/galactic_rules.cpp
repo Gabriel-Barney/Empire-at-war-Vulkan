@@ -68,6 +68,7 @@ void extract_oi_fields(const objects::GameObjectTypes& types, objects::TypeIndex
     i.always_spawn_in_orbit = types.get(t, objects::tags::Always_Spawn_In_Orbit);
     i.super_weapon_killer = types.get(t, objects::tags::Is_Super_Weapon_Killer);
     i.named_hero = types.get(t, objects::tags::Is_Named_Hero);
+    i.attach_to_flagship = types.get(t, objects::tags::Attach_To_Flagship_During_Space_Battle);  // #754
     i.generic_hero = types.get(t, objects::tags::Is_Generic_Hero);
     i.requires_initial_placement = types.get(t, objects::tags::Build_Requires_Initial_Placement);
     i.cheap_bribe_cost = int_or(types, t, objects::tags::Cheap_Bribe_Cost, 1);          // mcx4 t05 (Q5.1): ctor default 1

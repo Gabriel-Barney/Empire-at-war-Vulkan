@@ -58,6 +58,9 @@ struct TypeInfo {
     bool reduced_by_factories = false;  // Build_Time_Reduced_By_Multiple_Factories
     bool build_initially_locked = false;  // Build_Initially_Locked (type +0xC1)
     bool sliceable = false;               // Build_Can_Be_Unlocked_By_Slicer (type +0xC2; REMAINING_GAPS 1.4 sweep)
+    // #754 (legacy MCX4_T11_T12_RE_ANSWERS B2 [H]): Attach_To_Flagship_During_Space_Battle (type +0x2c) - in a space
+    // battle the unit rides inside its fleet's flagship (FoC: the ground / galactic heroes)
+    bool attach_to_flagship = false;
     std::vector<uint32_t> required_special_structures;  // type indices
     std::vector<uint32_t> affiliation;  // faction indices (empty = any) [M buildability]
     // A2 galactic (AI_GALACTIC_3 Â§3, Â§6).

@@ -51,6 +51,11 @@ TacticalBattle::TacticalBattle(const BattleCatalog& catalog, const galactic::Gal
         for (objects::ObjectHandle h : f.reserve) add_participant(h, f.player, side, true, false, false);
     }
     const objects::ObjectStore& gs = galaxy.store();
+    if (space_)  // #754: the units inside a flagship (a record each; no battle object while inside)
+        for (const galactic::BattleForces& f : req_.forces)
+            for (const auto& [u, host] : f.flagship_contents)
+                if (gs.alive(u) && gs.alive(host))
+                    contained_.push_back({gs.id(u), gs.id(host), f.player, static_cast<uint32_t>(gs.type(u))});
     if (gs.alive(req_.starbase)) {
         const int32_t o = gs.owner(req_.starbase);
         add_participant(req_.starbase, o, owner_side(o), false, true, false);
@@ -92,6 +97,14 @@ TacticalBattle::TacticalBattle(const BattleCatalog& catalog, const galactic::Gal
     tables_build_ = catalog.begin_battle(*tables_, space_);
     tables_build_->pf = pf;
     tables_extend();
+}
+
+objects::ObjectId TacticalBattle::contained_host(size_t i) const {
+    if (i >= contained_.size()) return objects::kNoObjectId;
+    for (const Unit& u : units_)
+        if (u.alive && !u.retreated && u.participant < parts_.size() && parts_[u.participant].galactic_id == contained_[i].flagship)
+            return u.id;
+    return objects::kNoObjectId;
 }
 
 void TacticalBattle::tables_extend() {

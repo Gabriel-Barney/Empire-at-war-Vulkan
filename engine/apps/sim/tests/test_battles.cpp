@@ -4402,6 +4402,114 @@ void test_corruption_upgrade_spawns() {
     g_temp_prefix = prefix;
 }
 
+// #754 (#710 slice 1): a hero team whose member has Attach_To_Flagship_During_Space_Battle rides in the Underworld
+// fleet that attacks S10_B. With ConflictConfig::attach_to_flagship on, the space battle's request carries it with the
+// fleet lead (a corvette, set by set_gui_index 999) and the battle holds it as a contained record whose host is that
+// corvette's battle unit; no battle object of the hero or its team exists, so nothing can target it. Off: no record,
+// and the battle's objects are the same.
+namespace {
+std::string flagship_hero_types(std::string t) {
+    const std::string end = "</S10>";
+    const size_t p = t.find(end);
+    if (p != std::string::npos)
+        t.insert(p, " <GroundInfantry Name=\"S10_Hero\"><Tactical_Health>200</Tactical_Health><Max_Speed>1.0</Max_Speed>"
+                    "<Attach_To_Flagship_During_Space_Battle>Yes</Attach_To_Flagship_During_Space_Battle><Behavior>SELECTABLE</Behavior>"
+                    "<MovementClass>Infantry</MovementClass><LandBehavior>WALK_LOCOMOTOR</LandBehavior></GroundInfantry>\n"
+                    " <GroundCompany Name=\"S10_Hero_Team\"><Company_Units>S10_Hero</Company_Units><Hyperspace>Yes</Hyperspace>"
+                    "<Hyperspace_Speed>1.5</Hyperspace_Speed><Population_Value>1</Population_Value></GroundCompany>\n");
+    return t;
+}
+struct FlagshipRun {
+    bool battle = false;
+    size_t contained = 0;
+    bool record_ok = false;      // the record names the hero team, its owner and the lead's galactic id
+    bool host_is_lead = false;   // contained_host(0) is a live Underworld corvette of the battle
+    uint32_t hero_objects = 0;   // battle objects of the hero or its team type
+    uint32_t objects = 0;        // live battle objects at frame 1
+};
+FlagshipRun flagship_run(const Data& d, bool on) {
+    FlagshipRun out;
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    SimConfig cfg;
+    cfg.seed = 2026;
+    cfg.players = 4;
+    SimHost host(d.types, js, cfg);
+    galactic::GalacticSim* gs = host.start_galactic(d.rules, make_setup(d, false));
+    CHECK(gs != nullptr);
+    if (!gs) return out;
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.conflict.attach_to_flagship = on;
+    opt.battle.max_frames = 600;
+    CampaignBattles battles(host, d.crules, *d.catalog,
+                            [](const std::string& name, terrain::MapData& m) {
+                                if (name != "S10_Space_B") return false;
+                                m = space_map();
+                                return true;
+                            },
+                            opt);
+    std::vector<std::string> diag;
+    CHECK(battles.attach(&diag));
+    const uint32_t team = type_of(d, "S10_Hero_Team"), hero = type_of(d, "S10_Hero"), co = type_of(d, "S10_Corvette");
+    const objects::ObjectHandle h = gs->spawn_unit(1, 2, team);
+    CHECK(gs->store().alive(h));
+    const std::vector<objects::ObjectHandle> up{h};
+    CHECK(gs->launch_units(1, 2, up) == commands::RejectReason::None);
+    const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
+    CHECK(uf.size() == 1);
+    if (uf.size() != 1) return out;
+    // the lead: the fleet's last corvette (not its first content, so the test sees the mark and not the order)
+    objects::ObjectHandle lead;
+    for (objects::ObjectHandle m : gs->fleets()[uf[0]].contents)
+        if (static_cast<uint32_t>(gs->store().type(m)) == co) lead = m;
+    CHECK(gs->store().alive(lead) && gs->fleets()[uf[0]].contents.front() != lead);
+    CHECK(gs->set_gui_index(1, lead, commands::kPathfinderGuiIndex) == commands::RejectReason::None);
+    const objects::ObjectId hero_id = gs->store().id(h), lead_id = gs->store().id(lead);
+    CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
+    for (uint64_t t = 0; t < 4000 && !out.battle; ++t) {
+        host.tick_once();
+        TacticalBattle* b = battles.battle();
+        TacticalMode* tm = host.tactical();
+        if (!b || !tm || b->frame() < 1) continue;
+        out.battle = true;
+        out.contained = b->contained().size();
+        if (!b->contained().empty()) {
+            const TacticalBattle::ContainedUnit& c = b->contained()[0];
+            out.record_ok = c.galactic == hero_id && c.flagship == lead_id && c.owner == 1 && c.type == team;
+        }
+        const objects::ObjectStore& st = tm->primary();
+        const objects::ObjectHandle hh = st.find(b->contained_host(0));
+        out.host_is_lead = st.alive(hh) && st.owner(hh) == 1 && static_cast<uint32_t>(st.type(hh)) == co;
+        for (const objects::ObjectHandle o : st.all_objects()) {
+            if (!st.alive(o)) continue;
+            ++out.objects;
+            const auto ty = static_cast<uint32_t>(st.type(o));
+            out.hero_objects += ty == hero || ty == team ? 1u : 0u;
+        }
+    }
+    return out;
+}
+}  // namespace
+
+void test_flagship_contents() {
+    const char* prefix = g_temp_prefix;
+    g_types_patch = flagship_hero_types;
+    g_temp_prefix = "alamo_sim_battle_tests_flagship";
+    {
+        auto d = make_data();
+        const FlagshipRun off = flagship_run(*d, false), on = flagship_run(*d, true);
+        std::printf("  attach to flagship off: battle %d, contained %zu, hero objects %u, objects %u\n", off.battle ? 1 : 0, off.contained,
+                    off.hero_objects, off.objects);
+        std::printf("  attach to flagship on: battle %d, contained %zu (record %d, host the lead %d), hero objects %u, objects %u\n",
+                    on.battle ? 1 : 0, on.contained, on.record_ok ? 1 : 0, on.host_is_lead ? 1 : 0, on.hero_objects, on.objects);
+        CHECK(off.battle && off.contained == 0 && !off.host_is_lead && off.hero_objects == 0);
+        CHECK(on.battle && on.contained == 1 && on.record_ok && on.host_is_lead && on.hero_objects == 0);
+        CHECK(on.objects == off.objects);
+    }
+    g_types_patch = nullptr;
+    g_temp_prefix = prefix;
+}
+
 int main(int argc, char** argv) {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     g_temp_prefix = "alamo_sim_battle_tests";
@@ -4449,6 +4557,8 @@ int main(int argc, char** argv) {
     test_auto_only(*d);
     std::printf("galab: planet-bonus upgrade objects at a campaign battle's start\n");
     test_galactic_upgrade_spawns();
+    std::printf("#754: Attach_To_Flagship_During_Space_Battle fleet contents ride in the fleet lead (flag off / on)\n");
+    test_flagship_contents();
     std::printf("corruption upgrade spawns (#68)\n");
     test_corruption_upgrade_spawns();
     std::printf("human orders + order queue (integration fixes, [port: Gabriel])\n");
