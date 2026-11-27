@@ -4406,7 +4406,9 @@ void test_corruption_upgrade_spawns() {
 // fleet that attacks S10_B, and one in the Empire's defending fleet there. With ConflictConfig::attach_to_flagship on,
 // the space battle's request carries each with its fleet's lead (a corvette, set by set_gui_index 999, not the fleet's
 // first content) and the battle holds them as contained records whose hosts are those corvettes' battle units. No
-// battle object of the hero or its team exists on any frame to 300, so nothing can see, select, target or move it.
+// battle object of the hero or its team exists while they are inside (frames to 300), so nothing can see, select,
+// target or move it. #755: killing the Underworld lead at frame 20 releases its hero at frame 21 at the lead's
+// position and facing, a live combat unit that dies again on Die.
 // Off: no record, and the battle's objects are the same.
 namespace {
 std::string flagship_hero_types(std::string t) {
@@ -4425,10 +4427,18 @@ struct FlagshipRun {
     size_t contained = 0;
     bool record_ok[2] = {false, false};     // per player: a record names the hero team, its owner and its lead's id
     bool host_is_lead[2] = {false, false};  // per player: that record's host is a live corvette of the player
-    uint32_t hero_objects = 0;  // battle objects of the hero or its team type, summed over frames 1..300
+    uint32_t hero_objects = 0;  // battle objects of the hero or its team type, summed over frames 1..300 while all are inside
     uint32_t objects = 0;       // live battle objects at frame 1
+    // #755 (kill_lead): the Underworld lead is killed at frame 20
+    bool pending = false;        // its record turned Pending at the death
+    int32_t released_frame = -1;  // the frame its hero object first exists
+    float release_offset = -1.0f;  // that object's distance from the lead's death position
+    bool facing_ok = false;      // its facing is the lead's
+    bool targetable = false;     // it is a live combat unit at full combat health (a damage target)
+    bool killed = false;         // Die on it removed it again
+    uint32_t record_state = 0;   // the record's state at the end (2 Released)
 };
-FlagshipRun flagship_run(const Data& d, bool on) {
+FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false) {
     FlagshipRun out;
     jobs::JobSystem js(jobs::JobSystemConfig{0});
     SimConfig cfg;
@@ -4476,6 +4486,8 @@ FlagshipRun flagship_run(const Data& d, bool on) {
         if (p == 1) attacker_fleet = fl[0];
     }
     CHECK(gs->move_fleet(1, attacker_fleet, 1) == commands::RejectReason::None);
+    Vec3 dead_at{}, dead_face{};  // #755: the lead's transform at its death
+    objects::ObjectId hero_obj = objects::kNoObjectId;
     for (uint64_t t = 0; t < 8000; ++t) {
         host.tick_once();
         TacticalBattle* b = battles.battle();
@@ -4494,9 +4506,46 @@ FlagshipRun flagship_run(const Data& d, bool on) {
             }
             for (const objects::ObjectHandle o : st.all_objects()) out.objects += st.alive(o) ? 1u : 0u;
         }
+        bool inside = true;  // #755: a host's death releases its contents (the combat may kill a lead before frame 300)
+        for (const TacticalBattle::ContainedUnit& c : b->contained()) inside = inside && c.state == TacticalBattle::ContainedState::Inside;
         for (const objects::ObjectHandle o : st.all_objects()) {
             const auto ty = static_cast<uint32_t>(st.type(o));
-            out.hero_objects += st.alive(o) && (ty == hero || ty == team) ? 1u : 0u;
+            out.hero_objects += inside && st.alive(o) && (ty == hero || ty == team) ? 1u : 0u;
+        }
+        if (kill_lead) {
+            size_t ri = b->contained().size();
+            for (size_t i = 0; i < b->contained().size(); ++i)
+                if (b->contained()[i].owner == 1) ri = i;
+            if (ri == b->contained().size()) break;
+            if (b->frame() == 20) {
+                const objects::ObjectHandle hh = st.find(b->contained_host(ri));
+                CHECK(st.alive(hh));
+                // turned off its side's start facing first, so the release facing is the host's and not the side's
+                tm->primary().set_facing(hh, Vec3{0.6f, 0.8f, 0.0f});
+                dead_at = st.position(hh);
+                dead_face = st.facing(hh);
+                hero_obj = objects::kNoObjectId;
+                TacticalBattleTestAccess::kill(*b, *tm, st.id(hh));
+                out.pending = b->contained()[ri].state == TacticalBattle::ContainedState::Pending;
+            } else if (b->frame() > 20 && out.released_frame < 0) {
+                for (const objects::ObjectHandle o : st.all_objects())
+                    if (st.alive(o) && static_cast<uint32_t>(st.type(o)) == hero && st.owner(o) == 1) {
+                        out.released_frame = static_cast<int32_t>(b->frame());
+                        const Vec3 p = st.position(o), f = st.facing(o);
+                        out.release_offset = std::sqrt((p.x - dead_at.x) * (p.x - dead_at.x) + (p.y - dead_at.y) * (p.y - dead_at.y));
+                        out.facing_ok = std::fabs(f.x - dead_face.x) < 1.0e-3f && std::fabs(f.y - dead_face.y) < 1.0e-3f;
+                        const objects::ObjectId oid = st.id(o);
+                        out.targetable = b->combat().has_unit(oid) && b->combat().alive(oid) && b->combat().health(oid) > 0.0f &&
+                                         b->combat().health(oid) == b->combat().max_health(oid);
+                        hero_obj = st.id(o);
+                        TacticalBattleTestAccess::kill(*b, *tm, hero_obj);
+                        break;
+                    }
+            } else if (out.released_frame >= 0 && hero_obj != objects::kNoObjectId) {
+                out.killed = !st.alive(st.find(hero_obj));
+                hero_obj = objects::kNoObjectId;
+            }
+            out.record_state = static_cast<uint32_t>(b->contained()[ri].state);
         }
         if (b->frame() >= 300 || b->finished()) break;
     }
@@ -4520,6 +4569,14 @@ void test_flagship_contents() {
         CHECK(on.battle && on.contained == 2 && on.record_ok[0] && on.record_ok[1] && on.host_is_lead[0] && on.host_is_lead[1] &&
               on.hero_objects == 0);
         CHECK(on.objects == off.objects);
+        // #755: the lead's death releases its hero at the lead's transform, a live combat unit that dies again on Die.
+        const FlagshipRun rel = flagship_run(*d, true, true);
+        std::printf("  lead killed at frame 20: pending %d, hero object at frame %d, %.2f from the lead, facing %d, targetable %d, "
+                    "killed %d, record state %u\n",
+                    rel.pending ? 1 : 0, rel.released_frame, static_cast<double>(rel.release_offset), rel.facing_ok ? 1 : 0,
+                    rel.targetable ? 1 : 0, rel.killed ? 1 : 0, rel.record_state);
+        CHECK(rel.pending && rel.released_frame == 21 && rel.release_offset >= 0.0f && rel.release_offset < 1.0f && rel.facing_ok &&
+              rel.targetable && rel.killed && rel.record_state == 2);
     }
     g_types_patch = nullptr;
     g_temp_prefix = prefix;
