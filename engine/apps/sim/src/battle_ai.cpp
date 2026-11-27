@@ -1316,7 +1316,10 @@ void BattleAi::lane_job_body() {
     }
     lane_job_.locks = world_->object_bridge().script_lock_facts();  // slice 4e: published at collect
     queue_global_writes();
+    // #748: the digest's tree hash fans out (hash_parts / hash_blocks), as the lane-off CRC's does (CrcRegistry::capture);
+    // from this thread its chunks are AI work. The bytes never depend on the fan-out.
     StateHasher h;
+    h.set_parallel(&host_->parallel_for());
     world_->hash(h);
     lane_job_.digest = h.digest();
 }
@@ -1328,6 +1331,7 @@ void BattleAi::lane_join() {
         const std::function<void()> wait = std::move(lane_wait_);
         lane_wait_ = nullptr;
         try {
+            ALAMO_PROFILE_SCOPE("tac.ai.lane_wait");  // #748: the critical lane waiting for the AI job (wall clock only)
             wait();  // rethrows what the job threw
         } catch (...) {
             world_->claim_scripts();
