@@ -1201,7 +1201,7 @@ void TacticalBattle::sidebar_feed(int32_t player, SidebarFeed& out) const {
     for (const objects::ObjectHandle h : st.all_objects()) {
         if (!st.alive(h) || !mine(st.owner(h)) || !st.has_behavior(h, objects::beh::DummyUpgrade)) continue;
         const objects::TypeIndex t = st.type(h);
-        if (t < types.size() && types.get_bool(t, "Show_In_Sidebar_When_Complete")) out.completed.push_back(t);
+        if (t < types.size() && types.get_bool(t, objects::tags::Show_In_Sidebar_When_Complete)) out.completed.push_back(t);
     }
     if (production_) {
         const auto& ps = galaxy_->players();
@@ -1214,7 +1214,7 @@ void TacticalBattle::sidebar_feed(int32_t player, SidebarFeed& out) const {
                 if (o.type < 0 || static_cast<size_t>(o.type) >= types.size()) continue;
                 const auto t = static_cast<objects::TypeIndex>(o.type);
                 if (types.has_behavior(t, objects::BehaviorSet::Generic, objects::beh::DummyUpgrade) &&
-                    types.get_bool(t, "Show_In_Sidebar_While_Building"))
+                    types.get_bool(t, objects::tags::Show_In_Sidebar_While_Building))
                     out.building.emplace_back(t, o.built_fraction());
             }
         }
