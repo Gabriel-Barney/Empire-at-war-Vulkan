@@ -137,6 +137,18 @@ void TacticalBattle::oi_install(TacticalMode& mode, SimRng& rng) {
                 movement_->has_unit(u.id))
                 movement_->start_circling(u.id, target, r_min, r_max);
     };
+    // #266 (0x6f3180 state 4 [H]): Stop_Circling on the cable user at Drop + Pull (a team container: every live member).
+    h.cable_stop_circling = [this](tc::ObjectId user) {
+        if (!movement_) return;
+        if (movement_->has_unit(user)) {
+            (void)movement_->stop_circling(user);
+            return;
+        }
+        for (const Unit& u : units_)
+            if (u.alive && !u.retreated && u.container < containers_.size() && containers_[u.container].id == user &&
+                movement_->has_unit(u.id))
+                (void)movement_->stop_circling(u.id);
+    };
     // #44 t03 (0x6f3180): the cable user still circles (locomotor state 0x26). [port] a team container answers by its
     // members (circling while any live member circles); a user with no mover answers true (no locomotor: no check).
     h.circling = [this](tc::ObjectId user) {

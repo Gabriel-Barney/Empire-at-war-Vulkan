@@ -1331,6 +1331,7 @@ void test_cable_trip_battle(int stop) {
     int32_t clone = -2;
     objects::ObjectId killer = objects::kNoObjectId;
     int held = 0;  // the most Immobilised holds on the walker
+    std::vector<tactical::movement::V2> track;  // #266: the speeder's positions 255..258 frames after the order
     land_battle(
         *d, nullptr, 900,
         [&](TacticalBattle& b, TacticalMode& tm, SimHost& host) {
@@ -1364,6 +1365,7 @@ void test_cable_trip_battle(int stop) {
                 CHECK(b.order_stop(tm, 0, users) == commands::RejectReason::None);
             }
             held = std::max(held, static_cast<int>(TA::abilities(b).immobilize_count(walker)));
+            if (since >= 255 && since <= 258 && b.movement().has_unit(speeder)) track.push_back(b.movement().view(speeder).pos);
             for (const tactical::combat::DeathEvent& e : b.combat().deaths())
                 if (e.id == walker && died < 0) {
                     died = since;
@@ -1388,6 +1390,14 @@ void test_cable_trip_battle(int stop) {
         return;
     }
     CHECK(died >= 280 && died <= 284 && held == 0 && kind == 8 && clone == static_cast<int32_t>(clone_t) && killer == speeder);
+    // #266 (0x6f3180 state 4 [H]): at Drop + Pull (110 + 140) the cable stops the speeder's circling, so during the wrap
+    // it flies straight on (equal per-frame steps) instead of circling the walker
+    bool straight = track.size() == 4;
+    for (size_t k = 2; straight && k < track.size(); ++k)
+        straight = std::fabs((track[k].x - track[k - 1].x) - (track[1].x - track[0].x)) < 1e-3f &&
+                   std::fabs((track[k].y - track[k - 1].y) - (track[1].y - track[0].y)) < 1e-3f;
+    std::printf("  #266 the speeder after Drop + Pull: %zu position(s), straight %d\n", track.size(), straight ? 1 : 0);
+    CHECK(straight);
 }
 
 }  // namespace

@@ -434,7 +434,7 @@ void MovementSystem::step_flying(Unit& u, uint32_t frame, SimRng& rng) {
         u.m.speed = b.speed;
     };
     const FlyVec3 dest{s.dest.x, s.dest.y, terrain(s.dest)};
-    if (s.state == LocoState::None) s.state = LocoState::WalkMoving;  // 0 -> 0x13 ([M] runs 0x13 this frame)
+    if (s.state == LocoState::None) s.state = LocoState::WalkMoving;  // 0 -> 0x13, run this frame (0x63d7f0 [H], #266)
     switch (s.state) {
         case LocoState::WalkMoving: {  // 0x13: timed follower (§6.1), then altitude (§6.3) with the tracker
             if (!u.following || u.wps.empty()) {
@@ -644,6 +644,24 @@ bool MovementSystem::circle(ObjectId id, V2 centre, float z, float rmin, float r
     return true;
 }
 
+bool MovementSystem::stop_circling(ObjectId id) {
+    // #266: Stop_Circling 0x63d0a0 [H] (movement_system.hpp)
+    const int32_t i = find(id);
+    if (i < 0) return false;
+    Unit& u = units_[static_cast<size_t>(i)];
+    if (u.d.locomotor != LocomotorKind::Flying || u.sm.state != LocoState::FlyCircling) return false;
+    u.sm.circle_target = -1;
+    u.sm.circling = false;
+    u.m.pos = {u.m.pos.x + u.sm.vel.x, u.m.pos.y + u.sm.vel.y};  // P += V once
+    u.z += u.sm.vel_z;
+    return true;
+}
+
+void MovementSystem::circled_removed(ObjectId id) {
+    for (size_t i = 0; i < units_.size(); ++i)  // serial, unit order
+        if (units_[i].sm.state == LocoState::FlyCircling && units_[i].sm.circle_target == id) (void)stop_circling(units_[i].d.id);
+}
+
 // FIGHTER_FLYING §6.5: Start_Circling (vf +0x278 = 0x63bf20), called by CableAttackAbilityClass (0x6f34d0) with the
 // cable target and the ability record's +0x178 / +0x17c (Activation_Min_Range / Activation_Max_Range [M]).
 bool MovementSystem::start_circling(ObjectId id, ObjectId target, float rmin, float rmax) {
@@ -656,7 +674,7 @@ bool MovementSystem::start_circling(ObjectId id, ObjectId target, float rmin, fl
     u.sm.circle_target = target;
     u.sm.circle_rmin = rmin;
     u.sm.circle_rmax = rmax;
-    u.following = false;  // [port] as circle(): the order is dropped (how 0x26 is left is untraced)
+    u.following = false;  // [port] as circle(): the order is dropped (0x26's exits: stop_circling, #266)
     u.wps.clear();
     u.has_goal = false;
     u.need_path = false;

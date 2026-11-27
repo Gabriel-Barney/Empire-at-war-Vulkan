@@ -332,6 +332,9 @@ struct AbilityHost {
     // (a unit or its team container) starts circling the cable target between Activation_Min_Range and
     // Activation_Max_Range of the ability record (the host: MovementSystem::start_circling). Unset: no circling.
     std::function<void(ObjectId user, ObjectId target, float r_min, float r_max)> cable_attack;
+    // #266 (0x6f3180 state 4 [H]): at Drop + Pull, before the wrapping, the cable calls the user's locomotor vf +0x280
+    // (Stop_Circling: the host's MovementSystem::stop_circling; a team container: its members). Unset: nothing.
+    std::function<void(ObjectId user)> cable_stop_circling;
     // OI t03 (ABILITIES_HARDPOINTS §4.13 [port]): frame count and fps of animation `anim_type` (a ModelAnimType id; < 0:
     // the XML name `anim_name`, e.g. an Attack_Animation / Toss_Anim value) of `id`'s sim model, variant `variant`.
     // Static model data only, never a playing clock. False when the object has no model or the model lacks the clip.

@@ -640,6 +640,57 @@ void test_flying() {
     CHECK(near(p2.x - p1.x, p1.x - p0.x, 1e-3f) && near(p2.y - p1.y, p1.y - p0.y, 1e-3f) && !(p1 == p0));
     std::printf("flying start_circling: closest to the walker %.1f, to the structure %.1f\n",
                 static_cast<double>(near_end), static_cast<double>(far_end));
+
+    // #266 (Stop_Circling 0x63d0a0 [H]): around the walker again; stop_circling keeps FlyCircling, drops the target and
+    // moves once by V (P += V at the call), then the flyer goes straight on. Not circling / not flying: false.
+    CHECK(!s2.stop_circling(2) && !s2.stop_circling(555));
+    CHECK(s2.start_circling(1, 2, 40.0f, 120.0f));
+    for (uint32_t f = 3002; f < 3100; ++f) s2.tick(f, rng);
+    const V2 q0 = s2.view(1).pos;
+    s2.tick(3100, rng);
+    const V2 q1 = s2.view(1).pos;  // V = q1 - q0
+    CHECK(s2.stop_circling(1) && s2.view(1).loco_state == LocoState::FlyCircling);
+    const V2 q2 = s2.view(1).pos;
+    s2.tick(3101, rng);
+    const V2 q3 = s2.view(1).pos;
+    s2.tick(3102, rng);
+    const V2 q4 = s2.view(1).pos;
+    const bool once = near(q2.x - q1.x, q1.x - q0.x, 1e-3f) && near(q2.y - q1.y, q1.y - q0.y, 1e-3f) && !(q2 == q1);
+    const bool straight = near(q4.x - q3.x, q3.x - q2.x, 1e-3f) && near(q4.y - q3.y, q3.y - q2.y, 1e-3f) &&
+                          near(q3.x - q2.x, q1.x - q0.x, 1e-3f) && near(q3.y - q2.y, q1.y - q0.y, 1e-3f);
+    CHECK(once && straight && s2.view(1).loco_state == LocoState::FlyCircling);
+    // the circled target's removal (the signal 0x28 listener 0x63b900): the same Stop_Circling, at the removal
+    CHECK(s2.start_circling(1, 2, 40.0f, 120.0f));
+    for (uint32_t f = 3103; f < 3200; ++f) s2.tick(f, rng);
+    const V2 r0 = s2.view(1).pos;
+    s2.tick(3200, rng);
+    const V2 r1 = s2.view(1).pos;
+    CHECK(s2.remove_unit(2));
+    const V2 r2 = s2.view(1).pos;
+    const bool removed_once = near(r2.x - r1.x, r1.x - r0.x, 1e-3f) && near(r2.y - r1.y, r1.y - r0.y, 1e-3f) && !(r2 == r1);
+    CHECK(removed_once && s2.view(1).loco_state == LocoState::FlyCircling);
+    // the exits that already matched (the issue's RE table): a move order's path, once planned (the order's plan comes
+    // with the next path batch), takes 0x26 to 0 and 0x13 the same frame (0x63d7f0 [H]); a Stop takes it to FlyNoPath (0x27)
+    MoveOrder go;
+    go.units = {1};
+    go.destination = cell_center(90, 90);
+    s2.move(go, rng, 3201);
+    s2.coordinator_update(3201, 0, rng);
+    LocoState after_order = s2.view(1).loco_state;
+    uint32_t fo = 3201;
+    for (; fo < 3400 && after_order == LocoState::FlyCircling; ++fo) {
+        s2.tick(fo, rng);
+        after_order = s2.view(1).loco_state;
+    }
+    const ObjectId stop_ids[] = {1};
+    s2.stop(stop_ids);
+    s2.tick(fo, rng);
+    const LocoState after_stop = s2.view(1).loco_state;
+    CHECK(after_order == LocoState::WalkMoving && after_stop == LocoState::FlyNoPath);
+    std::printf("#266 stop_circling: one P += V at the call %d, straight on after %d; at the target's removal %d; an order -> "
+                "0x13 %d, Stop -> 0x27 %d\n",
+                once ? 1 : 0, straight ? 1 : 0, removed_once ? 1 : 0, after_order == LocoState::WalkMoving ? 1 : 0,
+                after_stop == LocoState::FlyNoPath ? 1 : 0);
 }
 
 // FIGHTER_FLYING §6.3.1: the clearance query (0x63b640): layer rules, hit test, MovementSystem::clearance_query, and

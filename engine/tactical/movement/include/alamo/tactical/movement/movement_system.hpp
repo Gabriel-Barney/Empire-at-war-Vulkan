@@ -724,6 +724,13 @@ public:
     // FIGHTER_FLYING §6.5: Start_Circling (vf +0x278) around a target OBJECT (a mover of this system, else
     // FlyingHooks::object_position), radii rmin / rmax > 0. Called by the CableAttackAbilityClass start. No draws.
     bool start_circling(ObjectId id, ObjectId target, float rmin, float rmax);
+    // #266 (Stop_Circling, locomotor vf +0x280 = 0x63d0a0 [H], read 2026-11-26): a flying unit in FlyCircling (0x26) drops
+    // its circle target (+0x278 := 0, the target's removal listener detached) and moves once by its last per-frame
+    // displacement (P += V, z included). The state stays 0x26: the unit flies straight on (the circle step without a
+    // target) until an order plans a path (0 -> 0x13) or a Stop / place takes it to 0x27. Called by the cable at Drop + Pull
+    // (0x6f3180 state 4) and when the circled target is removed (remove_unit / object_removed: the signal 0x28 listener
+    // 0x63b900). False (nothing done) when `id` is not a flying unit in FlyCircling.
+    bool stop_circling(ObjectId id);
     // FIGHTER_FLYING §6: flying host hooks (special_locomotors.hpp FlyingHooks; all optional).
     void set_flying_hooks(FlyingHooks hooks) { fly_hooks_ = std::move(hooks); }
     // FIGHTER_FLYING §6.3.1 clearance query (0x63b640) over this system's movers, for FlyingHooks::clearance: returns
@@ -781,7 +788,10 @@ public:
     void fighter_new_order(const MoveOrder& order, uint32_t frame);
     // s78f review: an object that is not a unit of this system (a station, a structure) is gone: blocks naming it are
     // converted / removed as at a unit's removal (listener 0x4f77e0, fform_removed).
-    void object_removed(ObjectId id) { fighter_removed(id); }
+    void object_removed(ObjectId id) {
+        fighter_removed(id);
+        circled_removed(id);  // #266
+    }
     void set_fighter_formation_hooks(FighterFormationHooks hooks) { fhooks_ = std::move(hooks); }
     std::span<const FighterEvent> fighter_events() const { return fevents_; }  // this tick
     // Save / load access (the grids' membership and the per-unit / per-squadron fighter state are sim state).
@@ -1601,6 +1611,7 @@ private:
     void f_chase(Unit& u, const Unit& x, RelAngles rel, float& tb, float& thb, float& lb);
     static void f_commit(Unit& u) { u.fs.b.p = f3_add(u.fs.b.p, u.fs.b.v); }
     void fighter_removed(ObjectId id);
+    void circled_removed(ObjectId id);  // #266: Stop_Circling for every flyer circling `id` (signal 0x28, 0x63b900 [H])
     void fighter_order(Unit& u);
     // fighter formations (fighter_formation.cpp)
     ObjectId fkey(const Unit& u) const { return u.fs.squad >= 0 ? u.fs.squad : u.d.id; }
