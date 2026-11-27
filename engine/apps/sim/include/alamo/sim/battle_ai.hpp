@@ -265,6 +265,7 @@ private:
     float population_cap(int32_t player) override;  // also the AI order rules' (AiOrderIssuer)
     float population_used(int32_t player) override;
     // --- A2 tactical: build pads (L1_S4_REMAINING §3.6 on TacticalBattle's pads) ---
+    bool type_buildable_now(objects::TypeIndex t) const;  // #646: can_build_now's type tests
     bool can_build_now(int32_t player, int32_t type);
     std::vector<int32_t> tactical_builders(int32_t player, int32_t type);  // station production (every battle, #662)
     // --- end A2 tactical ---

@@ -2394,6 +2394,7 @@ void BattleAi::capture_lane_rest() {
     // Station upgrades (battle order).
     view_.upgrades.clear();
     for (const TacticalBattle::StationUpgrade& u : b_->station_upgrades()) view_.upgrades.emplace_back(u.old_station, u.new_station);
+    ALAMO_PROFILE_STEP(steps, "tac.cap.rest.upgrades");
     // Skirmish production: every type hg_build_check can accept (in types_used_, a tactical queue), per AI player
     // (the builders and can_build fact tables; can_build only where some builder lists the type).
     {
@@ -2420,7 +2421,6 @@ void BattleAi::capture_lane_rest() {
         std::vector<std::pair<std::pair<int32_t, int32_t>, std::vector<int32_t>>> built;
         std::vector<std::pair<std::pair<int32_t, int32_t>, bool>> can;
         const objects::ObjectStore& st = mode_->primary();
-        const objects::GameObjectTypes& types = b_->catalog_->types();
         const TacticalBattle::HgTypeCounts counts = keys.empty() ? TacticalBattle::HgTypeCounts{} : TacticalBattle::hg_type_counts(st);
         std::vector<objects::TypeIndex> ts;
         std::vector<std::vector<objects::ObjectId>> ids;
@@ -2432,20 +2432,14 @@ void BattleAi::capture_lane_rest() {
             b_->hg_builders(st, p, ts, ids, &hg_rows_);
             for (size_t i = 0; i < ts.size(); ++i) {
                 std::vector<int32_t> v(ids[i].begin(), ids[i].end());
-                if (!v.empty()) {
-                    const objects::TypeIndex t = ts[i];
-                    const bool ok = t < types.size() && !types.get(t, objects::tags::Cinematic_Object_Only) && b_->tactical_price(t) > 0 &&
-                                    b_->hg_build_limits(st, p, t, &counts) == 0;
-                    can.emplace_back(keys[a + i], ok);
-                }
+                if (!v.empty()) can.emplace_back(keys[a + i], type_buildable_now(ts[i]) && b_->hg_build_limits(st, p, ts[i], &counts) == 0);
                 built.emplace_back(keys[a + i], std::move(v));
             }
             a = z;
         }
         facts_.builders.assign(std::move(built));
-        ALAMO_PROFILE_STEP(steps, "tac.cap.rest.builders");
         facts_.can_build.assign(std::move(can));
-        ALAMO_PROFILE_STEP(steps, "tac.cap.rest.can_build");
+        ALAMO_PROFILE_STEP(steps, "tac.cap.rest.production");  // builders and can_build
     }
     // Reserve entries (the drop tests) and the playable box.
     view_.reserve.clear();
@@ -3215,13 +3209,17 @@ std::vector<int32_t> BattleAi::tactical_builders(int32_t player, int32_t type) {
 // Every battle (#662: 0x727d30 checks through 0x497140 with no skirmish test [H]): not Cinematic_Object_Only, a price
 // (tactical_price: the campaign price in a campaign battle), and some builder passes the Production checks now (list /
 // faction row, prerequisites, Build_Limit_Current_For_All_Allies). Credits are the PotentialPlan's own check.
+// can_build_now's type tests (#646: also the capture's)
+bool BattleAi::type_buildable_now(objects::TypeIndex t) const {
+    const objects::GameObjectTypes& types = b_->catalog_->types();
+    return t < types.size() && !types.get(t, objects::tags::Cinematic_Object_Only) && b_->tactical_price(t) > 0;
+}
+
 bool BattleAi::can_build_now(int32_t player, int32_t type) {
     lane_live_read("can_build_now");
     if (!b_->production_enabled() || type < 0) return false;
-    const objects::GameObjectTypes& types = b_->catalog_->types();
     const auto t = static_cast<objects::TypeIndex>(type);
-    if (t >= types.size() || types.get(t, objects::tags::Cinematic_Object_Only)) return false;
-    if (b_->tactical_price(t) <= 0) return false;
+    if (!type_buildable_now(t)) return false;
     const objects::ObjectStore& st = mode_->primary();
     for (const int32_t id : tactical_builders(player, type))
         if (b_->hg_build_check(st, player, static_cast<objects::ObjectId>(id), t) == 0) return true;

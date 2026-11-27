@@ -3520,7 +3520,7 @@ private:
     uint8_t hg_build_limits(const objects::ObjectStore& st, int32_t player, objects::TypeIndex type,
                             const HgTypeCounts* counts = nullptr) const;
     // #646: for each of `types`, the player's active objects (ascending id) for which hg_build_check is not 1 (the AI's
-    // tactical_builders), in one pass over the player's objects. `rows` (optional, kept by the caller across calls): the
+    // tactical_builders), in one pass over the battle's live units. `rows` (optional, kept by the caller across calls): the
     // builder types' faction-row tokens (their match keys: trimmed, upper case), per (builder type, faction) - type data,
     // never stale within a battle.
     using HgRowCache = std::unordered_map<uint64_t, std::vector<std::string>>;
