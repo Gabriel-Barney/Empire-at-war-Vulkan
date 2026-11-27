@@ -41,6 +41,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "alamo/ai/tactical/tactical_ai.hpp"
@@ -571,6 +572,9 @@ private:
     std::unique_ptr<LaneThread> lane_thread_;
     std::function<void()> lane_wait_;
     WorldCounts lane_counts_;  // #636: world_counts() with the lane on, published at each join
+    std::unordered_map<uint64_t, std::vector<std::string>> hg_rows_;  // #646: TacticalBattle::HgRowCache (hg_builders)
+    std::vector<int32_t> hg_cand_;  // #646: the capture's production candidates (types_used_ with a tactical queue)
+    size_t hg_cand_used_ = static_cast<size_t>(-1);  // types_used_'s size when hg_cand_ was built
     void publish_counts();
     void lane_join();
     void lane_job_body();  // the AI lane's job: think() and what it publishes at collect

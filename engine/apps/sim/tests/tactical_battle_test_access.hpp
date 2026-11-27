@@ -31,6 +31,20 @@ struct TacticalBattleTestAccess {
         bone = u->attach_bone;
         return true;
     }
+    // #646: the build check and its parts (the AI capture's one-pass builders).
+    static uint8_t build_check(const TacticalBattle& b, const objects::ObjectStore& st, int32_t p, objects::ObjectId id, objects::TypeIndex t) {
+        return b.hg_build_check(st, p, id, t);
+    }
+    static uint8_t build_limits(const TacticalBattle& b, const objects::ObjectStore& st, int32_t p, objects::TypeIndex t,
+                                bool counted = false) {
+        if (!counted) return b.hg_build_limits(st, p, t);
+        const TacticalBattle::HgTypeCounts c = TacticalBattle::hg_type_counts(st);
+        return b.hg_build_limits(st, p, t, &c);
+    }
+    static void builders(const TacticalBattle& b, const objects::ObjectStore& st, int32_t p, std::span<const objects::TypeIndex> types,
+                         std::vector<std::vector<objects::ObjectId>>& out) {
+        b.hg_builders(st, p, types, out);
+    }
     // The battle's fog, mutable (null when fog is off or the battle is not set up).
     static tactical::fog::FogOfWar* fog(TacticalBattle& b) { return b.fog_rw(); }
     // #90: the Redirect_Blaster facing order the battle installs as AbilityHost::face_direction.

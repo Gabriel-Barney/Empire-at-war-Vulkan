@@ -3252,6 +3252,36 @@ void test_campaign_ai_build_facts() {
                     builders, can ? 1 : 0, b->tactical_price(static_cast<objects::TypeIndex>(up)), can_tech ? 1 : 0);
         CHECK(builders == 1 && can && !can_tech);
         CHECK(b->tactical_price(static_cast<objects::TypeIndex>(up)) == 40);
+        {  // #646: the capture's one-pass builders and per-type limits give hg_build_check's answers
+            const objects::ObjectStore& st = tm->primary();
+            std::vector<objects::TypeIndex> all;
+            for (size_t ti = 0; ti <= d->types.size(); ++ti) all.push_back(static_cast<objects::TypeIndex>(ti));
+            all.push_back(objects::kNone);
+            size_t listed = 0;
+            for (int32_t p = -1; p < 3; ++p) {
+                std::vector<std::vector<objects::ObjectId>> got;
+                TacticalBattleTestAccess::builders(*b, st, p, all, got);
+                CHECK(got.size() == all.size());
+                for (size_t i = 0; i < all.size() && i < got.size(); ++i) {
+                    std::vector<objects::ObjectId> want;
+                    if (p >= 0)
+                        for (const objects::ObjectHandle h : st.owned_by(p))
+                            if (st.active(h) && TacticalBattleTestAccess::build_check(*b, st, p, st.id(h), all[i]) != 1) want.push_back(st.id(h));
+                    std::sort(want.begin(), want.end());
+                    CHECK(got[i] == want);
+                    for (const objects::ObjectId id : want) {
+                        const uint8_t c = TacticalBattleTestAccess::build_check(*b, st, p, id, all[i]);
+                        CHECK(TacticalBattleTestAccess::build_limits(*b, st, p, all[i]) == c);
+                        CHECK(TacticalBattleTestAccess::build_limits(*b, st, p, all[i], true) == c);  // the counted form
+                    }
+                    if (p >= 0 && all[i] < d->types.size())  // the counted form on every type, listed or not
+                        CHECK(TacticalBattleTestAccess::build_limits(*b, st, p, all[i], true) == TacticalBattleTestAccess::build_limits(*b, st, p, all[i]));
+                    listed += want.size();
+                }
+            }
+            std::printf("  #646: hg_builders matches hg_build_check over %zu types, %zu (player, type, builder) listed\n", all.size(), listed);
+            CHECK(listed > 0);
+        }
         asked = true;
     }
     CHECK(asked);

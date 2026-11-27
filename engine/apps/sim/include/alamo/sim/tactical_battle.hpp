@@ -65,6 +65,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -3504,6 +3505,27 @@ private:
     bool hg_squadron_members(int32_t type, std::vector<int32_t>& members) const;  // #327 t05: Squadron_Units only
     // 0 ok, 1 not buildable here, 4 prerequisite missing, 5 build limit reached (BuildOptionInfo::block values).
     uint8_t hg_build_check(const objects::ObjectStore& st, int32_t player, objects::ObjectId builder, objects::TypeIndex type) const;
+    // #646: hg_build_check in parts. hg_type_buildable: its tests before the builder (false: 1); hg_type_priced: the
+    // type-only tests after the buildable list (false: 1); hg_build_limits: the tests after those (0, 4 or 5; they never
+    // read the builder).
+    bool hg_type_buildable(int32_t player, objects::TypeIndex type) const;
+    bool hg_type_priced(objects::TypeIndex type) const;  // #663: a price and a build time (after the list; type only)
+    // The store's active objects per (type, owner), counted once for many hg_build_limits calls (`counts`: what its
+    // object scans count; null: it scans the store).
+    struct HgTypeCounts {
+        std::vector<std::pair<uint64_t, uint32_t>> n;  // ((type << 32) | uint32(owner), count), ascending
+        uint32_t get(objects::TypeIndex type, int32_t owner) const;
+    };
+    static HgTypeCounts hg_type_counts(const objects::ObjectStore& st);
+    uint8_t hg_build_limits(const objects::ObjectStore& st, int32_t player, objects::TypeIndex type,
+                            const HgTypeCounts* counts = nullptr) const;
+    // #646: for each of `types`, the player's active objects (ascending id) for which hg_build_check is not 1 (the AI's
+    // tactical_builders), in one pass over the player's objects. `rows` (optional, kept by the caller across calls): the
+    // builder types' faction-row tokens (their match keys: trimmed, upper case), per (builder type, faction) - type data,
+    // never stale within a battle.
+    using HgRowCache = std::unordered_map<uint64_t, std::vector<std::string>>;
+    void hg_builders(const objects::ObjectStore& st, int32_t player, std::span<const objects::TypeIndex> types,
+                     std::vector<std::vector<objects::ObjectId>>& out, HgRowCache* rows = nullptr) const;
     bool hg_buildable(const objects::ObjectStore& st, int32_t player, objects::ObjectId builder, objects::TypeIndex type) const {
         return hg_build_check(st, player, builder, type) == 0;
     }
