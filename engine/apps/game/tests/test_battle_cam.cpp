@@ -988,7 +988,7 @@ struct RefFilter {
         last = frame;
         V3 avg = look;
         for (int i = 0; i < A - 1; ++i) avg = avg + h[i];
-        avg = avg * (1.0f / A);
+        avg = avg * (1.0f / static_cast<float>(A));
         for (int i = N - 1; i > 0; --i) {
             h[i] = h[i - 1];
             s[i] = s[i - 1];
@@ -1023,7 +1023,8 @@ void test_look_filter() {
     RefFilter r(p0);
     CHECK(near(g.step(0, {500.0f, 0.0f, 0.0f}, false), p0));  // frame <= +0x1c0 (0): the seed
     const auto path = [](int t) {
-        return t < 60 ? V3{100.0f + 4.0f * t, -50.0f, 20.0f} : V3{340.0f, -50.0f + 3.0f * (t - 60), 20.0f + 0.5f * (t - 60)};
+        const float f = static_cast<float>(t);
+        return t < 60 ? V3{100.0f + 4.0f * f, -50.0f, 20.0f} : V3{340.0f, -50.0f + 3.0f * (f - 60.0f), 20.0f + 0.5f * (f - 60.0f)};
     };
     bool ok = true;
     for (int t = 1; t <= 120; ++t) {
