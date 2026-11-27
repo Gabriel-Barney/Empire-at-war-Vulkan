@@ -185,6 +185,7 @@ void App::space_weapon_toggle(bool hotkey) {
     sw_icon_ = pointer;
     sw_station_ = station;
     bombing_targeting_ = false;  // one modal pick at a time
+    bombard_targeting_ = false;
     reinforce_unit_ = 0;
     targeting_.cancel();
 }

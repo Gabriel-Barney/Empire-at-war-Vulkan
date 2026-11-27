@@ -1501,6 +1501,21 @@ cmd::RejectReason TacticalBattle::handle_command(TacticalMode& mode, uint8_t pla
         if (!bombing_run_available(static_cast<int32_t>(player))) return R::AbilityNotReady;
         return start_bombing_run(mode, static_cast<int32_t>(player), at) ? R::None : R::NotAllowed;
     }
+    // #717 (command 54 PlanetaryBombard, execute 0x52aff0 [H]): the human orbital bombardment, land only (no
+    // PlanetaryBombardManager in space). The point is the dequantized wire value, |z| < 0.0001 snapped to 0; 0x528a70
+    // tests it and 0x528140 starts the strike. Outcomes as BombingRun: no record / space -> NotAllowed, invalid point ->
+    // InvalidPosition, not available -> AbilityNotReady (the original logs it and plays the local error SFX); else
+    // start_bombardment, which draws the scatter cursor (one RNG draw), as the AI's and Lua's starts do.
+    if (t == T::PlanetaryBombard) {
+        if (space_ || !l1_mode_) return R::NotAllowed;
+        const int32_t p = static_cast<int32_t>(player);
+        if (const L1Bombard* r = l1_bombard_of(p); !r || !r->enabled) return R::NotAllowed;
+        Vec3 at{ev.f("x"), ev.f("y"), ev.f("z")};
+        if (std::fabs(at.z) < 0.0001f) at.z = 0.0f;
+        if (!bombardment_target_valid(p, at)) return R::InvalidPosition;
+        if (!bombardment_available(p)) return R::AbilityNotReady;
+        return start_bombardment(mode, p, at, rng) ? R::None : R::NotAllowed;
+    }
     if (t != T::SetUnitAbilityMode && t != T::TacticalSpecialAbility && t != T::TacticalSpecialAbilityWithDummyTarget &&
         t != T::SetAbilityAutofire)
         return R::Unhandled;

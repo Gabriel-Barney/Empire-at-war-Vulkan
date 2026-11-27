@@ -1465,6 +1465,53 @@ void test_bombing_run_button() {
     CHECK2(r && !r->hidden && r->disabled && r->build_fill == 25.0f);
 }
 
+// #717 pb_switch / pb_switch_recharge (0x314360): hidden from init and without the land feed; shown with a record; ready ->
+// enabled with Icon_Alternate_Texture_Name 0, else disabled with the Icon_Texture_Name; the bar takes the recharge.
+void test_bombard_switch() {
+    const std::string xml =
+        "<CommandBarComponents><CommandBarComponent Name=\"pb_switch\"><Type>TextButton</Type>"
+        "<Icon_Texture_Name>i_button_special_pb_switch_03.tga</Icon_Texture_Name>"
+        "<Icon_Alternate_Texture_Name>i_button_special_pb_switch_00.tga</Icon_Alternate_Texture_Name></CommandBarComponent>"
+        "<CommandBarComponent Name=\"pb_switch_recharge\"><Type>Bar</Type><Bar_Texture_Name>i_bar_control_wide.tga</Bar_Texture_Name>"
+        "<Bar_Overlay_Name>i_button_special_pb_charge.tga</Bar_Overlay_Name><Smooth_Bar>True</Smooth_Bar></CommandBarComponent>"
+        "</CommandBarComponents>";
+    ComponentTable t;
+    const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(xml), "pb.xml");
+    CHECK2(doc.ok());
+    t.parse(doc.root());
+    const TextureAtlas atlas = stage2_atlas();
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    TacticalHud hud;
+    hud.init(t, atlas, fonts);
+    hud.resize(1024, 768);
+    TacticalHudFrame fr;
+    fr.world.view = top_view2(1024, 768);
+    const auto sw = static_cast<uint32_t>(t.find("pb_switch")), bar = static_cast<uint32_t>(t.find("pb_switch_recharge"));
+    auto hidden = [&](uint32_t ci) {
+        const ButtonRuntime* r = hud.buttons().find_state(ci);
+        return !r || r->hidden;
+    };
+    hud.build(fr, {}, {});  // no feed: hidden from init
+    CHECK2(hidden(sw) && hidden(bar) && !hud.stats().bombard_bar);
+    fr.bombard.present = true;  // land, no record
+    hud.build(fr, {}, {});
+    CHECK2(hidden(sw) && hidden(bar));
+    fr.bombard.shown = true;  // recharging
+    fr.bombard.recharge = 0.4f;
+    hud.build(fr, {}, {});
+    const ButtonRuntime* r = hud.buttons().find_state(sw);
+    CHECK2(r && !r->hidden && r->disabled && r->icon_override.empty() && !hidden(bar));
+    fr.bombard.ready = true;
+    fr.bombard.recharge = 1.0f;
+    hud.build(fr, {}, {});
+    r = hud.buttons().find_state(sw);
+    CHECK2(r && !r->hidden && !r->disabled && r->icon_override == "i_button_special_pb_switch_00.tga");
+    fr.bombard.shown = false;  // the record removed (Remove_Orbital_Bombardment)
+    hud.build(fr, {}, {});
+    CHECK2(hidden(sw) && hidden(bar) && !hud.stats().bombard_bar);
+}
+
 // #474 garrison_respawn_counter (docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "Garrison respawn counter"): hidden at -1; at
 // 0.25 the icon plus the Build_Texture_Name dial at 25 %, centred 30 right and 60 down from the top-left corner.
 void test_garrison_respawn_counter() {
@@ -2190,6 +2237,7 @@ int run_stage2_tests() {
     test_tactical_fleet_tabs_fallback();  // #598
     test_order_buttons();
     test_bombing_run_button();
+    test_bombard_switch();
     test_garrison_respawn_counter();  // #474
     test_tactical_sell_button();  // #477
     test_fly_texts();             // #664

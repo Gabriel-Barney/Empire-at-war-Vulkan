@@ -40,6 +40,11 @@ bool App::cancel_picks() {
         ++bombing_cancels_;
         any = true;
     }
+    if (bombard_targeting_) {
+        bombard_end(true);
+        ++bombing_cancels_;
+        any = true;
+    }
     if (beacon_pick_) {
         beacon_pick_ = false;
         any = true;

@@ -8,6 +8,7 @@
 //   bombing_run_button   §9.2 / §9.3 (cu9g): the land b_special_weapon button: disabled := controls locked or the run not
 //                        available; dial = the 0x495250 cooldown fraction (0 shown as a full dial, none when ready).
 //   bombing_run_style    §9.4 / §9.5: the faction's Bombing_Run_Shadow_Blob_Material_Name and Bombing_Run_Blob_Size.
+//   bombard_switch / bombardment_style  #717: the land pb_switch / pb_switch_recharge, and the bombardment pick's blob.
 //   hardpoint_type_name  §1.5: HardPointType name of a combat HardpointKind (the reticle texture table key).
 //   hardpoint_world      §1.3: a hard point's unit-local attachment offset (x forward, y left, z up) in world space.
 //   galactic_hero_entries §3.2: the galactic hero roster of a player - named heroes with an Icon_Name on the map (one
@@ -117,6 +118,13 @@ struct BombingRunStyle {
     float blob_size = 100.0f;    // Bombing_Run_Blob_Size: the square's full side (DECORATIONS §3.2)
 };
 BombingRunStyle bombing_run_style(const galactic::FactionRules& faction);
+// #717 0x2e7bc0 / 0x30c3b0 [H]: the orbital-bombardment pick's blob, Bombardment_Shadow_Blob_Material_Name with a full side
+// of 2 x Bombardment_Blob_Size (the bombing run's side is its blob size itself); no Bombardment_Blob_Size: 100.
+BombingRunStyle bombardment_style(const galactic::FactionRules& faction);
+// #717 0x314360 [H]: pb_switch / pb_switch_recharge. Always driven in a battle, so a space battle hides them; shown = land
+// and TacticalBattle::bombardment_shown; ready = shown and bombardment_available (0x528970; [port] the player's gate is
+// read at once rather than through the service's `available`); recharge = bombardment_recharge.
+ui::HudBombardSwitch bombard_switch(bool land, bool shown, bool available, float recharge);
 
 const char* hardpoint_type_name(uint8_t kind);
 ui::Vec3 hardpoint_world(ui::Vec3 position, ui::Vec3 facing, ui::Vec3 offset);

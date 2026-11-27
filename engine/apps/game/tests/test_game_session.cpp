@@ -2637,6 +2637,22 @@ void hud_feeds_test(const game::GameData& data, const game::SessionSpec& spec) {
         CHECK(st.blob_material == "Bombing_Run_Empire" && st.blob_size == 100.0f);
         const game::BombingRunStyle none = game::bombing_run_style(galactic::FactionRules{});
         CHECK(none.blob_material.empty() && none.blob_size == 100.0f);
+        // #717 (0x30c3b0): the bombardment blob's full side is twice Bombardment_Blob_Size.
+        galactic::FactionRules fb;
+        fb.xml_fields = {{"Bombardment_Shadow_Blob_Material_Name", "Bombardment_Empire"}, {"Bombardment_Blob_Size", "200.0"}};
+        const game::BombingRunStyle bs = game::bombardment_style(fb);
+        CHECK(bs.blob_material == "Bombardment_Empire" && bs.blob_size == 400.0f);
+        CHECK(game::bombardment_style(galactic::FactionRules{}).blob_material.empty());
+    }
+    {  // #717 (0x314360): pb_switch is always driven in a battle; space or no record hides it; ready needs it shown.
+        const ui::HudBombardSwitch space = game::bombard_switch(false, true, true, 1.0f);
+        CHECK(space.present && !space.shown && !space.ready);
+        const ui::HudBombardSwitch none = game::bombard_switch(true, false, true, 1.0f);
+        CHECK(none.present && !none.shown && !none.ready);
+        const ui::HudBombardSwitch wait = game::bombard_switch(true, true, false, 0.3f);
+        CHECK(wait.shown && !wait.ready && wait.recharge == 0.3f);
+        const ui::HudBombardSwitch ready = game::bombard_switch(true, true, true, 1.0f);
+        CHECK(ready.shown && ready.ready && ready.recharge == 1.0f);
     }
     // §1: HardPointType names (reticle table keys) and the yaw-rotated attachment point.
     CHECK(std::string(game::hardpoint_type_name(0)) == "HARD_POINT_ENGINE" && std::string(game::hardpoint_type_name(5)) == "HARD_POINT_WEAPON_LASER");

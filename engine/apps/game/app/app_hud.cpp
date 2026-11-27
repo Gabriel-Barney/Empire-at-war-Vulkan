@@ -1392,6 +1392,8 @@ void App::build_tactical_hud() {
     if (const sim::TacticalBattle* tb = battle()) {
         hf.bombing_run = bombing_run_button(!bview_.space(), story_controls_locked(), tb->bombing_run_available(local_player()),
                                             tb->bombing_run_cooldown_fraction(local_player()));
+        hf.bombard = bombard_switch(!bview_.space(), tb->bombardment_shown(local_player()), tb->bombardment_available(local_player()),
+                                    tb->bombardment_recharge(local_player()));
         if (bview_.space()) {  // ui1 t04 (HUD_GAPS §9.1): the space special-weapon button
             int32_t icon = -1;
             float ready = 0.0f;
