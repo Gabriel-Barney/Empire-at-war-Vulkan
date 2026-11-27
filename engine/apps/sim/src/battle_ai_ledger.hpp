@@ -48,6 +48,9 @@
     DERIVED(lane_thread_, "#636: scratch - the AI lane's thread, created at the first threaded job") \
     CHECKED(lane_wait_, "#636: the running job's join; write() asserts a save synced first, read() joins") \
     DERIVED(lane_counts_, "#636: the world_counts() copy, published again at each join and by read()") \
+    DERIVED(hg_rows_, "#646: per-type cache (the builder types' buildable-row tokens, filled on first use)") \
+    DERIVED(hg_cand_, "#646: per-type cache (the production candidates, rebuilt when the battle's type list grows)") \
+    DERIVED(hg_cand_used_, "#646: per-type cache key (the type list's size at hg_cand_'s build)") \
     SAVED(lane_seq_, hashed) \
     SAVED(lane_pushes_, hashed) \
     SAVED(lane_danger_, unhashed) \

@@ -1656,6 +1656,7 @@ bool BattleAi::read(ByteReader& r) {
     view_.ship_names.clear();
     view_.valid = false;  // captured again at the next AI slot
     view_.grid_valid = false;  // the grid copy too (a loaded grid may have another state at the same version)
+    hg_cand_used_ = static_cast<size_t>(-1);  // #646: the production candidates too (the loaded battle's type list)
     world_->object_bridge().lane_abilities = nullptr;  // sp3 slice 4b: likewise the ability records
     lane_unloaded_.clear();  // sp3 slice 4d: consumed within the tick of its apply
     if (world_->ai_lane()) publish_counts();  // #636: the loaded world's
@@ -2323,6 +2324,7 @@ BattleAi::FactEnv BattleAi::view_env() const { return FactEnv{*this, world_->vie
 // ---- the AI lane's remaining host answers, from the capture ----------------------------------------------
 
 void BattleAi::capture_lane_rest() {
+    profile::Steps steps;  // #646: tac.cap.rest by step
     // Base shields: the ones l1_base_shield_covers counts (store order; the test is an any-of).
     view_.shields.clear();
     if (b_->l1_mode_ && !b_->space_) {
@@ -2353,6 +2355,7 @@ void BattleAi::capture_lane_rest() {
                 view_.side_shields.push_back({c.x, c.y, c.z, r * r, st.owner(h)});
             }
     }
+    ALAMO_PROFILE_STEP(steps, "tac.cap.rest.shields");
     // The land passability grid (copied when it changed since the last capture).
     if (!b_->space_ && b_->movement_) {
         const mv::PassabilityGrid& g = b_->movement_->grid();
@@ -2368,6 +2371,7 @@ void BattleAi::capture_lane_rest() {
         view_.grid_valid = false;
         view_.grid_eff.clear();
     }
+    ALAMO_PROFILE_STEP(steps, "tac.cap.rest.grid");
     // Combat hard points of every combat object (ascending id).
     view_.hp_index.clear();
     view_.hps.clear();
@@ -2386,29 +2390,56 @@ void BattleAi::capture_lane_rest() {
             view_.hps.insert(view_.hps.end(), one.begin(), one.end());
         }
     }
+    ALAMO_PROFILE_STEP(steps, "tac.cap.rest.hard_points");
     // Station upgrades (battle order).
     view_.upgrades.clear();
     for (const TacticalBattle::StationUpgrade& u : b_->station_upgrades()) view_.upgrades.emplace_back(u.old_station, u.new_station);
+    ALAMO_PROFILE_STEP(steps, "tac.cap.rest.upgrades");
     // Skirmish production: every type hg_build_check can accept (in types_used_, a tactical queue), per AI player
     // (the builders and can_build fact tables; can_build only where some builder lists the type).
     {
         std::vector<std::pair<int32_t, int32_t>> keys;
         if (b_->production_enabled()) {
-            const objects::GameObjectTypes& types = b_->catalog_->types();
-            std::vector<int32_t> cand;
-            for (const uint32_t t : b_->types_used_)
-                if (t < types.size() && b_->hg_queue_of(static_cast<objects::TypeIndex>(t)) >= 0) cand.push_back(static_cast<int32_t>(t));
-            std::sort(cand.begin(), cand.end());
-            cand.erase(std::unique(cand.begin(), cand.end()), cand.end());
+            // #646: the candidates again only when the battle's type list grew (it is only appended to: extend_battle)
+            if (hg_cand_used_ != b_->types_used_.size()) {
+                const objects::GameObjectTypes& types = b_->catalog_->types();
+                hg_cand_.clear();
+                for (const uint32_t t : b_->types_used_)
+                    if (t < types.size() && b_->hg_queue_of(static_cast<objects::TypeIndex>(t)) >= 0) hg_cand_.push_back(static_cast<int32_t>(t));
+                std::sort(hg_cand_.begin(), hg_cand_.end());
+                hg_cand_.erase(std::unique(hg_cand_.begin(), hg_cand_.end()), hg_cand_.end());
+                hg_cand_used_ = b_->types_used_.size();
+            }
             for (int32_t p = 0; p < static_cast<int32_t>(host_->players()); ++p)
                 if (controls(p))
-                    for (const int32_t t : cand) keys.emplace_back(p, t);
+                    for (const int32_t t : hg_cand_) keys.emplace_back(p, t);
         }
-        facts_.builders.capture(keys);
-        std::vector<std::pair<int32_t, int32_t>> listed;
-        for (const auto& k : keys)
-            if (!facts_.builders.get(true, k).empty()) listed.push_back(k);
-        facts_.can_build.capture(std::move(listed));
+        ALAMO_PROFILE_STEP(steps, "tac.cap.rest.prod_keys");
+        // #646: the builders and can_build rules' answers (tactical_builders, can_build_now) for every key, with one pass
+        // over each player's objects (TacticalBattle::hg_builders) and one limits check per listed key (hg_build_check
+        // answers the same for every builder that lists the type).
+        std::vector<std::pair<std::pair<int32_t, int32_t>, std::vector<int32_t>>> built;
+        std::vector<std::pair<std::pair<int32_t, int32_t>, bool>> can;
+        const objects::ObjectStore& st = mode_->primary();
+        const TacticalBattle::HgTypeCounts counts = keys.empty() ? TacticalBattle::HgTypeCounts{} : TacticalBattle::hg_type_counts(st);
+        std::vector<objects::TypeIndex> ts;
+        std::vector<std::vector<objects::ObjectId>> ids;
+        for (size_t a = 0; a < keys.size();) {
+            const int32_t p = keys[a].first;
+            size_t z = a;
+            ts.clear();
+            for (; z < keys.size() && keys[z].first == p; ++z) ts.push_back(static_cast<objects::TypeIndex>(keys[z].second));
+            b_->hg_builders(st, p, ts, ids, &hg_rows_);
+            for (size_t i = 0; i < ts.size(); ++i) {
+                std::vector<int32_t> v(ids[i].begin(), ids[i].end());
+                if (!v.empty()) can.emplace_back(keys[a + i], type_buildable_now(ts[i]) && b_->hg_build_limits(st, p, ts[i], &counts) == 0);
+                built.emplace_back(keys[a + i], std::move(v));
+            }
+            a = z;
+        }
+        facts_.builders.assign(std::move(built));
+        facts_.can_build.assign(std::move(can));
+        ALAMO_PROFILE_STEP(steps, "tac.cap.rest.production");  // builders and can_build
     }
     // Reserve entries (the drop tests) and the playable box.
     view_.reserve.clear();
@@ -2416,6 +2447,7 @@ void BattleAi::capture_lane_rest() {
         if (q.reserve && !q.deployed)
             view_.reserve.push_back({q.galactic_id, q.owner, q.type, b_->space_ ? 0.0f : b_->drop_yaw(q.side)});
     view_.box = !b_->space_ && b_->map_.playable_box(view_.box_min, view_.box_max);
+    ALAMO_PROFILE_STEP(steps, "tac.cap.rest.reserve");
 }
 
 bool BattleAi::view_line_clear(int32_t object_id, const at::Vec3f& a, const at::Vec3f& b) const {
@@ -3177,13 +3209,17 @@ std::vector<int32_t> BattleAi::tactical_builders(int32_t player, int32_t type) {
 // Every battle (#662: 0x727d30 checks through 0x497140 with no skirmish test [H]): not Cinematic_Object_Only, a price
 // (tactical_price: the campaign price in a campaign battle), and some builder passes the Production checks now (list /
 // faction row, prerequisites, Build_Limit_Current_For_All_Allies). Credits are the PotentialPlan's own check.
+// can_build_now's type tests (#646: also the capture's)
+bool BattleAi::type_buildable_now(objects::TypeIndex t) const {
+    const objects::GameObjectTypes& types = b_->catalog_->types();
+    return t < types.size() && !types.get(t, objects::tags::Cinematic_Object_Only) && b_->tactical_price(t) > 0;
+}
+
 bool BattleAi::can_build_now(int32_t player, int32_t type) {
     lane_live_read("can_build_now");
     if (!b_->production_enabled() || type < 0) return false;
-    const objects::GameObjectTypes& types = b_->catalog_->types();
     const auto t = static_cast<objects::TypeIndex>(type);
-    if (t >= types.size() || types.get(t, objects::tags::Cinematic_Object_Only)) return false;
-    if (b_->tactical_price(t) <= 0) return false;
+    if (!type_buildable_now(t)) return false;
     const objects::ObjectStore& st = mode_->primary();
     for (const int32_t id : tactical_builders(player, type))
         if (b_->hg_build_check(st, player, static_cast<objects::ObjectId>(id), t) == 0) return true;

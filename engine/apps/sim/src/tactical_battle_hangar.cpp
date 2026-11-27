@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <iterator>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "alamo/core/ascii.hpp"
@@ -746,21 +747,108 @@ void TacticalBattle::hg_station_upgrade(TacticalMode& mode, const tactical::abil
 
 // ---- station contents / skirmish tactical production (contents.hpp HOST WIRING) ----
 
-uint8_t TacticalBattle::hg_build_check(const objects::ObjectStore& st, int32_t player, objects::ObjectId builder,
-                                       objects::TypeIndex type) const {
+bool TacticalBattle::hg_type_buildable(int32_t player, objects::TypeIndex type) const {
     const objects::GameObjectTypes& types = catalog_->types();
-    if (!production_enabled() || player < 0 || static_cast<size_t>(player) >= galaxy_->players().size()) return 1;
-    if (type == objects::kNone || type >= types.size()) return 1;
+    if (!production_enabled() || player < 0 || static_cast<size_t>(player) >= galaxy_->players().size()) return false;
+    if (type == objects::kNone || type >= types.size()) return false;
     // mcx4 t04 (check 0x497140, first test [H]; SKIRMISH_SETUP §7): the type's Tactical_Production_Queue (+0xa30) must be
     // Tactical_Units (2) or Tactical_Upgrades (3); the default -1 (and Land / Space) is never built in a battle.
-    if (hg_queue_of(type) < 0) return 1;
-    if (std::find(types_used_.begin(), types_used_.end(), static_cast<uint32_t>(type)) == types_used_.end()) return 1;
+    if (hg_queue_of(type) < 0) return false;
+    if (std::find(types_used_.begin(), types_used_.end(), static_cast<uint32_t>(type)) == types_used_.end()) return false;
     // skm1 t02 (0x288b80): named heroes (+0x13 Is_Named_Hero) only with the heroes option bit 0x1, skirmish super weapons
     // (+0x1c Is_Skirmish_Tactical_Super_Weapon) only with bit 0x4 (BattleConfig::skirmish_options, skirmish battles).
     if (cfg_.skirmish && cfg_.skirmish_options.set) {
-        if (!cfg_.skirmish_options.heroes && types.get(type, objects::tags::Is_Named_Hero)) return 1;
-        if (!cfg_.skirmish_options.super_weapons && types.get(type, objects::tags::Is_Skirmish_Tactical_Super_Weapon)) return 1;
+        if (!cfg_.skirmish_options.heroes && types.get(type, objects::tags::Is_Named_Hero)) return false;
+        if (!cfg_.skirmish_options.super_weapons && types.get(type, objects::tags::Is_Skirmish_Tactical_Super_Weapon)) return false;
     }
+    return true;
+}
+
+namespace {
+// The builder type's buildable-list entries in `faction`'s row (buildable_list_tag, #660): the tokens naming a type
+// after the faction's row marker; a token naming no type is a row marker.
+// hg_same(a, b) == (hg_match_key(a) == hg_match_key(b)): trimmed, upper case.
+std::string hg_match_key(std::string_view s) {
+    std::string k(ascii_trim(s));
+    for (char& c : k) c = ascii_to_upper(c);
+    return k;
+}
+// The match keys of those tokens.
+std::vector<std::string> hg_row_tokens(const objects::GameObjectTypes& types, const objects::ListTag& tag, objects::TypeIndex builder_type,
+                                       const std::string& faction) {
+    std::vector<std::string> out;
+    bool in_row = false;
+    for (const std::string_view tok : types.get(builder_type, tag)) {
+        if (types.resolve_name(hg_trim(tok)) == objects::kNone) {
+            in_row = hg_same(tok, faction);
+            continue;
+        }
+        if (in_row) out.push_back(hg_match_key(tok));
+    }
+    return out;
+}
+}  // namespace
+
+void TacticalBattle::hg_builders(const objects::ObjectStore& st, int32_t player, std::span<const objects::TypeIndex> types_in,
+                                 std::vector<std::vector<objects::ObjectId>>& out, HgRowCache* rows) const {
+    out.assign(types_in.size(), {});
+    // the types passing the tests before the builder and the type-only ones after its list (price and time, #663); the
+    // builders are the player's own (tactical_builders), so the list row is the player's faction
+    std::vector<size_t> ok;
+    for (size_t i = 0; i < types_in.size(); ++i)
+        if (hg_type_buildable(player, types_in[i]) && hg_type_priced(types_in[i])) ok.push_back(i);
+    if (ok.empty()) return;
+    const objects::GameObjectTypes& types = catalog_->types();
+    std::string faction;
+    const uint32_t f = galaxy_->players()[static_cast<size_t>(player)].faction;
+    if (f < galaxy_->rules().factions.size()) faction = galaxy_->rules().factions[f].name;
+    // the types by name match key (two types may share one)
+    std::unordered_map<std::string, std::vector<size_t>> by_name;
+    for (const size_t i : ok)
+        by_name[hg_match_key(types_in[i] < galaxy_->rules().types.size() ? std::string_view(galaxy_->rules().types[types_in[i]].name)
+                                                                         : std::string_view())]
+            .push_back(i);
+    // hg_build_check's unit test: the last units_ entry with the id decides (reverse order, stable sort, first kept)
+    std::vector<std::pair<objects::ObjectId, bool>> unit_live;
+    unit_live.reserve(units_.size());
+    for (auto u = units_.rbegin(); u != units_.rend(); ++u) unit_live.emplace_back(u->id, u->alive && !u->retreated);
+    std::stable_sort(unit_live.begin(), unit_live.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    unit_live.erase(std::unique(unit_live.begin(), unit_live.end(), [](const auto& a, const auto& b) { return a.first == b.first; }),
+                    unit_live.end());
+    // per builder type: the indexes of `types_in` its faction row lists (the tests are all-of: the cheap ones first)
+    std::unordered_map<objects::TypeIndex, std::vector<size_t>> lists;
+    HgRowCache local;
+    HgRowCache& row_cache = rows ? *rows : local;
+    const auto listed_for = [&](objects::TypeIndex bt) -> const std::vector<size_t>& {
+        auto it = lists.find(bt);
+        if (it == lists.end()) {
+            const uint64_t key = (static_cast<uint64_t>(bt) << 32) | f;
+            auto row = row_cache.find(key);
+            if (row == row_cache.end()) row = row_cache.emplace(key, hg_row_tokens(types, buildable_list_tag(), bt, faction)).first;
+            std::vector<size_t> listed;  // each type once, whatever the number of tokens naming it
+            for (const std::string& tok : row->second)
+                if (const auto n = by_name.find(tok); n != by_name.end()) listed.insert(listed.end(), n->second.begin(), n->second.end());
+            std::sort(listed.begin(), listed.end());
+            listed.erase(std::unique(listed.begin(), listed.end()), listed.end());
+            it = lists.emplace(bt, std::move(listed)).first;
+        }
+        return it->second;
+    };
+    // The player's active objects that are live battle units: walked from the units (fewer than the player's objects;
+    // the store's owned_by(player) holds exactly the objects it owns, and the lists are sorted below).
+    for (const auto& [id, live] : unit_live) {
+        if (!live) continue;
+        const objects::ObjectHandle h = st.find(id);
+        if (!st.active(h) || !st.alive(h) || st.owner(h) != player) continue;
+        for (const size_t i : listed_for(st.type(h))) out[i].push_back(id);
+    }
+    for (std::vector<objects::ObjectId>& v : out) std::sort(v.begin(), v.end());
+}
+
+uint8_t TacticalBattle::hg_build_check(const objects::ObjectStore& st, int32_t player, objects::ObjectId builder,
+                                       objects::TypeIndex type) const {
+    if (!hg_type_buildable(player, type)) return 1;
+    const objects::GameObjectTypes& types = catalog_->types();
     // #663 (0x497140 [H]): the builder is the player's or an ally's (0x39a2c0: relation 0, bt_allied).
     const objects::ObjectHandle bh = st.find(builder);
     if (!st.alive(bh)) return 1;
@@ -787,23 +875,62 @@ uint8_t TacticalBattle::hg_build_check(const objects::ObjectStore& st, int32_t p
         listed = listed || (in_row && hg_same(tok, name));
     }
     if (!listed) return 1;
-    // #663 (0x497140 [H]): the price 0x496d80 (tactical_price) and the build time 0x496f00 (Tactical_Build_Time_Seconds x
-    // the GC Tactical_Build_Time_Multiplier; the AI and corruption factors are > 0) must both be > 0. [port] tested here,
-    // after the list (retail: after the build limits): parity tier 1, the same types are buildable (only the port's HUD
-    // block code of a type failing both differs).
-    if (tactical_price(type) <= 0) return 1;
-    if (!(static_cast<float>(types.get(type, objects::tags::Tactical_Build_Time_Seconds)) * catalog_->tactical_build_time_multiplier() > 0.0f))
-        return 1;
+    if (!hg_type_priced(type)) return 1;  // #663
+    return hg_build_limits(st, player, type);
+}
+
+// #663 (0x497140 [H]): the price 0x496d80 (tactical_price) and the build time 0x496f00 (Tactical_Build_Time_Seconds x the
+// GC Tactical_Build_Time_Multiplier; the AI and corruption factors are > 0) must both be > 0. [port] tested after the list
+// (retail: after the build limits): parity tier 1, the same types are buildable (only the port's HUD block code of a type
+// failing both differs).
+bool TacticalBattle::hg_type_priced(objects::TypeIndex type) const {
+    const objects::GameObjectTypes& types = catalog_->types();
+    if (tactical_price(type) <= 0) return false;
+    return static_cast<float>(types.get(type, objects::tags::Tactical_Build_Time_Seconds)) * catalog_->tactical_build_time_multiplier() > 0.0f;
+}
+
+namespace {
+uint64_t hg_count_key(objects::TypeIndex type, int32_t owner) {
+    return (static_cast<uint64_t>(type) << 32) | static_cast<uint32_t>(owner);
+}
+}  // namespace
+
+uint32_t TacticalBattle::HgTypeCounts::get(objects::TypeIndex type, int32_t owner) const {
+    const uint64_t k = hg_count_key(type, owner);
+    const auto it = std::lower_bound(n.begin(), n.end(), k, [](const std::pair<uint64_t, uint32_t>& e, uint64_t x) { return e.first < x; });
+    return it != n.end() && it->first == k ? it->second : 0u;
+}
+
+TacticalBattle::HgTypeCounts TacticalBattle::hg_type_counts(const objects::ObjectStore& st) {
+    std::vector<uint64_t> keys;
+    for (const objects::ObjectHandle h : st.all_objects())
+        if (st.active(h)) keys.push_back(hg_count_key(st.type(h), st.owner(h)));
+    std::sort(keys.begin(), keys.end());
+    HgTypeCounts c;
+    for (const uint64_t k : keys) {
+        if (c.n.empty() || c.n.back().first != k) c.n.emplace_back(k, 0u);
+        ++c.n.back().second;
+    }
+    return c;
+}
+
+uint8_t TacticalBattle::hg_build_limits(const objects::ObjectStore& st, int32_t player, objects::TypeIndex type,
+                                        const HgTypeCounts* counts) const {
+    const objects::GameObjectTypes& types = catalog_->types();
     // Tactical_Build_Prerequisites: every listed type owned alive by the player [port: all-of].
     for (const std::string_view tok : types.get(type, objects::tags::Tactical_Build_Prerequisites)) {
         const objects::TypeIndex pre = types.resolve_name(hg_trim(tok));
         if (pre == objects::kNone) continue;
         bool have = false;
-        for (const objects::ObjectHandle h : st.all_objects())
-            if (st.active(h) && st.type(h) == pre && st.owner(h) == player) {
-                have = true;
-                break;
-            }
+        if (counts) {
+            have = counts->get(pre, player) > 0;
+        } else {
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (st.active(h) && st.type(h) == pre && st.owner(h) == player) {
+                    have = true;
+                    break;
+                }
+        }
         if (!have) return 4;
     }
     // mcx4 t04 (check 0x497140, SKIRMISH_SETUP §7 [H]): the lifetime limits. Build_Limit_Lifetime_Per_Player (+0x888) and
@@ -833,8 +960,15 @@ uint8_t TacticalBattle::hg_build_check(const objects::ObjectStore& st, int32_t p
     if (limit > 0) {
         auto allied = [&](int32_t o) { return o == player || (o >= 0 && combat_ && !combat_->is_enemy(player, o)); };
         uint32_t n = 0;
-        for (const objects::ObjectHandle h : st.all_objects())
-            if (st.active(h) && st.type(h) == type && allied(st.owner(h))) ++n;
+        if (counts) {
+            for (auto it = std::lower_bound(counts->n.begin(), counts->n.end(), hg_count_key(type, 0),
+                                            [](const std::pair<uint64_t, uint32_t>& e, uint64_t x) { return (e.first >> 32) < (x >> 32); });
+                 it != counts->n.end() && (it->first >> 32) == static_cast<uint64_t>(type); ++it)
+                if (allied(static_cast<int32_t>(static_cast<uint32_t>(it->first)))) n += it->second;
+        } else {
+            for (const objects::ObjectHandle h : st.all_objects())
+                if (st.active(h) && st.type(h) == type && allied(st.owner(h))) ++n;
+        }
         for (uint32_t p = 0; p < bt_players_; ++p)
             if (allied(static_cast<int32_t>(p))) n += production_->count_type(static_cast<int32_t>(p), static_cast<int32_t>(type));
         if (n >= static_cast<uint32_t>(limit)) return 5;

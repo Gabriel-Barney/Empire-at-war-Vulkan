@@ -185,6 +185,12 @@ public:
         table_.reserve(keys.size());
         for (size_t i = 0; i < keys.size(); ++i) table_.emplace_back(std::move(keys[i]), std::move(values[i]));
     }
+    // #646: a capture whose answers the host computed itself (what the rule would answer for each key); sorted here,
+    // keys unique.
+    void assign(std::vector<std::pair<Key, Value>> entries) {
+        std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+        table_ = std::move(entries);
+    }
     void clear() { table_.clear(); }
     size_t captured() const { return table_.size(); }
 
