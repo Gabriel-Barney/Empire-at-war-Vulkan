@@ -4728,22 +4728,24 @@ void TacticalAiWorld::hash(StateHasher& h) const {
         ALAMO_PROFILE_SCOPE("crc.ai.perception");
         w.perc.hash(h);
     }
-    ALAMO_PROFILE_SCOPE("crc.ai.records");
-    records(w.plans);
-    records(w.tfs);
-    records(w.pps);  // A2 tactical: PotentialPlans and reservations
-    for (const auto* m : {&w.pool_reserved, &w.pad_reserved}) {
-        h.u32(static_cast<uint32_t>(m->size()));
-        for (const auto& [k, v] : *m) {
-            h.i32(k);
-            h.i32(v);
+    {
+        ALAMO_PROFILE_SCOPE("crc.ai.records");  // plans, task forces, PPs, reservations, statuses, globals
+        records(w.plans);
+        records(w.tfs);
+        records(w.pps);  // A2 tactical: PotentialPlans and reservations
+        for (const auto* m : {&w.pool_reserved, &w.pad_reserved}) {
+            h.u32(static_cast<uint32_t>(m->size()));
+            for (const auto& [k, v] : *m) {
+                h.i32(k);
+                h.i32(v);
+            }
         }
-    }
-    records(w.statuses);
-    h.u32(static_cast<uint32_t>(w.globals.size()));
-    for (const auto& [k, v] : w.globals) {
-        h.str(k);
-        lua::hash_global_value(h, v);  // L1 final: same bytes for non-table values
+        records(w.statuses);
+        h.u32(static_cast<uint32_t>(w.globals.size()));
+        for (const auto& [k, v] : w.globals) {
+            h.str(k);
+            lua::hash_global_value(h, v);  // L1 final: same bytes for non-table values
+        }
     }
     {
         ALAMO_PROFILE_SCOPE("crc.ai.bridge");

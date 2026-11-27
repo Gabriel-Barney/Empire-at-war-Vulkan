@@ -72,6 +72,12 @@ void LeafCache::hash(StateHasher& h) const {
     for (const auto& kv : map_) entries.push_back(&kv);
     // Each block gathers the fields' little-endian bytes (the typed feeds' byte stream) and hashes them with one bytes().
     static_assert(std::endian::native == std::endian::little);
+    // the bytes of one entry besides its parameter text (written below with sizeof of each field: keep the two in step)
+    constexpr size_t kFixed = sizeof(LeafCacheKey::eval_kind) + sizeof(LeafCacheKey::eval_a) + sizeof(LeafCacheKey::eval_b) +
+                              sizeof(LeafCacheKey::leaf) + sizeof(LeafCacheKey::self) + sizeof(LeafCacheKey::target) +
+                              sizeof(LeafCacheKey::enemy) + sizeof(LeafCacheKey::human) + sizeof(LeafCacheKey::location) +
+                              sizeof(uint32_t) /* params length */ + sizeof(Entry::stamp) + sizeof(uint64_t) /* value bits */;
+    static_assert(kFixed == 1 + 4 * 2 + 2 + 4 * 5 + 4 + 4 + 8 && sizeof(Entry::value) == sizeof(uint64_t));
     hash_blocks(h, static_cast<uint32_t>(entries.size()), [&](StateHasher& bh, uint32_t b, uint32_t e) {
         thread_local std::vector<unsigned char> buf;
         buf.clear();
@@ -79,7 +85,7 @@ void LeafCache::hash(StateHasher& h) const {
             const auto& [k, en] = *entries[i];
             const auto len = static_cast<uint32_t>(k.params.size());
             const size_t at = buf.size();
-            buf.resize(at + 1 + 4 * 2 + 2 + 4 * 5 + 4 + len + 4 + 8);
+            buf.resize(at + kFixed + len);
             unsigned char* o = buf.data() + at;
             const auto put = [&o](const auto& v) {
                 std::memcpy(o, &v, sizeof v);
