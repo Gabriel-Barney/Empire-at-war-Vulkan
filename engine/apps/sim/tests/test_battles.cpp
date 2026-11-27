@@ -3057,6 +3057,85 @@ void test_campaign_station_production(bool corrupted, bool cancel = false) {
     CHECK(done_at >= 2 + want && done_at <= 2 + want + 3);
 }
 
+// #661 (#544 t02; #459's hook, 0x498170 -> 0x4b7090 / 0x4bb690 [H]): the campaign station production again. The finished
+// S10_Base_Upgrade (a DUMMY_UPGRADE) is added to the battle planet's persistent upgrade objects {type, owner 0}. The station
+// upgrade is Skirmish_Automatic (none in a campaign battle), so the record leaves by the other path of the same hook: the
+// star base is killed and the upgrade object goes with its dead container (0x379df0 -> 0x4bb690). A sandbox battle adds none.
+void test_campaign_upgrade_persist(bool sandbox) {
+    auto d = make_data(false, false, false, false, true);
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    SimConfig cfg;
+    cfg.seed = 2026;
+    cfg.players = 4;
+    SimHost host(d->types, js, cfg);
+    galactic::GalacticSim* gs = host.start_galactic(d->rules, make_setup(*d, false));
+    CHECK(gs != nullptr);
+    if (!gs) return;
+    gs->add_credits(0, 1000.0f, false);
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 600;
+    CampaignBattles battles(host, d->crules, *d->catalog,
+                            [](const std::string& name, terrain::MapData& m) {
+                                if (name != "S10_Space_B") return false;
+                                m = space_map();
+                                return true;
+                            },
+                            opt);
+    CHECK(battles.attach(nullptr));
+    const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
+    CHECK(!uf.empty());
+    if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
+    const uint32_t base1 = type_of(*d, "S10_Star_Base_1"), up = type_of(*d, "S10_Base_Upgrade");
+    auto recorded = [&] {
+        size_t n = 0;
+        for (const galactic::PersistedUpgradeObject& r : gs->planets()[1].upgrade_objects) n += r.type == up && r.owner == 0 ? 1u : 0u;
+        return n;
+    };
+    objects::ObjectId station = objects::kNoObjectId;
+    bool bought = false, killed = false, gone = false;
+    uint32_t held_at = 0, killed_at = 0;
+    size_t at_build = 0, at_kill = 1;
+    for (uint64_t t = 0; t < 3000 && !gone; ++t) {
+        host.tick_once();
+        TacticalBattle* b = battles.battle();
+        TacticalMode* tm = host.tactical();
+        if (killed && (!b || !tm)) {  // the battle ended with the star base: the records as it left them
+            gone = true;
+            at_kill = recorded();
+        }
+        if (!b || !tm) continue;
+        if (!bought && b->frame() == 2) {
+            if (sandbox) alamo::sim::TacticalBattleTestAccess::set_sandbox(*b, true);
+            for (const objects::ObjectHandle h : tm->primary().owned_by(0))
+                if (tm->primary().alive(h) && tm->primary().type(h) == base1) station = tm->primary().id(h);
+            commands::EventData ev(commands::EventType::Production);
+            ev.set("type_index", up).set("location", static_cast<uint32_t>(station));
+            CHECK(host.execute_direct(0, commands::CommandSource::Player, ev) == commands::RejectReason::None);
+            CHECK(recorded() == 0);
+            bought = true;
+        }
+        if (bought && held_at == 0 && b->contents() && !b->contents()->contents(station).empty()) {
+            held_at = b->frame();
+            at_build = recorded();
+        }
+        if (held_at != 0 && !killed && b->frame() == held_at + 5) {
+            CHECK(b->station_upgrades().empty());  // Skirmish_Automatic: no station upgrade in a campaign battle
+            (void)b->script_damage(*tm, station, 1.0e9f, false);
+            killed = true;
+            killed_at = b->frame();
+        } else if (killed && b->frame() >= killed_at + 5) {  // the dead container's contents go the frame after
+            gone = true;
+            at_kill = recorded();
+        }
+    }
+    std::printf("  campaign upgrade%s: built at frame %u, planet records %zu; star base killed %d, records %zu\n",
+                sandbox ? " (sandbox)" : "", held_at, at_build, killed ? 1 : 0, at_kill);
+    CHECK(held_at != 0 && killed && gone);
+    CHECK(at_build == (sandbox ? 0u : 1u));
+    CHECK(at_kill == 0);
+}
+
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
 // #662 (#544 t03; 0x727d30 prices through 0x496d80 and checks through 0x497140 with no skirmish test [H]): in the campaign
 // station battle a BattleAi (no AI player: its facts only) finds the Empire's star base a builder of S10_Base_Upgrade, the
@@ -4328,6 +4407,8 @@ int main(int argc, char** argv) {
     test_campaign_station_production(false);  // #660
     test_campaign_station_production(true);
     test_campaign_station_production(false, true);
+    test_campaign_upgrade_persist(false);  // #661
+    test_campaign_upgrade_persist(true);
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
     test_campaign_ai_build_facts();  // #662
 #endif
