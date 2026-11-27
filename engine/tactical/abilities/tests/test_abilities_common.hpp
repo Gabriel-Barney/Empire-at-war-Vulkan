@@ -1291,8 +1291,14 @@ inline void test_infection() {
     w.add(14, trd, 1, {200, 0, 0});  // out of range (150 from B)
     w.add(15, trd, 1, {0, 60, 0});   // D: in range of A only (78 from B), leaves for one frame
     auto infected = [&w](ObjectId id) { return (w.sys->flags(id) & kUnitInfected) != 0; };
-    auto tick_to = [&w](uint32_t f) {  // tick until frame f has been ticked
-        while (w.frame <= f) w.tick();
+    // #688: every cough of the run (frame, unit): only on draw frames (frame % 60 == 0), only an infected unit.
+    std::vector<std::pair<uint32_t, ObjectId>> coughs;
+    auto tick_to = [&w, &coughs](uint32_t f) {  // tick until frame f has been ticked
+        while (w.frame <= f) {
+            const uint32_t at = w.frame;
+            w.tick();
+            for (const ObjectId id : w.sys->cough_events()) coughs.emplace_back(at, id);
+        }
     };
     ProjectileLaunch l;
     l.shooter = 1;
@@ -1345,6 +1351,10 @@ inline void test_infection() {
     CHECK(infected(10) && w.sys->infection_frames_left(10) == 1);
     tick_to(s0 + 149);
     CHECK(!infected(10) && w.sys->infection_attached(10) && w.sys->infection_suspend_count(10) == 1);
+    // #688: over the run so far the fixed seed gives coughs; each on a draw frame and from a unit that was infected,
+    // never the filtered or out-of-range ones.
+    CHECK(!coughs.empty());
+    for (const auto& [at, id] : coughs) CHECK(at % 60u == 0u && (id == 10 || id == 11 || id == 13 || id == 15));
     const float h1 = w.sys->health(10);
     tick_to(s0 + 150);
     CHECK(w.sys->health(10) == h1);

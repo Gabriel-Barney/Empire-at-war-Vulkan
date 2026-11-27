@@ -30,6 +30,7 @@
     SAVED(smoke_events_, unhashed) \
     SAVED(damage_events_, unhashed) \
     SAVED(hit_events_, unhashed) \
+    DERIVED(cough_events_, "#688: presentation records of one tick (tick start and read() clear them)") \
     SAVED(shot_events_, unhashed) \
     DERIVED(lob_events_, "records of one tick, drained by the battle in the same tick") \
     DERIVED(attack_events_, "records of one tick, drained by the battle in the same tick") \
