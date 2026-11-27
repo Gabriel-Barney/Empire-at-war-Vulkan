@@ -35,6 +35,7 @@
 #include "battle_test_fixture.hpp"
 #include "alamo/lua/story_model.hpp"  // #420: the story fixture's plot readout
 
+#include <bit>
 #include <sstream>
 
 namespace {
@@ -483,16 +484,15 @@ struct RunResult {
         garrisons[tick] = garrison_readout(b, tm, garrisoned_seen);
         {  // #420: the weather state, the floats bit-exact
             const tactical::combat::WeatherSystem& w = b.weather();
-            uint32_t bits = 0;
             const float in = w.intensity();
-            std::memcpy(&bits, &in, 4);
+            const auto bits = std::bit_cast<uint32_t>(in);
             weather[tick] = std::to_string(w.active() ? 1 : 0) + " type " + std::to_string(static_cast<int>(w.type())) + " intensity " +
                             std::to_string(bits) + " phase " + std::to_string(w.phase_index()) + (w.transitioning() ? " easing" : "");
             rain_seen = rain_seen || (w.type() == tactical::combat::WeatherType::Rain && in > 0.0f);
         }
         {  // #420: every player's battle tech level and production queue
             std::string line;
-            for (int32_t p = 0; p < 3; ++p) {
+            for (int32_t p = 0; p < 3; ++p) {  // the test galaxy's three players (make_setup: Empire, Underworld, Neutral)
                 line += "p" + std::to_string(p) + " tech " + std::to_string(b.battle_tech_level(p));
                 if (b.production())
                     for (const tactical::hangar::BuildOrder& o : b.production()->queue(p))
