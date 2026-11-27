@@ -1286,7 +1286,7 @@
 {"GameConstants", "LandPredictionTimeInterval", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "RepushDistance", 0x8, LedgerState::RetailUnused, "docs/re/xml_reference_index.md GameConstants.RepushDistance", 1, 1},
 {"GameConstants", "MinLandPredictionDistance", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
-{"GameConstants", "ShouldSkipLandFormup", 0x0, LedgerState::Stored, "docs/re/xml_reference_index.md", 1, 1},
+{"GameConstants", "ShouldSkipLandFormup", 0x0, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "ShouldInfantryTeamsSplitAcrossFormations", 0x0, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "VehicleFormationRecruitmentDistance", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "InfantryFormationRecruitmentDistance", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},

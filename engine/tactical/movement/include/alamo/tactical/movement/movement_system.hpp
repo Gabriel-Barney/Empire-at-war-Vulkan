@@ -1701,6 +1701,7 @@ private:
     bool push_aside(const CollisionObject& c, const Unit& a, Unit& b, bool flee, uint32_t frame);
     // s78n t18 (MOVEMENT §5.4.1 / §5.4.2; movement_system.cpp)
     static constexpr uint32_t kNoDetour = 0xFFFFFFFFu;
+    static constexpr uint8_t kFormupRecord = 4;  // #715: push_kind of a form-up lead-in (no collision owner, weight 0)
     bool collision_valid(const CollisionObject& c) const;
     // s78n t23 (vf +0x40): the speed a record answers participant a (else b) - a MovingVsMoving record in state 0
     // answers max speed (kInf) whatever it stores
@@ -1720,6 +1721,7 @@ private:
     //     waypoint (the unit has arrived where it stands).
     bool claim(Unit& u, const CollisionObject& c, bool force, uint32_t frame);
     void push_top(Unit& u, std::vector<V2> path, uint8_t kind, bool flee, const CollisionObject& c, uint32_t frame);
+    void push_formup(Unit& u, V2 point, uint32_t frame);  // #715
     // s78n t23 (MOVEMENT §5.4.1 "The stamp in full" items 2 - 4, 0x50a020 -> 0x5c7cb0 -> vf +0x78 0x680ef0): a path lands
     // on u - every MovingVsMoving record of u in which u is the held unit (state 1 with u = M, state 4 with u = S) is
     // stamped NOW + 2 (overwritten by a later stamp).

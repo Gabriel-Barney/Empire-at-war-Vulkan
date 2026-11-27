@@ -94,6 +94,8 @@ MovementConstants MovementConstants::from_game_constants(const data::GameConstan
     c.approximation_forward_distance = gc.get_float("ApproximationForwardDistance", c.approximation_forward_distance);
     c.should_infantry_teams_split_across_formations =
         gc.get_bool("ShouldInfantryTeamsSplitAcrossFormations", c.should_infantry_teams_split_across_formations);
+    // ledger: consumes GameConstants.ShouldSkipLandFormup (#715: the lead-in path and the queued delay gate)
+    c.should_skip_land_formup = gc.get_bool("ShouldSkipLandFormup", c.should_skip_land_formup);
     c.space_static_obstacle_avoidance_bonus_distance = static_cast<float>(gc.get_int(
         "SpaceStaticObstacleAvoidanceBonusDistance", static_cast<int32_t>(c.space_static_obstacle_avoidance_bonus_distance)));
     c.space_locomotor_facing_lookahead_acc =

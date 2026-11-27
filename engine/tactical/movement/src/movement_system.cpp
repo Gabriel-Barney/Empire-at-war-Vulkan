@@ -685,7 +685,8 @@ void MovementSystem::move(const MoveOrder& order, SimRng& rng, uint32_t frame) {
         for (uint32_t i : idx) swap_locomotor(units_[i], true);
     std::vector<uint32_t> delays(idx.size(), 0);
     const bool queued = (order.flags & kMoveFlagQueue) != 0;
-    if (queued)
+    // #715: with ShouldSkipLandFormup clear a land order's delays are drawn per one-member formation in move_land
+    if (queued && (cfg_.mode != MoveMode::Land || cfg_.constants.should_skip_land_formup))
         for (uint32_t& dl : delays) dl = static_cast<uint32_t>(rng.range_int(0, cfg_.constants.max_move_frame_delay));
     // cu8j t01 (MOVEMENT §4.6.2): a new coordinator whose formations come at the next coordinator update. Not for a queued
     // order (it adds a block to the existing formations [M]) or the formation tick's own re-paths (fform_internal_).
@@ -1045,7 +1046,12 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
                 u.forced = (order.flags & kMoveFlagSkipValidation) != 0;
                 arrival_reset(u);  // the arrival turn state too
                 // a re-plan starts at once, unless the unit still waits for its composition
-                u.start_frame = pc ? kStartPending : replan && u.pend != 0 ? u.start_frame : frame + delays[s.member];
+                // #715 (MOVEMENT §3.2.1, plan 0x41c1a0 [H]): the queued-order delay is drawn for a one-member formation, or
+                // for any land formation while ShouldSkipLandFormup is set (FoC: the draws above, in order)
+                uint32_t delay = delays[s.member];
+                if (queued && !k.should_skip_land_formup && f.size() == 1)
+                    delay = static_cast<uint32_t>(rng.range_int(0, k.max_move_frame_delay));
+                u.start_frame = pc ? kStartPending : replan && u.pend != 0 ? u.start_frame : frame + delay;
                 if (pc) {
                     u.pend = serial;
                     u.adopted = false;  // it leaves the adopt's coordinator for the order's
@@ -1121,6 +1127,16 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
                 for (const Slot& s : lf.slots) units_[idx[s.member]].form_slot = {-s.back, s.lateral};
             }
             set_lanes(idx, lf, fpath, atk_keep, mem, 0.0f, lf.fresh ? kNoFacing : order.facing_deg);  // the facing
+            // #715 (MOVEMENT §3.2.1 item 2 "several members, type 1" [H]; the formation path's start afterwards [M]):
+            // with ShouldSkipLandFormup clear each member first walks a lead-in path (kind 2; a straight line, the
+            // flag-0x20 form) to its form-up point, its slot in the layout at the path's start. [port] the lane underneath
+            // resumes when the lead-in ends (the stack pop), as a popped detour does.
+            if (!k.should_skip_land_formup && length_sq(fwd0) > 0.0f)
+                for (const Slot& s : lf.slots) {
+                    Unit& x = units_[idx[s.member]];
+                    if (is_air(x) || x.forced || !x.has_goal) continue;
+                    push_formup(x, slot_world(fpath.front(), fwd0, s), frame);
+                }
         }
     // s78n t25.2 (MOVEMENT §4.3.2 items 2 and 6 - 7): the attack slots of a new order (0x438c10; not at a re-plan;
     // guard blocks too, by the guard L rule), then the attack plan of every formation (the "every member can
@@ -2001,7 +2017,8 @@ void MovementSystem::plan_land(uint32_t frame, const ParallelFor& pf) {
         ++stats_.paths_planned;
         // the path set resets the stack (0x554480): a record pushed onto the old order path after the
         // order (a TerrainCollision detour while the new order waited) goes with it; a failed plan sets no path (review)
-        if (u.pushed && !is_air(u) && (u.forced || use_lane[r] || out[r].ok)) end_push(u);
+        // (#715: not the formation member's lead-in to its form-up point, pushed at the order over this lane)
+        if (u.pushed && u.push_kind != kFormupRecord && !is_air(u) && (u.forced || use_lane[r] || out[r].ok)) end_push(u);
         std::vector<V2> lane;
         lane.swap(u.lane);  // s78p: a lane is taken by this plan or dropped
         u.slot_on = false;  // set again below when the lane is the new order path
