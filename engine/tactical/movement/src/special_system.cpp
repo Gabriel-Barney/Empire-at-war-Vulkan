@@ -658,8 +658,8 @@ bool MovementSystem::stop_circling(ObjectId id) {
 }
 
 void MovementSystem::circled_removed(ObjectId id) {
-    for (const Unit& u : units_)
-        if (u.sm.state == LocoState::FlyCircling && u.sm.circle_target == id) (void)stop_circling(u.d.id);
+    for (size_t i = 0; i < units_.size(); ++i)  // serial, unit order
+        if (units_[i].sm.state == LocoState::FlyCircling && units_[i].sm.circle_target == id) (void)stop_circling(units_[i].d.id);
 }
 
 // FIGHTER_FLYING §6.5: Start_Circling (vf +0x278 = 0x63bf20), called by CableAttackAbilityClass (0x6f34d0) with the
