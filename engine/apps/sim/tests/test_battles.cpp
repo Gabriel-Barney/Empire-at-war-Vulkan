@@ -4412,6 +4412,10 @@ void test_corruption_upgrade_spawns() {
 // Off: no record, and the battle's objects are the same.
 namespace {
 std::string flagship_hero_types(std::string t) {
+    // the ships' lasers do no damage: the leads outlast the 300 frames and the retreat, so a hero stays inside unless
+    // the test kills its lead (test_flagship_contents also sets Space_Retreat_Attrition_Factor 0)
+    const std::string dmg = "<Projectile_Damage>150</Projectile_Damage>";
+    if (const size_t q = t.find(dmg); q != std::string::npos) t.replace(q, dmg.size(), "<Projectile_Damage>0</Projectile_Damage>");
     const std::string end = "</S10>";
     const size_t p = t.find(end);
     if (p != std::string::npos)
@@ -4437,8 +4441,16 @@ struct FlagshipRun {
     bool targetable = false;     // it is a live combat unit at full combat health (a damage target)
     bool killed = false;         // Die on it removed it again
     uint32_t record_state = 0;   // the record's state at the end (2 Released)
+    // #756 (retreat): the Underworld asks to retreat from frame 30; the run goes on until the galaxy is back
+    int32_t retreat_frame = -1;   // the frame its request was accepted
+    bool back = false;            // the battle ended and the galaxy runs again
+    bool hero_alive = false;      // the Underworld hero team after the battle (the galactic object)
+    bool hero_in_fleet = false;   // ... in an Underworld fleet
+    uint32_t record_state_end = 0;  // the Underworld record's state on the battle's last frame
 };
-FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false) {
+// kill_lead: #755 (the Underworld lead dies at frame 20; without `retreat` its released hero then dies too).
+// retreat: #756 (the Underworld retreats).
+FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false, bool retreat = false) {
     FlagshipRun out;
     jobs::JobSystem js(jobs::JobSystemConfig{0});
     SimConfig cfg;
@@ -4466,6 +4478,7 @@ FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false) {
     // the player's fleet there, whose lead is the fleet's last corvette (not its first content, so the test sees the
     // mark and not the order)
     objects::ObjectId hero_id[2] = {objects::kNoObjectId, objects::kNoObjectId}, lead_id[2] = {objects::kNoObjectId, objects::kNoObjectId};
+    objects::ObjectHandle hero_h;  // the Underworld hero team (galactic)
     uint32_t attacker_fleet = 0;
     for (int32_t p = 0; p < 2; ++p) {
         const PlanetIndex planet = p == 0 ? 1 : 2;
@@ -4482,14 +4495,19 @@ FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false) {
         CHECK(gs->store().alive(lead) && gs->fleets()[fl[0]].contents.front() != lead);
         CHECK(gs->set_gui_index(p, lead, commands::kPathfinderGuiIndex) == commands::RejectReason::None);
         hero_id[p] = gs->store().id(h);
+        if (p == 1) hero_h = h;
         lead_id[p] = gs->store().id(lead);
         if (p == 1) attacker_fleet = fl[0];
     }
     CHECK(gs->move_fleet(1, attacker_fleet, 1) == commands::RejectReason::None);
     Vec3 dead_at{}, dead_face{};  // #755: the lead's transform at its death
     objects::ObjectId hero_obj = objects::kNoObjectId;
-    for (uint64_t t = 0; t < 8000; ++t) {
+    for (uint64_t t = 0; t < 30000; ++t) {
         host.tick_once();
+        if (retreat && out.battle && host.modes().depth() == 1) {
+            out.back = true;
+            break;
+        }
         TacticalBattle* b = battles.battle();
         TacticalMode* tm = host.tactical();
         if (!b || !tm || b->frame() < 1) continue;
@@ -4538,24 +4556,37 @@ FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false) {
                         out.targetable = b->combat().has_unit(oid) && b->combat().alive(oid) && b->combat().health(oid) > 0.0f &&
                                          b->combat().health(oid) == b->combat().max_health(oid);
                         hero_obj = st.id(o);
-                        TacticalBattleTestAccess::kill(*b, *tm, hero_obj);
+                        if (!retreat) TacticalBattleTestAccess::kill(*b, *tm, hero_obj);
                         break;
                     }
-            } else if (out.released_frame >= 0 && hero_obj != objects::kNoObjectId) {
+            } else if (!retreat && out.released_frame >= 0 && hero_obj != objects::kNoObjectId) {
                 out.killed = !st.alive(st.find(hero_obj));
                 hero_obj = objects::kNoObjectId;
             }
             out.record_state = static_cast<uint32_t>(b->contained()[ri].state);
         }
+        if (retreat) {
+            if (out.retreat_frame < 0 && b->frame() >= 30 && b->request_retreat(1)) out.retreat_frame = static_cast<int32_t>(b->frame());
+            for (size_t i = 0; i < b->contained().size(); ++i) {
+                if (b->contained()[i].owner != 1) continue;
+                out.record_state_end = static_cast<uint32_t>(b->contained()[i].state);
+            }
+            continue;
+        }
         if (b->frame() >= 300 || b->finished()) break;
     }
+    out.hero_alive = gs->store().alive(hero_h);
+    for (const galactic::FleetState& f : gs->fleets())
+        if (f.alive && f.owner == 1 && std::find(f.contents.begin(), f.contents.end(), hero_h) != f.contents.end()) out.hero_in_fleet = true;
     return out;
 }
 }  // namespace
 
 void test_flagship_contents() {
     const char* prefix = g_temp_prefix;
+    const char* constants = g_constants_extra;
     g_types_patch = flagship_hero_types;
+    g_constants_extra = "<Space_Retreat_Attrition_Factor>0</Space_Retreat_Attrition_Factor>";
     g_temp_prefix = "alamo_sim_battle_tests_flagship";
     {
         auto d = make_data();
@@ -4577,8 +4608,20 @@ void test_flagship_contents() {
                     rel.targetable ? 1 : 0, rel.killed ? 1 : 0, rel.record_state);
         CHECK(rel.pending && rel.released_frame == 21 && rel.release_offset >= 0.0f && rel.release_offset < 1.0f && rel.facing_ok &&
               rel.targetable && rel.killed && rel.record_state == 2);
+        // #756: a hero inside its retreating flagship leaves with it and is alive in its fleet after the battle. One released
+        // by the flagship's death before the retreat is an ordinary battle unit: a mover, it jumps out with the side and
+        // its galactic team stays in the fleet [M: retail's jump-out test for a released ground unit was not read].
+        const FlagshipRun ret = flagship_run(*d, true, false, true), ret_rel = flagship_run(*d, true, true, true);
+        std::printf("  retreat with the hero inside: retreat at frame %d, back %d, record state %u, hero alive %d, in a fleet %d\n",
+                    ret.retreat_frame, ret.back ? 1 : 0, ret.record_state_end, ret.hero_alive ? 1 : 0, ret.hero_in_fleet ? 1 : 0);
+        std::printf("  retreat after the release: released at frame %d, retreat at frame %d, back %d, hero alive %d, in a fleet %d\n",
+                    ret_rel.released_frame, ret_rel.retreat_frame, ret_rel.back ? 1 : 0, ret_rel.hero_alive ? 1 : 0,
+                    ret_rel.hero_in_fleet ? 1 : 0);
+        CHECK(ret.retreat_frame >= 30 && ret.back && ret.record_state_end == 0 && ret.hero_alive && ret.hero_in_fleet);
+        CHECK(ret_rel.released_frame == 21 && ret_rel.retreat_frame >= 30 && ret_rel.back && ret_rel.hero_alive && ret_rel.hero_in_fleet);
     }
     g_types_patch = nullptr;
+    g_constants_extra = constants;
     g_temp_prefix = prefix;
 }
 
