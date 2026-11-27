@@ -73,7 +73,7 @@
 #include "alamo/core/sim_crc_fwd.hpp"
 #include "alamo/core/sim_rng.hpp"
 #include "alamo/galactic/conflicts.hpp"
-#include "alamo/objects/type_tags.hpp"  // pad_list_tag
+#include "alamo/objects/type_tags.hpp"  // buildable_list_tag
 #include "alamo/sim/battle_catalog.hpp"
 #include "alamo/sim/fleet_groups.hpp"  // [port] fleet groups
 #include "alamo/sim/game_modes.hpp"
@@ -1471,7 +1471,7 @@ public:
     float build_cost(objects::TypeIndex uc_type, int32_t player = -1) const;
     // #660 (0x496d80 -> 0x3743f0 [H]): a type's tactical price without the planet factor: Tactical_Build_Cost_Multiplayer in
     // a skirmish, else Tactical_Build_Cost_Campaign, Tactical_Build_Cost_Multiplayer when that is below 1 (int fields, >= 0).
-    float tactical_price(objects::TypeIndex type) const;
+    int32_t tactical_price(objects::TypeIndex type) const;
     // b0147: that factor alone (1 in skirmish, for player < 0 and on an uncorrupted planet): the tactical AI's
     // PerceptionPlayerInfo::pad_price_factor, so its Score / Commit price equals build_cost(type, player).
     float pad_price_factor(int32_t player) const;
@@ -1722,8 +1722,7 @@ public:
     // charge. Hashed in "battle.abilities" once anything was queued.
     const tactical::hangar::ContentsSystem* contents() const { return contents_.get(); }
     const tactical::hangar::TacticalProduction* production() const { return production_.get(); }
-    // land skirmish too (legacy docs/re/SKIRMISH_SETUP.md §3: one build manager per player in every skirmish). #660: every
-    // battle (0x35cb10 -> 0x4d9df0 -> 0x285760 gives each player a production manager in a tactical mode [H]; the check
+    // Every battle, land or space (#660; legacy docs/re/SKIRMISH_SETUP.md §3: one build manager per player; 0x35cb10 -> 0x4d9df0 -> 0x285760 gives each player a production manager in a tactical mode [H]; the check
     // 0x497140 and the service 0x498170 have no mode test [H]).
     bool production_enabled() const { return production_ != nullptr; }
     // The tactical AI's production (BattleAi's facts, builders and checks): skirmish only until #662 (the AI's campaign

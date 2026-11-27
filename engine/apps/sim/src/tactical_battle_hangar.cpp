@@ -862,7 +862,7 @@ std::vector<TacticalBattle::BuildOptionInfo> TacticalBattle::station_build_optio
         if (!in_row) continue;
         BuildOptionInfo o;
         o.type = static_cast<int32_t>(t);
-        o.cost = static_cast<int32_t>(tactical_price(t));  // #660: 0x496d80 (campaign: _Campaign, else _Multiplayer)
+        o.cost = tactical_price(t);  // #660: 0x496d80's base price 0x3743f0 (campaign: _Campaign, else _Multiplayer)
         for (const th::BuildOrder& q : production_->queue(player))
             if (q.builder == builder && q.type == o.type) ++o.queued;
         const uint8_t c = hg_build_check(st, player, builder, t);
@@ -928,7 +928,7 @@ commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode,
     // b0147 (legacy docs/re/BKG1_RE_ANSWERS.md §7.3 item 3): enqueue 0x496a20 tests and takes the full cost only when 0x289050
     // is false (a FoC human); an AI player's entry is not charged here: its plan paid the price at accept into an escrow
     // that this accepted enqueue draws down (tactical_ai.cpp). The entry still keeps the price, for the cancel refund (#222).
-    const float cost = tactical_price(type);  // #660: 0x496d80 -> 0x3743f0 (the campaign price in a campaign battle)
+    const auto cost = static_cast<float>(tactical_price(type));  // #660: 0x496d80's base price 0x3743f0 (campaign: _Campaign)
     if (!ai && cost > 0.0f) {
         const float have = credits_get_ ? credits_get_(p) : 0.0f;
         if (have < cost) return R::CannotAfford;
@@ -939,7 +939,8 @@ commands::RejectReason TacticalBattle::hg_production_command(TacticalMode& mode,
     // Tactical_Build_Time_Multiplier (shipped 1.0) x the AI multiplier. [port] The build-time modifiers (list 10)
     // are not applied. mcx4 t07 (Q7.2): in a campaign battle the faction's
     // Corruption_Tactical_Production_Time_Multipliers entry (planet corrupted ? 1 : 0) multiplies the time (#660: reached by
-    // a campaign battle's production; a skirmish has no factor). The price factor (0x496d80) applies only
+    // a campaign battle's production; a skirmish has no factor). [port] Corruption_Tactical_Production_Price_Multipliers is not
+    // applied (FoC ships 1.0, 1.0: parity tier 1, the same price). 0x496d80's own price factor applies only
     // while a tactical price modifier is active for the type; the port has no such modifier map, so it is not applied.
     float seconds = static_cast<float>(types.get(type, objects::tags::Tactical_Build_Time_Seconds));  // int field
     seconds = seconds * catalog_->tactical_build_time_multiplier();

@@ -3024,7 +3024,7 @@ void test_campaign_station_production(bool corrupted, bool cancel = false) {
             for (const TacticalBattle::BuildOptionInfo& o : opts)
                 if (o.type == static_cast<int32_t>(up)) option_cost = o.cost;
             before = gs->credits(0);
-            commands::EventData no(commands::EventType::Production);  // _Multiplayer row only
+            commands::EventData no(commands::EventType::Production);  // in the tables (the Underworld row), not in the Empire row
             no.set("type_index", tech).set("location", static_cast<uint32_t>(station));
             CHECK(host.execute_direct(0, commands::CommandSource::Player, no) == commands::RejectReason::NotAllowed);
             commands::EventData ev(commands::EventType::Production);

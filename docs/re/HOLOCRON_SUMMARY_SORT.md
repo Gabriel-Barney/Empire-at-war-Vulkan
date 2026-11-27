@@ -62,7 +62,7 @@ into the row. A queue counts 1 only when it has a head and that string is non-em
       upgrade's removal clears a matching record too [M].
   - Key 8 counts the list, and the 8 icons are its first 8 records, with no owner filter (`game::upgrade_column`).
     The type's +0x120 text as each icon's tooltip is not shown.
-  - Tactical production runs in skirmish only in the port, so the list fills once campaign battles produce (#544).
+  - Since #660 a human's campaign-battle production reaches the list; #661 tests it.
 - **Still `[port]`:** keys 6, 9 and 10 use the port's unit and fleet counts. Keys 9 and 10 cannot be reached in FoC.
 
 ## Open

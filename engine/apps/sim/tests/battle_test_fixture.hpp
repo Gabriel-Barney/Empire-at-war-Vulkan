@@ -602,7 +602,8 @@ inline const char* const kBmItems = R"(<BlackMarketItems>
 // Skirmish_Automatic Starbase_Upgrade_Ability, prerequisite S10_Star_Base_1, limit 1 for all allies) in its Empire row of
 // Tactical_Buildable_Objects_Multiplayer, and upgrades to S10_Star_Base_2. s78n t20 step 5: S10_Trooper (a land unit of
 // both sides) lists S10_Land_Upgrade (DUMMY_UPGRADE, no ability) in its Empire row, for the land production signal test.
-// #660: the star base's Tactical_Buildable_Objects_Campaign Empire row lists S10_Base_Upgrade only (campaign price 40); the
+// #660: the star base's Tactical_Buildable_Objects_Campaign Empire row lists S10_Base_Upgrade only (campaign price 40), its
+// Underworld row S10_Tech_Upgrade (so that type is in a campaign battle's tables but not in the Empire's row); the
 // Empire faction's Corruption_Tactical_Production_Time_Multipliers is 1.0, 2.0 (kFactions).
 inline std::string prod_types() {
     std::string t = kTypes;
@@ -613,7 +614,7 @@ inline std::string prod_types() {
     const size_t p = t.find(at);
     if (p != std::string::npos)
         t.insert(p + at.size(), "<SpaceBehavior>DUMMY_STAR_BASE</SpaceBehavior><Tactical_Buildable_Objects_Multiplayer> Empire, S10_Base_Upgrade, S10_Tech_Upgrade, S10_No_Queue_Upgrade </Tactical_Buildable_Objects_Multiplayer>"
-                                "<Tactical_Buildable_Objects_Campaign> Empire, S10_Base_Upgrade </Tactical_Buildable_Objects_Campaign>"
+                                "<Tactical_Buildable_Objects_Campaign> Empire, S10_Base_Upgrade, Underworld, S10_Tech_Upgrade </Tactical_Buildable_Objects_Campaign>"
                                 "<Next_Level_Base>S10_Star_Base_2</Next_Level_Base>");
     const size_t end = t.find("</S10>");
     if (end != std::string::npos)
