@@ -4,7 +4,8 @@
     "display names, the map / campaign picks of the reference set (docs/MODS.md 'Reference set'; legacy docs/MODS.md 10.4) and accepted blockers.",
     "An entry applies to every setup whose resolved stack contains that mod (a parent's settings reach its submods);",
     "the setup's own entry wins. Keys: name, reference, space_map, land_map, campaign, skirmish_args (extra",
-    "alamo_headless arguments of the skirmish runs), galactic_args, smoke_env ({VAR: value} for the smokes), accept",
+    "alamo_headless arguments of the skirmish runs), galactic_args, smoke_env ({VAR: value} for the smokes), blockers (the",
+    "last recorded sweep's open blockers, a note the runner does not read), accept",
     "([{blocker: regex, why, ref}]: an explained, retail-equivalent or by-design blocker that does not lower the grade)."
   ],
   "mods": {
@@ -48,8 +49,28 @@
          "ref": "legacy docs/MODS.md 10.4, mcx8 t01"}
       ]
     },
-    "1397421866": {"name": "AotR 2.11 (patch notes in the item)"},
-    "3387971722": {"name": "AotCW 1.2.1 (patch notes in the item)"}
+    "1397421866": {
+      "name": "AotR 2.11 (patch notes in the item)",
+      "space_map": "_MP_SPACE_KUAT",
+      "land_map": "_MP_LAND_QUELLOR",
+      "campaign": "Sandbox_GCW_Empire",
+      "blockers": ["2026-11-26 G2: smoke_campaign stops at step 6 of 102 (the campaign menu, #695)", "smoke_skirmish 86 of 86 with findings: attract hull facing (#696), select-all delay, no procedural laser bolt", "209 static honour gaps (#77 tag-ledger tickets)"]
+    },
+    "3387971722": {
+      "name": "AotCW 1.2.1 (patch notes in the item)",
+      "space_map": "_MP_SPACE_KUAT",
+      "land_map": "_MP_LAND_QUELLOR",
+      "campaign": "Sandbox_Awakening_of_the_Clone_Wars_Republic",
+      "blockers": ["2026-11-26 G2: smoke_campaign stops at step 6 of 102 (the AotR campaign menu it inherits, #695)", "197 static honour gaps (#77 tag-ledger tickets)"]
+    },
+    "2083545253:subA": {"name": "Thrawn's Revenge Shield Pierce Submod (2083545253 subA)",
+                        "blockers": ["2026-11-26 G2: static only, 179 honour gaps (#77 tag-ledger tickets); runs and smokes pass"]},
+    "2083545253:subB": {"name": "Fall of the Republic Shield Pierce Submod (2083545253 subB)",
+                        "blockers": ["2026-11-26 G2: smoke_campaign stops at step 27 of 110 (the parent's Sandbox_Rimward_Republic set, #699)", "172 static honour gaps (#77 tag-ledger tickets)"]},
+    "2498889654:sub": {"name": "Infinite Unit Cap for Thrawn's Revenge (2498889654)",
+                       "blockers": ["2026-11-26 G1: galactic: no AI orders on Thrawn_Empire (the AI idle blocker, #694)"]},
+    "3489753581": {"name": "3489753581 (Thrawn's Revenge faction data, no modinfo; installed 2026-11-19)",
+                   "blockers": ["2026-11-26 G1: space and land: no AI orders or decisions; smoke_campaign 65 of 102. With no modinfo it loads on its own, without Thrawn's Revenge, whose faction data it replaces"]}
   },
   "accept_all": [],
   "not_installed": {
