@@ -320,6 +320,18 @@ public:
     // The loaded GameObjectCategoryType enum for Parameter_Category masks and the Capital default (null = vanilla table).
     void set_category_enum(const objects::EnumConverter* categories) { categories_ = categories; }
     void clear_cache();
+    // #635: while one lives, this thread's leaf-cache hits are not counted (cache_hits): the batched goal values, whose
+    // hit pattern depends on the fan-out. The cache contents are what the serial evaluation leaves.
+    class Uncounted {
+    public:
+        Uncounted();
+        ~Uncounted();
+        Uncounted(const Uncounted&) = delete;
+        Uncounted& operator=(const Uncounted&) = delete;
+
+    private:
+        bool prev_;
+    };
 
     // q6 t03 (AI_GALACTIC_TOKENS §8.2): one pass of the 0x11 / 0x13 listener 0x66d490 over the conflict manager's state
     // since the last pass, stamping `now` (the global logic frame). The port has no planet signal, so it reads the

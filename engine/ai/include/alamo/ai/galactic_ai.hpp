@@ -98,6 +98,9 @@ struct GalacticAiConfig {
     const galactic::ContrastTable* contrast = nullptr;
     // Fan-out for the per-AI all-pairs recompute (AiPathFinder); any value gives identical matrices.
     ParallelFor path_pf = serial_for;
+    // #635: fan-out for the goal candidates' values (ai_goals.hpp "BATCHED VALUES": equations with no Script_ term, on
+    // any thread; the rest in place) and the S2 perception's per-planet update; any value gives identical results.
+    ParallelFor pf = serial_for;
     // the path finders' cadence recomputes run on `background` (latency_job.hpp; empty = inline at the kick,
     // same results) and are applied `path_latency` galactic frames after the kick (0 = the original timing).
     uint32_t path_latency = galactic::kDefaultAllPairsLatency;
@@ -211,6 +214,9 @@ public:
     uint64_t orders_issued() const;
     // Port diagnostics: proposal outcomes per goal type (accepted / no plan / no potential plan).
     const std::map<std::string, uint32_t>& proposal_stats() const;
+    // #635: goal-candidate values evaluated in the batch (evaluate_prepared), not in place [diagnostic].
+    uint64_t batched_evaluations() const;
+    uint64_t batched_fan_outs() const;  // #635: of their batches, those that fanned out (GoalSystem::fan_outs)
     uint64_t orders_rejected() const;
     const GalacticSimTokenResolver& resolver() const;
 

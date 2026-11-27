@@ -216,17 +216,70 @@ uint32_t GalacticAiWorld::Impl::equation(const std::string& name) const {
     return eqs.find(ai_trim(name));  // EquationSet::find upper-cases the name
 }
 
-bool GalacticAiWorld::Impl::evaluate_id(int32_t self, int32_t opponent, uint32_t e, const std::string& fn, int32_t target,
-                                       double& out) {
-    if (e == kUnresolved) return false;
+EvalContext GalacticAiWorld::Impl::eval_context(int32_t self, int32_t opponent, int32_t target) const {
     EvalContext c;
     c.self = self;
     c.target = target;
     c.location = target;
     c.enemy = opponent;     // bound only when the opponent index != -1 [H]
     c.human = first_human();  // -1 with no human: Human-rooted paths fail (AI_GALACTIC_2 Â§4.3) [H]
+    return c;
+}
+
+bool GalacticAiWorld::Impl::evaluate_id(int32_t self, int32_t opponent, uint32_t e, const std::string& fn, int32_t target,
+                                       double& out) {
+    if (e == kUnresolved) return false;
+    EvalContext c = eval_context(self, opponent, target);
     c.rng = &rng.synced();
     const EvalResult r = ai::evaluate(eqs, e, c, res);
+    count_evaluation(e, fn, r);
+    if (!r.ok) return false;
+    out = r.value;
+    return true;
+}
+
+bool GalacticAiWorld::Impl::concurrent_equation(uint32_t e) {
+    if (e == kUnresolved || e >= eqs.size()) return false;  // evaluate_id fails it in place
+    if (eq_concurrent.size() != eqs.size()) eq_concurrent.assign(eqs.size(), 0);
+    uint8_t& state = eq_concurrent[e];
+    // 1: on the path being visited, a Function_ cycle (it fails at evaluation, at kMaxDepth, before any Script_ to
+    // its right runs)
+    if (state != 0) return state != 3;
+    state = 1;
+    bool pure = true;
+    for (const ExprNode& n : eqs.equation(e).expr.nodes) {
+        if (n.op == Op::Script) pure = false;  // '#' (Op::Random) is the evaluator's own reseeded LCG: it draws nothing shared
+        else if (n.op == Op::Function && n.ref != kUnresolved && !concurrent_equation(n.ref)) pure = false;
+        if (!pure) break;
+    }
+    eq_concurrent[e] = pure ? 2 : 3;
+    return pure;
+}
+
+bool GalacticAiWorld::Impl::evaluate_concurrent(int32_t self, int32_t opponent, uint32_t e, int32_t target, double& out) const {
+    if (e == kUnresolved) return false;
+    const GalacticSimTokenResolver::Uncounted uncounted;
+    const EvalResult r = ai::evaluate(eqs, e, eval_context(self, opponent, target), res);  // rng unset: no Script_
+    if (!r.ok) return false;
+    out = r.value;
+    return true;
+}
+
+void GalacticAiWorld::Impl::evaluated_batched(int32_t self, int32_t opponent, uint32_t e, const std::string& fn, int32_t target,
+                                              bool ok, double value) {
+    ++eval_batched;
+    if (ok) {
+        EvalResult r;
+        r.ok = true;
+        r.value = value;
+        count_evaluation(e, fn, r);
+        return;
+    }
+    const GalacticSimTokenResolver::Uncounted uncounted;  // the failure again, for its site (a diagnostic only)
+    count_evaluation(e, fn, ai::evaluate(eqs, e, eval_context(self, opponent, target), res));
+}
+
+void GalacticAiWorld::Impl::count_evaluation(uint32_t e, const std::string& fn, const EvalResult& r) {
     ++eval_count;
     // Port diagnostics (never hashed): a failure names its first failing site. sp4a: the success counters are
     // cached per equation id (no key built per evaluation).
@@ -241,9 +294,6 @@ bool GalacticAiWorld::Impl::evaluate_id(int32_t self, int32_t opponent, uint32_t
     } else {
         ++stats["~ eval FAIL " + fn + " at " + eval_failure_site(eqs, r)];
     }
-    if (!r.ok) return false;
-    out = r.value;
-    return true;
 }
 
 // Script_<File>.Evaluate (AI_GALACTIC_2 Â§4.4) [H]: Data/Scripts/Evaluators/<File>.lua loaded once as ONE shared
@@ -2837,7 +2887,7 @@ void GalacticAiWorld::update_player(int32_t player, int64_t now, bool galactic_o
         }
         {
             ALAMO_PROFILE_SCOPE("ai.gal.perception");  // OPT2 t11
-            w.perc.update(w.snap, static_cast<uint32_t>(w.sim.frame()));
+            w.perc.update(w.snap, static_cast<uint32_t>(w.sim.frame()), w.cfg.pf);  // #635: per-planet fan-out
         }
         {
             ALAMO_PROFILE_SCOPE("ai.gal.memcopy");  // OPT2 t11
@@ -2940,8 +2990,18 @@ std::vector<std::string> GalacticAiWorld::lua_errors() const {
     return e;
 }
 uint64_t GalacticAiWorld::orders_issued() const { return impl_->orders; }
+uint64_t GalacticAiWorld::batched_evaluations() const { return impl_->eval_batched; }
+uint64_t GalacticAiWorld::batched_fan_outs() const {
+    uint64_t n = 0;
+    for (const auto& a : impl_->ai)
+        if (a) n += a->ctx.goals.fan_outs();
+    return n;
+}
+
 const std::map<std::string, uint32_t>& GalacticAiWorld::proposal_stats() const {
     impl_->stats["~ evaluations"] = static_cast<uint32_t>(impl_->eval_count);
+    impl_->stats["~ evaluations batched"] = static_cast<uint32_t>(impl_->eval_batched);  // #635
+    impl_->stats["~ evaluation fan-outs"] = static_cast<uint32_t>(batched_fan_outs());
     impl_->stats["~ token cache hits"] = static_cast<uint32_t>(impl_->res.cache_hits());
     return impl_->stats;
 }

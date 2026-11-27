@@ -434,6 +434,7 @@ bool GameSession::start(std::vector<std::string>* diag, const commands::CommandR
     if (use_ai) {
         sim::SimHost* h = host_.get();
         gcfg.lua_gc_pf = host_->parallel_for();  // scheduled Lua collections on the host's job system
+        gcfg.pf = gcfg.path_pf = host_->parallel_for();  // #635: batched goal values, the S2 perception, the path recomputes
         gcfg.background = jobs::make_background_start(host_->jobs());  // background path recomputes
         galactic_ai_ =std::make_unique<ai::GalacticAiWorld>(
             *gs, host_->galactic_mode()->primary(), &d.types, d.files.get(), host_->random(), d.ai->defs, d.ai->equations, d.ai->type_info,

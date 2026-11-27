@@ -1105,11 +1105,11 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
     }
     // batched goal values (ai_goals.hpp) on the host's job system.
     const ParallelFor* candidate_pf() override { return &w->cfg.pf; }
-    bool prepare_evaluation(const std::string& function) override { return w->concurrent_equation(function); }
-    bool evaluate_prepared(const std::string& function, int32_t target, double& out) const override {
+    bool prepare_evaluation(uint32_t, const std::string& function) override { return w->concurrent_equation(function); }
+    bool evaluate_prepared(uint32_t, const std::string& function, int32_t target, double& out) const override {
         return w->evaluate_concurrent(player, function, target_handle(target), out);
     }
-    void evaluated(const std::string&) override { ++w->eval_count; }
+    void evaluated(uint32_t, const std::string&, int32_t, bool, double) override { ++w->eval_count; }
     void slice_begin() override { w->pp_slice.open(player); }  // OPT2 t10 (PpSliceHost)
     void slice_end() override { w->pp_slice.player = -1; }
     bool accept(Goal& g) override {

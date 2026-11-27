@@ -392,6 +392,7 @@ int ai_campaign_run(const MapRunOptions& opt, const AiRunOptions& aopt) {
         };
         ai::GalacticAiConfig wcfg = gcfg;
         wcfg.lua_gc_pf = host.parallel_for();  // scheduled Lua collections on the host's job system
+        wcfg.pf = wcfg.path_pf = host.parallel_for();  // #635: batched goal values, the S2 perception, the path recomputes
         wcfg.background = jobs::make_background_start(host.jobs());  // background path recomputes
         if (opt.ai_latency >= 0) wcfg.path_latency = static_cast<uint32_t>(opt.ai_latency);  // parity knobs
         wcfg.stagger = opt.ai_stagger == 1;  // a2m r4: galactic default = the original timing (AI_GALACTIC §1.3)

@@ -163,18 +163,22 @@ public:
     virtual int32_t quota_players() = 0;               // players - active humans
     // OPT2 t03, batched values (header comment). Default: none, every candidate is evaluated in place.
     virtual const ParallelFor* candidate_pf() { return nullptr; }
-    // Serial, before the batch. True: `function` may be evaluated by evaluate_prepared() on any thread.
-    virtual bool prepare_evaluation(const std::string& function) {
-        (void)function;
+    // Serial, before the batch. True: `function` (resolve_function's `equation`) may be evaluated by evaluate_prepared()
+    // on any thread.
+    virtual bool prepare_evaluation(uint32_t equation, const std::string& function) {
+        (void)equation, (void)function;
         return false;
     }
     // Concurrent const evaluation of a prepared function (the same value evaluate() gives at this point of the slice).
-    virtual bool evaluate_prepared(const std::string& function, int32_t target, double& out) const {
-        (void)function, (void)target, (void)out;
+    virtual bool evaluate_prepared(uint32_t equation, const std::string& function, int32_t target, double& out) const {
+        (void)equation, (void)function, (void)target, (void)out;
         return false;
     }
-    // Serial, in visit order, once per prepared candidate: the bookkeeping evaluate() does for itself.
-    virtual void evaluated(const std::string& function) { (void)function; }
+    // Serial, in visit order, once per prepared candidate: the bookkeeping evaluate() does for itself (#635: with the
+    // candidate's result, evaluate_prepared's answer and value).
+    virtual void evaluated(uint32_t equation, const std::string& function, int32_t target, bool ok, double value) {
+        (void)equation, (void)function, (void)target, (void)ok, (void)value;
+    }
     // brackets each proposal slice (every slot 10 of the slice runs in between), so a mode may share host
     // answers between the slice's solves. Default: nothing.
     virtual void slice_begin() {}
@@ -247,6 +251,9 @@ public:
     uint32_t quota() const { return quota_; }
     int32_t countdown() const { return countdown_; }
     uint32_t evaluations_last_pass() const { return evals_last_; }
+    // #635: batches of the batched values that reached the ParallelFor (kMinFanOut or more prepared values)
+    // [diagnostic: not hashed or saved]
+    uint64_t fan_outs() const { return fan_outs_; }
     uint32_t passes() const { return passes_; }
     const GoalSystemConfig& config() const { return cfg_; }  // aitac t04
     bool accept_pending() const { return pending_ready_ >= 0; }  // batched-accept solves in flight
@@ -327,6 +334,7 @@ private:
     uint32_t quota_ = 0;
     int32_t countdown_ = 0;
     uint32_t evals_pass_ = 0, evals_last_ = 0;
+    uint64_t fan_outs_ = 0;
     uint32_t passes_ = 0, commits_ = 0;
     uint32_t next_serial_ = 1;
     int64_t now_ = 0;

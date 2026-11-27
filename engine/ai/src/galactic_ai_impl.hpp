@@ -323,6 +323,8 @@ struct GalacticAiWorld::Impl final : lua::AiScriptHost, lua::ScriptMarkupHost, A
     // (plan, task force, team) -> expanded type list (static per data, lookup cache)
     std::map<std::tuple<uint32_t, uint32_t, uint32_t>, std::vector<uint32_t>> team_types;
     int64_t eval_count = 0;  // perception evaluations (diagnostic)
+    uint64_t eval_batched = 0;  // #635: of them, batched goal-candidate values (diagnostic)
+    std::vector<uint8_t> eq_concurrent;  // #635: per equation 0 unknown, 1 visiting, 2 concurrent, 3 serial only
     // sp4a (S7): the "~ eval pos / nonpos <fn>" counters of `stats` per equation id, for the last name spelling evaluated
     // with that id (the keys keep the caller's spelling, as before); std::map nodes are stable and `stats` is never erased.
     struct EvalStatSlot {
@@ -432,6 +434,17 @@ struct GalacticAiWorld::Impl final : lua::AiScriptHost, lua::ScriptMarkupHost, A
     }
     // sp4a (S7): evaluate() with the equation id already resolved (kUnresolved fails, uncounted, like an unknown name).
     bool evaluate_id(int32_t self, int32_t opponent, uint32_t e, const std::string& fn, int32_t target, double& out);
+    // #635 (ai_goals.hpp "BATCHED VALUES"): an equation with no Script_ term (itself or through its Function_
+    // references) runs no Lua and draws nothing from the synced RNG ('#' reseeds its own LCG per evaluation), so goal
+    // candidates may evaluate it on any thread. Serial, memoised per equation.
+    bool concurrent_equation(uint32_t e);
+    // evaluate_id of such an equation without its bookkeeping: const, any thread, the leaf cache's hits not counted.
+    bool evaluate_concurrent(int32_t self, int32_t opponent, uint32_t e, int32_t target, double& out) const;
+    // evaluate_id's bookkeeping for a batched value (serial, visit order); a failure is evaluated again, uncounted, for
+    // its diagnostic site.
+    void evaluated_batched(int32_t self, int32_t opponent, uint32_t e, const std::string& fn, int32_t target, bool ok, double value);
+    EvalContext eval_context(int32_t self, int32_t opponent, int32_t target) const;
+    void count_evaluation(uint32_t e, const std::string& fn, const EvalResult& r);
     bool script_evaluate(const EvalContext& c, std::string_view name, std::span<const Param> params, double& out);
     std::vector<ObjectHandle> player_units(int32_t p) const;
     uint32_t fleet_of_unit(ObjectHandle u) const;
@@ -727,6 +740,15 @@ struct PlayerAi final : GoalModeHooks, ContextModeServices {
     uint32_t resolve_function(const std::string& function) override { return w->equation(function); }
     bool evaluate_resolved(uint32_t e, const std::string& function, int32_t target, double& out) override {
         return w->evaluate_id(player, ctx.opponent, e, function, target, out);
+    }
+    // #635: batched goal values (ai_goals.hpp) on the host's fan-out.
+    const ParallelFor* candidate_pf() override { return &w->cfg.pf; }
+    bool prepare_evaluation(uint32_t e, const std::string&) override { return w->concurrent_equation(e); }
+    bool evaluate_prepared(uint32_t e, const std::string&, int32_t target, double& out) const override {
+        return w->evaluate_concurrent(player, ctx.opponent, e, target, out);
+    }
+    void evaluated(uint32_t e, const std::string& function, int32_t target, bool ok, double value) override {
+        w->evaluated_batched(player, ctx.opponent, e, function, target, ok, value);
     }
     bool accept(Goal& g) override;
     bool plan_activatable(Goal& g) override {
