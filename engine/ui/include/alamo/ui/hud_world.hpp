@@ -140,7 +140,16 @@ struct HudUnit {
     // #476 (same record, st_ability_icon, 0x2e7fd0 [H]): the icon of the unit's ability in slot 0 / 1 when that ability is
     // active ("" = none or not active): its Alternate_Icon_Name, else the per-type default (ui::ability_icon).
     std::string ability_icon[2];
+    // #296 lt_weather_icon (0x2f9950 / 0x31de70 [H]): the weather texture while the unit's weather modifiers are below the
+    // GameConstants thresholds ("" = none): "i_pa" + the current WeatherModifiers Icon_Name less its first 14 characters.
+    std::string weather_icon;
 };
+
+// #296 lt_weather_icon (0x2f9950 gate, texture 0x31de70 [H]): the texture for a unit whose weather accuracy or sight
+// modifier is below its GameConstants threshold, "" otherwise. `icon_name` = the current WeatherModifiers Icon_Name (""
+// without weather): "i_pa" (0x85d670) + the name less its first 14 characters (i_encyclopedia_weather_rain.tga ->
+// i_pa_weather_rain.tga).
+std::string weather_status_icon(std::string_view icon_name, float accuracy, float sight, float min_accuracy, float min_sight);
 
 // One live unit and the unit standing for its squadron / company (itself when alone): TacticalBattle::icon_links.
 struct UnitIconLink {
@@ -219,6 +228,7 @@ struct WorldHudStats {
     uint32_t unit_icons = 0, brackets = 0, bars = 0, group_numbers = 0, flytexts = 0, offscreen = 0, blobs = 0;
     uint32_t status_icons = 0;  // #475: bribed / remote bomb / garrison flag / garrison slot quads
     uint32_t ability_icons = 0;  // #476: st_ability_icon quads
+    uint32_t weather_icons = 0;  // #296: lt_weather_icon quads
 };
 
 class WorldHud {
@@ -250,6 +260,7 @@ private:
     int32_t power_ = -1, group_ = -1, flytext_ = -1;
     int32_t bribed_ = -1, bomb_ = -1, garrison_flag_ = -1, garrison_slot_ = -1;  // #475
     int32_t ability_icon_ = -1;  // #476 st_ability_icon
+    int32_t weather_icon_ = -1;  // #296 lt_weather_icon
     WorldHudStats stats_;
 };
 

@@ -37,7 +37,7 @@ galactic code names them. Port: galactic_hud.cpp:238/245 already has both. **Dro
   a texture: slot 0 -> vf +0xa0 (icon), slot 1 -> vf +0xa0 if slot 0 had none, else vf +0xd8 (second layer). Texture =
   0x43eaf0(&DAT_140b2f2e0, slot, type): the ability's own icon string (ability +0x200 when +0x210 != 0) else the per-kind default
   (table 0x30 per kind). Not allied: both textures cleared. Shown and placed every frame (0x31de70: vf+0x78(0)) centred above
-  the health bar: y + bar_h/2 + icon_h/2 + 3, shifted left by (weather_w/2 + icon_w/2)/2 when the weather icon shows.
+  the health bar: y + bar_h/2 + icon_h/2 + 3, shifted left by (weather_w/2 + icon_w/2)/2 when the weather icon shows (ported, #296).
 
 Port (#476): `ui::overhead_ability_icons` gives the unit's two icons from `abilities_from_s9` over that one unit: for slots 0
 and 1, the HudAbility icon (Alternate_Icon_Name, else `ability_icon(type)`) when the ability is active and not recharging
@@ -47,7 +47,7 @@ selected and hovered units. `WorldHud` draws them for allied units on st_ability
 slot 0's, then slot 1's as a second layer sharing its centre (the first layer when slot 0 has none). [port] centred 3 px
 above the top of the bar stack, not the health bar, because the port stacks the shield and power bars over the health bar;
 the 3 is read as pixels [M]. [port] none while the health bar is hidden, and nothing (not the component's own
-Icon_Texture_Name) when no slot is active: whether retail keeps the last texture then is not traced. The weather shift is not ported (no lt_weather_icon). "Allied" is the host's diplomacy predicate (#536).
+Icon_Texture_Name) when no slot is active: whether retail keeps the last texture then is not traced. The weather shift is ported with lt_weather_icon (#296). "Allied" is the host's diplomacy predicate (#536).
 
 ### Overhead status record (0x2ddac0 build, 0x2e7fd0 + 0x31de70 update; tactical only) [H]
 0x302620 runs 0x31de70 when HUD +0x211c > 1 (2 space, 3 land: 0x28b080 maps mode type 1 (land) to 3 and type 2 (space) to 2 [H], lane-c 2026-11-26) and +0x26a5. Units: the hovered object (+0x2030) and the local
@@ -71,9 +71,16 @@ bars / brackets / control group of selected-or-hovered units) fed by HudUnit (hu
   (i_dialogue_radio_on) for slot i < cap - free and its Icon (radio_off) otherwise, free = 0x3954b0 = Num_Garrison_Slots minus
   the summed Garrison_Value (+0x23ac) of the contained objects (obj +0xf8 list). So occupied slots lit, left to right. Row centred
   on the bar x, below the bar (y - (h - DAT_140b2767c)), step = icon width.
-- **lt_weather_icon 0x104 [M]:** shown iff 0x2f9950: the unit's weather modifiers (0x468750 accuracy for its projectile categories
-  4/6/7, ability 0xb, 0x468510 sight/speed) fall below runtime thresholds DAT_140b16bbc / bc0 while weather is on (+0x448 > 0.5).
-  Texture: current weather entry name minus 14 chars, prefixed "i_pa" [H code, L result]. Above the ability icon.
+- **lt_weather_icon 0x104 [H] (#296):** status slot 5. Shown iff the gate 0x2f9950 holds for the unit, or, through behaviour 0x16, for any member of its team:
+  - the weapon at obj +0x324 in the type's Projectile_Types (+0xc48) has Projectile_Category (weapon +0x1fe8) 4, 6 or 7, and the current weather's accuracy modifier 0x468750 for that category is below `Min_Accuracy_For_Icon` (DAT_140b16bbc, GC +0x13bc, FoC 0.4);
+  - or the object has TURRET (behaviour 0x0b), and category 4's modifier is below that value;
+  - or its sight modifier 0x468510 is below `Min_Sight_Range_For_Icon` (DAT_140b16bc0, +0x13c0, 0.5).
+
+  The texture is the current weather record's Icon_Name (0x468860; the default record while the blend +0x448 <= 0.5) with its first 14 characters dropped and `i_pa` (0x85d670) put in front: `i_encyclopedia_weather_rain.tga` becomes `i_pa_weather_rain.tga`.
+
+  Placement: centred above the health bar, y + bar_h/2 + icon_h/2 + 3. While the ability icon shows, the two move apart by (weather_w/2 + ability_w/2)/2: the weather icon right, the ability icon left.
+
+  Port: `TacticalBattle::UnitHudStatus::weather_accuracy` / `weather_sight` (a Weatherproof owner reads 1.0 [M]) and `ui::weather_status_icon` give `HudUnit::weather_icon`. `WorldHud` draws it as above the port's bar stack, for any owner. [port] the team walk is the member's own check, because the HUD's units are the members.
 - **surface_mod_icon 0x37f [H code, L source]:** shown iff the string at (obj +0xf0) + 0x168 (or a team member's) is non-empty;
   that string is the texture. The obj +0xf0 record class (save tag 0x29) is not identified. Left of the health bar.
 

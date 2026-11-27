@@ -770,6 +770,13 @@ public:
         bool garrison_flag = false;  // obj +0x3a2 & 2 (spawned), or [port] a skirmish start-force unit (SkGarrison ids)
         int32_t garrison_slots = 0;  // Num_Garrison_Slots of a garrison holder
         int32_t garrison_used = 0;   // slots taken: the occupants' summed Garrison_Value (capacity - free)
+        // #296 lt_weather_icon (gate 0x2f9950 [H], docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "lt_weather_icon"): the current
+        // weather's accuracy modifier for the unit's weapon (its Projectile_Types entry at the weapon index, category
+        // ROCKET / MPTL_ROCKET / LASER; a TURRET object also ROCKET's) and its sight modifier (Weather_Category). 1.0
+        // without weather (or below the 0.5 blend), for a Weatherproof owner and for other categories. The host compares
+        // them with GameConstants Min_Accuracy_For_Icon / Min_Sight_Range_For_Icon.
+        float weather_accuracy = 1.0f;
+        float weather_sight = 1.0f;
     };
     UnitHudStatus unit_hud_status(objects::ObjectId id) const;
     // mcx4 t13 (presentation feed; MCX4_T13_RE_ANSWERS "Faction.SFXEvent_GUI_Toggle_Non_Hero_Ability_On family",

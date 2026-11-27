@@ -173,6 +173,9 @@ struct HudConstants {
     Rgba8 lose_message_color{255, 244, 223, 255};     // Lose_Message_Color
     int32_t cb_flash_count = 4;                       // CB_Flash_Count (b_reinforcement flashes on a pool add)
     int32_t icons_per_column = 13;                    // Icons_Per_Column (#478: the skirmish_upgrade sidebar's rows)
+    // #296 lt_weather_icon thresholds (MCX4_PRES_RE_ANSWERS_3 Q5, GC +0x13bc / +0x13c0 [H]; FoC 0.4 / 0.5)
+    float min_accuracy_for_icon = 0.4f;               // Min_Accuracy_For_Icon
+    float min_sight_range_for_icon = 0.5f;            // Min_Sight_Range_For_Icon
     DefaultFonts fonts;                               // the GameConstants default fonts (FontCache::set_defaults)
     float text_reveal_rate = 120.0f;                  // Text_Reveal_Rate (story text typewriter, chars / s)
     // mcx4 t14 (MCX4_PRES_RE_ANSWERS_3 Q2): Num_Structures_For_Medium_Planet_Name / _Large_ (planet_label_class)
