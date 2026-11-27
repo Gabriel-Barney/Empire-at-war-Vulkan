@@ -558,19 +558,6 @@ void MovementSystem::attack_slots(const MoveOrder& order, const std::vector<uint
     unslotted(forms[ref]);
 }
 
-// one formation's attack plan (§4.3.2 items 6 - 7; 0x41c1a0 -> 0x417520 -> 0x40eb90 / 0x410e90), run at the
-// order ([port] retail plans at the formation update that follows). Non-guard with the fire hook set and every member
-// able to fire from where it stands (0x40edd0): the members stop as halt() stops them (End Move braking, the path stack
-// cleared), arrived, the slot kept; no path. Else the path to G (attack_path; failure: the members are stopped and
-// failed, the block kept); with a slot (the lead's rho > 0) the slot leg Q' = G + q rot(-v, theta) (v = the first path's
-// last segment, q = slot_leg_reach toward G + rho rot(-v, theta)) is taken when a path start -> Q' succeeds and its first
-// segment points the same way as the first path's (dot > 0): start -> ... -> Q' -> G. The fire trim (trim gate and hook
-// set) cuts the path to fire_trim's keep length (cut_points); each member's goal is its slot point at arc length keep
-// on the uncut path (trim_point, extended, no cell snap): the point the trim tested, also at keep 0 (the path cut to its
-// first node, "the formation can fire from where it stands": every member keeps its own slot around the start). [port] the members then plan singly to those goals in plan_land (no shared
-// formation path). An air lead keeps the plain move the slot loop gave (the plan is for land formations).
-// s78n t26 review round 3: no item-6 stop when T is unseen (LandAttack::unseen: 0x40edd0's fog / stealth terms, FIGHTER_FLYING
-// §4.11 E [H]); the members a re-path keeps (G 5, `kept`) get no goal and are not stopped by a failed plan.
 // #648 (#482 slice 1): 0x417520's type-2 branch (formation type 2, reason >= 2 [H], read 2026-11-24 / 26), the goal part:
 // - T = the top block, the order's object block; its goal G (0x5833e0: the object's goal point, staged by 0x40e260 when the
 //   formation has more than one member: LandAttack::g);
@@ -578,9 +565,11 @@ void MovementSystem::attack_slots(const MoveOrder& order, const std::vector<uint
 //   [H]; 0x373b30 = Scale_Factor (+0x658) x the type's radius override (+0x16b8, else +0x16f0) or else the model box's
 //   larger half extent (0x373b50 [H]); [M] the port takes the target's footprint half extents (LandAttack::t_hx / t_hy,
 //   0x396850), the larger one;
-// - the members' goal F +0x200 = 0x583150(P) [H]: P clamped to the map box (x, y; z to +-5000; [port] the land air box);
+// - the members' goal F +0x200 = 0x583150(P) [H]: P clamped to the map box (x, y; z to +-5000) [port: the land air box,
+//   the map's playable box, which may be tighter than retail's map-object box; the port's goals are 2-D];
 // - every member re-plans on the land air path (need_path: plan_space_path on air_). Members kept by a re-path keep theirs.
-// [L] not modelled: the block flag 0x10 skip (T +0x48 bit 4), the non-object (0x59caa0) branch, the goal height (type
+// [L] not modelled: the block flag 0x10 skip (T +0x48 bit 4), the non-object (0x59caa0) branch (a land attack order
+// always tops an object block), the goal height (type
 // +0x16dc), the speed fit (#649), the retry ladder (#650: the §2.4 chain) and the request byte +0x284.
 void MovementSystem::air_formation_goal(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f,
                                         const std::vector<uint8_t>& kept) {
@@ -610,6 +599,20 @@ void MovementSystem::air_formation_goal(const MoveOrder& order, const std::vecto
     }
 }
 
+// one formation's attack plan (§4.3.2 items 6 - 7; 0x41c1a0 -> 0x417520 -> 0x40eb90 / 0x410e90), run at the
+// order ([port] retail plans at the formation update that follows). Non-guard with the fire hook set and every member
+// able to fire from where it stands (0x40edd0): the members stop as halt() stops them (End Move braking, the path stack
+// cleared), arrived, the slot kept; no path. Else the path to G (attack_path; failure: the members are stopped and
+// failed, the block kept); with a slot (the lead's rho > 0) the slot leg Q' = G + q rot(-v, theta) (v = the first path's
+// last segment, q = slot_leg_reach toward G + rho rot(-v, theta)) is taken when a path start -> Q' succeeds and its first
+// segment points the same way as the first path's (dot > 0): start -> ... -> Q' -> G. The fire trim (trim gate and hook
+// set) cuts the path to fire_trim's keep length (cut_points); each member's goal is its slot point at arc length keep
+// on the uncut path (trim_point, extended, no cell snap): the point the trim tested, also at keep 0 (the path cut to its
+// first node, "the formation can fire from where it stands": every member keeps its own slot around the start). [port] the members then plan singly to those goals in plan_land (no shared
+// formation path). An air lead keeps the plain move the slot loop gave at the order; #648: its type-2 goal at a
+// re-plan, behind the flag (air_formation_goal).
+// s78n t26 review round 3: no item-6 stop when T is unseen (LandAttack::unseen: 0x40edd0's fog / stealth terms, FIGHTER_FLYING
+// §4.11 E [H]); the members a re-path keeps (G 5, `kept`) get no goal and are not stopped by a failed plan.
 bool MovementSystem::attack_plan(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f, uint32_t frame,
                                  const std::vector<uint8_t>& kept, std::span<const FormationMember> mem, std::span<const Unit> snap) {
     const Unit& lead = units_[idx[f.members[0]]];

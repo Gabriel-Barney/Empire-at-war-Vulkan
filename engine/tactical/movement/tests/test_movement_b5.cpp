@@ -854,6 +854,14 @@ void test_scene_air_type2() {
             CHECK(sys.stats().air_formation_goals == 1 && at_p);
         else
             CHECK(sys.stats().air_formation_goals == 0 && !at_p);
+        if (on) {  // a staged G (the host's 0x40e260, G != C): P = G + unit(C - lead) x 5 (G the base, C the direction)
+            MoveOrder st = attack_order({10, 11}, 900, c, 5.0f, 300.0f);
+            st.attack.replan = true;
+            st.attack.g = c + V2{-200.0f, 120.0f};
+            sys.move(st, rng, 2);
+            const V2 ps = st.attack.g + V2{d.x * 5.0f / len, d.y * 5.0f / len};
+            CHECK(distance(sys.view(10).goal, ps) < 1e-3f && distance(sys.view(11).goal, ps) < 1e-3f);
+        }
         if (on) {  // the members re-plan on the land air path and fly toward P
             const uint64_t planned = sys.stats().paths_planned;
             const float d0 = distance(v10.pos, p);

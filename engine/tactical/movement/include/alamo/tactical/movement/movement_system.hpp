@@ -1930,11 +1930,11 @@ private:
     bool attack_path(const Unit& lead, uint32_t mask, V2 centroid, V2& g, std::vector<V2>& path) const;
     void attack_slots(const MoveOrder& order, const std::vector<uint32_t>& idx, const std::vector<LandForm>& forms);
     bool arc_slot_test(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f, float hx, float hy, V2 p) const;
-    // `kept` (indexed like idx): the members a re-path leaves on their own path (LandAttack::repath, G 5). `snap`
-    // (indexed like idx) = each member as it was before this order's set-up; a failed plan restores it. True: failed.
     // #648: the type-2 (air-led) formation's goal at a re-plan, behind MovementConfig::air_formation_approach
     void air_formation_goal(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f,
                             const std::vector<uint8_t>& kept);
+    // `kept` (indexed like idx): the members a re-path leaves on their own path (LandAttack::repath, G 5). `snap`
+    // (indexed like idx) = each member as it was before this order's set-up; a failed plan restores it. True: failed.
     bool attack_plan(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f, uint32_t frame,
                      const std::vector<uint8_t>& kept, std::span<const FormationMember> mem, std::span<const Unit> snap);
     // s78p: each member's copy of the formation path `fpath` (Unit::lane, + Unit::mslot) and its goal :=
