@@ -1773,6 +1773,7 @@ void test_tactical_stage2() {
         HudReinforcement r;
         r.unit = 555;
         r.icon = "i_icon_unit.tga";
+        r.group = U"Auto: Group 1";  // #645 fleet groups on
         out.push_back(r);
     };
     RadarEvents pings;
@@ -2022,6 +2023,9 @@ void test_tactical_stage2() {
         CHECK2(hud.reinforce_list_open());  // #463: opened above
         auto [cmds, acts] = click("r_0000", Button::Left);
         CHECK2(cmds.empty() && acts.size() == 1 && acts[0].kind == HudAction::Kind::BeginReinforcement && acts[0].unit == 555);
+        // #645: a right click asks for the next group choice of that reserve
+        auto [rc, ra] = click("r_0000", Button::Right);
+        CHECK2(rc.empty() && ra.size() == 1 && ra[0].kind == HudAction::Kind::ReinforcementGroup && ra[0].unit == 555);
         const commands::EventData re = reinforce_event(555, {10, 20, 0});
         CHECK2(re.type() == commands::EventType::Reinforce && re.u("unit") == 555 && re.valid());
     }

@@ -551,6 +551,15 @@ HudAction tactical_buy_action(int32_t component, const std::string& name, uint32
     return h;
 }
 
+HudAction reinforcement_group_action(int32_t component, const std::string& name, const HudReinforcement& r) {
+    HudAction a;
+    a.kind = HudAction::Kind::ReinforcementGroup;
+    a.component = component;
+    a.name = name;
+    a.unit = r.unit;
+    return a;
+}
+
 HudAction begin_reinforcement_action(int32_t component, const std::string& name, const HudReinforcement& r) {
     HudAction h;
     h.kind = HudAction::Kind::BeginReinforcement;
@@ -681,6 +690,7 @@ void TacticalHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
             if (r.component != k.component) continue;
             handled = true;
             if (k.button == Button::Left && r.entry.available) act(begin_reinforcement_action(k.component, c.name, r.entry));
+            if (k.button == Button::Right && !r.entry.group.empty()) act(reinforcement_group_action(k.component, c.name, r.entry));
             break;
         }
         if (handled) continue;
@@ -1303,6 +1313,17 @@ void TacticalHud::build_reinforcements(const TacticalHudFrame& f) {
         const Vec2f size = buttons_.draw(dl_, *atlas_, fonts_, canvas_, static_cast<uint32_t>(ci), p.center, p.size,
                                          f.faction_alt, f.time, static_cast<int32_t>(layer_of(c, p)) - c.base_layer);
         hit(ci, layer_of(c, p), p.size.x > 0 ? p.rect_center : p.center, size);
+        if (!e.group.empty() && fonts_) {  // #645 the group label under the pad
+            HudTextStyle st;
+            st.font = font_of(ci, 6.0f);
+            if (st.font >= 0) {
+                st.color = Rgba8{220, 220, 220, 255};
+                st.outline = true;
+                st.align = TextAlign::Center;
+                const Vec2f at = p.size.x > 0 ? p.rect_center : p.center;
+                add_text(dl_, layer_of(c, p), HudList::Text, *fonts_, canvas_, e.group, {at.x, at.y - 0.5f * size.y - 4.0f}, st);
+            }
+        }
         reinforce_slots_.push_back({ci, e});
         ++stats_.reinforcements;
     }

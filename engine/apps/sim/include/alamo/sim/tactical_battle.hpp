@@ -885,6 +885,11 @@ public:
     void enable_fleet_groups(bool on) { fleet_on_ = on; }
     bool fleet_groups_enabled() const { return fleet_on_; }
     const FleetGroups& fleet_groups() const { return fleet_; }
+    // #645 (presentation read): the group `player`'s reserve `reserve` would join if it arrived now: its pick (a group id,
+    // commands::kAssignNoGroup), else the galactic-fleet rule's result: the player's oldest group of the reserve's
+    // galactic fleet with room, else kAssignDefault (a new group) while the player has room for one, else kAssignNoGroup
+    // (also with no galactic fleet, or not the player's reserve). `picked` says which.
+    uint16_t fleet_reserve_group(int32_t player, objects::ObjectId reserve, bool& picked) const;
     // A kFleetGroupSubtype payload for `player`, applied to the player's live movable battle units in `selection`.
     commands::RejectReason fleet_group_command(TacticalMode& mode, uint8_t player, std::span<const uint8_t> data,
                                                std::span<const objects::ObjectId> selection);
@@ -2620,8 +2625,9 @@ private:
     bool fleet_on_ = false;
     FleetUnitInfo fleet_unit_info(const objects::ObjectStore& store, objects::ObjectId id) const;
     void fleet_tick(const TacticalMode& mode);  // prune + speed regulation, after apply_speed_factors
-    // #173: units_[first..] just spawned for participant `pi` join its human owner's group of its galactic fleet.
-    void fleet_join_spawned(const TacticalMode& mode, uint32_t pi, size_t first);
+    // #173: units_[first..] just spawned for participant `pi` join its human owner's group of its galactic fleet (#645:
+    // or its reserve pick; `last` = the participant's final unload step, which uses the pick up).
+    void fleet_join_spawned(const TacticalMode& mode, uint32_t pi, size_t first, bool last);
     bool order_busy(objects::ObjectId id, const OrderQueue* q) const;
     bool unit_idle(objects::ObjectId id) const;  // #608 one unit's idle_units rule
     void clear_queues(std::span<const objects::ObjectId> ids);

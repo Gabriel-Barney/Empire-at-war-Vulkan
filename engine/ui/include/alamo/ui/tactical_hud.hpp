@@ -178,6 +178,10 @@ struct HudReinforcement {
     std::string icon;
     uint32_t count = 1;
     bool available = true;
+    // [port] #645 (fleet groups on): the fleet group the reserve joins on arrival, as a short label under the pad (the
+    // pick, else what the galactic-fleet rule gives); empty with fleet groups off. A right click on the pad asks the host
+    // for the next choice (HudAction::ReinforcementGroup).
+    std::u32string group;
 };
 struct HudProviders {
     std::function<void(const SelectedGroup& group, std::vector<HudAbility>& out)> abilities;
@@ -252,6 +256,10 @@ struct HudAction {
         // [port: Gabriel] appended 2026-11-25 (#599): the Modern fleet discipline control's cohesion step: value = 1 Tight,
         // 0 Loose. Host: GameSession::set_fleet_cohesion (the O key's toggle sets the same preference).
         FleetCohesion,
+        // [port: Gabriel] appended 2026-11-26 (#645): a right click on a reinforcement pad while fleet groups are on: unit =
+        // the reserve (Reinforce "unit"), name = the pad component. Host: the next group choice for it (the galactic-fleet
+        // rule, each of the player's groups, no group), sent as the AssignReserve fleet group command.
+        ReinforcementGroup,
     };
     Kind kind = Kind::Button;
     int32_t component = -1;
@@ -775,6 +783,8 @@ std::u32string build_option_text(const HudBuildOption& o, const TextDatabase* te
 HudAction tactical_buy_action(int32_t component, const std::string& name, uint32_t builder, const HudBuildOption& o, bool shift,
                               bool ctrl);
 HudAction begin_reinforcement_action(int32_t component, const std::string& name, const HudReinforcement& r);
+// #645: the right click on a reinforcement pad (fleet groups on): HudAction::ReinforcementGroup for `r`.
+HudAction reinforcement_group_action(int32_t component, const std::string& name, const HudReinforcement& r);
 // [port] #587 a command-bar button's state under the Lua GUI_Component_Visibility / _Enable overrides (mods; ButtonRuntime
 // script_visible / script_enabled, -1 = none): the override when the script set one, else the feed's.
 inline bool script_hidden(int8_t script_visible, bool feed_hidden) { return script_visible >= 0 ? script_visible == 0 : feed_hidden; }

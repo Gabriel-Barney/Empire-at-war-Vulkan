@@ -73,6 +73,14 @@ void test_commands() {
     rn.name = std::string(30, 'y') + "\xC3\x89";
     const auto full = cmd::parse_fleet_group(cmd::fleet_group_event(rn).bytes_view("data"));
     CHECK(full && full->name == rn.name && full->name.size() == cmd::kFleetGroupNameMax);
+    // #645 AssignReserve: group (u16) and reserve (u32) round-trip; a short payload is refused.
+    cmd::FleetGroupCommand as = op(Op::AssignReserve);
+    as.group = 0x0203;
+    as.reserve = 0x0A0B0C0Du;
+    const auto pa = cmd::parse_fleet_group(cmd::fleet_group_event(as).bytes_view("data"));
+    CHECK(pa && pa->op == Op::AssignReserve && pa->group == 0x0203 && pa->reserve == 0x0A0B0C0Du);
+    const uint8_t short_assign[] = {6, 1, 0, 2};
+    CHECK(!cmd::parse_fleet_group(short_assign));
     const uint8_t bad1[] = {9}, bad2[] = {0, 1}, bad3[] = {3, 2}, bad4[] = {4, 1, 0, 5, 'a'};
     CHECK(!cmd::parse_fleet_group({}) && !cmd::parse_fleet_group(bad1) && !cmd::parse_fleet_group(bad2) &&
           !cmd::parse_fleet_group(bad3) && !cmd::parse_fleet_group(bad4));
@@ -346,6 +354,65 @@ void test_join_spawned() {
           old.groups()[0].locked && old.groups()[0].name == "Red" && near(old.groups()[0].members[0].slot.y, 2.0f));
 }
 
+// #645: a reserve's pick. Picking a group of the player's, no group, or the default; another player's group is refused;
+// the pick decides where the arriving units go (the picked group, none, or the galactic-fleet rule when the group is
+// gone), is used up, and is saved and hashed.
+void test_reserve_assignment() {
+    World w;
+    w.add(10, 0.0f, 0.0f, 3.0f);
+    w.add(11, 100.0f, 0.0f, 3.0f);
+    w.add(30, 0.0f, 0.0f, 3.0f, 1);
+    w.add(40, 50.0f, 0.0f, 3.0f);
+    w.add(41, 60.0f, 0.0f, 3.0f);
+    w.add(42, 70.0f, 0.0f, 3.0f);
+    const FleetGroups::InfoFn info = w.fn();
+    FleetGroups fg;
+    const objects::ObjectId mine[] = {10, 11};
+    CHECK(fg.apply(0, op(Op::Create), mine, info) == cmd::RejectReason::None);
+    const objects::ObjectId theirs[] = {30};
+    CHECK(fg.apply(1, op(Op::Create), theirs, info) == cmd::RejectReason::None);
+    const uint16_t g0 = fg.groups()[0].id, g1 = fg.groups()[1].id;
+    const uint64_t before = digest_of(fg);
+    CHECK(fg.assign_reserve(0, 500, g1) == cmd::RejectReason::InvalidTarget);  // another player's group
+    CHECK(fg.assign_reserve(0, 500, 77) == cmd::RejectReason::InvalidTarget);  // no such group
+    CHECK(fg.reserve_assignment(500) == cmd::kAssignDefault && digest_of(fg) == before);
+    CHECK(fg.assign_reserve(0, 500, g0) == cmd::RejectReason::None && fg.reserve_assignment(500) == g0 && digest_of(fg) != before);
+    CHECK(fg.assign_reserve(0, 501, cmd::kAssignNoGroup) == cmd::RejectReason::None);
+    CHECK(fg.assign_reserve(0, 502, g0) == cmd::RejectReason::None && fg.assign_reserve(0, 502, cmd::kAssignDefault) == cmd::RejectReason::None);
+    CHECK(fg.reserve_assignment(502) == cmd::kAssignDefault && fg.reserve_assignments().size() == 2);
+    // saved and loaded with the groups (v3)
+    ByteWriter bw;
+    fg.write(bw);
+    FleetGroups back;
+    ByteReader br(bw.bytes());
+    CHECK(back.read(br) && digest_of(back) == digest_of(fg) && back.reserve_assignment(500) == g0 && back.reserve_assignment(501) == 0);
+    // arrivals: reserve 500 -> the picked group (not a new group of fleet 9); 501 -> no group; 503 (no pick) -> fleet 9's rule
+    const objects::ObjectId a[] = {40}, b[] = {41}, c[] = {42};
+    fg.join_reserve(0, 500, 9, a, info);
+    CHECK(fg.group_of(40) && fg.group_of(40)->id == g0 && fg.reserve_assignment(500) == cmd::kAssignDefault);
+    fg.join_reserve(0, 501, 9, b, info);
+    CHECK(!fg.group_of(41) && fg.reserve_assignments().empty());
+    fg.join_reserve(0, 503, 9, c, info);
+    CHECK(fg.group_of(42) && fg.group_of(42)->fleet == 9);
+    // a picked group that is gone by the arrival: the galactic-fleet rule
+    w.add(43, 80.0f, 0.0f, 3.0f);
+    CHECK(fg.assign_reserve(0, 504, g0) == cmd::RejectReason::None);
+    const objects::ObjectId sel[] = {10};
+    CHECK(fg.apply(0, op(Op::Dissolve), sel, info) == cmd::RejectReason::None);
+    const objects::ObjectId d[] = {43};
+    fg.join_reserve(0, 504, 9, d, w.fn());
+    CHECK(fg.group_of(43) && fg.group_of(43)->fleet == 9);
+    // a land landing unloads in steps: every step follows the pick, the last one uses it up
+    w.add(44, 90.0f, 0.0f, 3.0f);
+    w.add(45, 95.0f, 0.0f, 3.0f);
+    const objects::ObjectId e1[] = {44}, e2[] = {45};
+    CHECK(fg.assign_reserve(0, 505, cmd::kAssignNoGroup) == cmd::RejectReason::None);
+    fg.join_reserve(0, 505, 9, e1, w.fn(), false);
+    CHECK(!fg.group_of(44) && fg.reserve_assignment(505) == cmd::kAssignNoGroup);
+    fg.join_reserve(0, 505, 9, e2, w.fn(), true);
+    CHECK(!fg.group_of(45) && fg.reserve_assignment(505) == cmd::kAssignDefault);
+}
+
 // #177: Merge folds the player's groups with a selected unit into the oldest (lowest id), which keeps its id, name and
 // lock; every member's slot is recaptured; a merge past kMaxMembers or of fewer than two groups is refused; Split is
 // Create from the selected part of a group.
@@ -548,6 +615,27 @@ FleetRun run_fleet_battle(const Data& d, int32_t workers, bool on, bool idle_pha
             CHECK(b->fleet_group_command(*tm, 0, data(op(Op::Merge)), ids) == R::None);
             CHECK(b->fleet_groups().groups().size() == 1 && b->fleet_groups().groups()[0].locked);
             CHECK(b->fleet_group_command(*tm, 1, data(op(Op::Create)), ids) == R::InvalidUnit);  // not player 1's ships
+            {  // #645: AssignReserve names one of the issuer's reserves; anything else is refused
+                cmd::FleetGroupCommand as = op(Op::AssignReserve);
+                as.group = b->fleet_groups().groups()[0].id;
+                as.reserve = static_cast<uint32_t>(ids.front());  // a deployed ship, not a reserve
+                CHECK(b->fleet_group_command(*tm, 0, data(as), {}) == R::InvalidUnit);
+                const std::vector<sim::TacticalBattle::Reserve> res = b->reserves(0);
+                if (!res.empty()) {
+                    as.reserve = static_cast<uint32_t>(res.front().galactic_id);
+                    CHECK(b->fleet_group_command(*tm, 0, data(as), {}) == R::None &&
+                          b->fleet_groups().reserve_assignment(as.reserve) == as.group);
+                    bool picked = false;  // the pad label's source: the pick
+                    CHECK(b->fleet_reserve_group(0, res.front().galactic_id, picked) == as.group && picked);
+                    as.group = cmd::kAssignDefault;
+                    CHECK(b->fleet_group_command(*tm, 0, data(as), {}) == R::None);
+                    // no pick: the galactic-fleet rule's result, never "a new group" for a reserve outside a fleet
+                    const uint16_t rule = b->fleet_reserve_group(0, res.front().galactic_id, picked);
+                    CHECK(!picked && (rule == cmd::kAssignNoGroup || rule == cmd::kAssignDefault ||
+                                      b->fleet_groups().group(rule) != nullptr));
+                    CHECK(b->fleet_reserve_group(0, objects::kNoObjectId, picked) == cmd::kAssignNoGroup && !picked);
+                }
+            }
             slowest = 3.0e38f;
             float fastest = 0.0f;
             for (const objects::ObjectId id : ids) {
@@ -737,6 +825,7 @@ int main(int argc, char** argv) {
     test_logic();
     test_merge_split();  // #177
     test_join_spawned();  // #173
+    test_reserve_assignment();  // #645
     auto d = make_data();
     std::printf("fleet groups in a space battle: switch off\n");
     const FleetRun off = run_fleet_battle(*d, 0, false);

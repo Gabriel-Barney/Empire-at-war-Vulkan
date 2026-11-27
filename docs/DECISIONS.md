@@ -175,7 +175,7 @@ retail behaviour. Design: the claude.ai doc "Fleet groups design" (2026-11-13). 
 - **Off by default** (`[port]` option; `alamo_game --fleet-groups`, `SessionSpec::fleet_groups`,
   `TacticalBattle::enable_fleet_groups`). Off, no group can exist: every tier-1 rule, tier-2 distribution and golden CRC
   is unchanged. With it on, the save carries the `battle.fleet_groups` chunk in every battle, and group state enters
-  the tick CRC only once a group exists; a save made with it on loads only in a session with it on. The player turns it
+  the tick CRC only once a group or a reinforcement pick (#645) exists; a save made with it on loads only in a session with it on. The player turns it
   on with "Fleet Groups (new games)" in the port's Camera and Controls dialog (profile key `fleet_groups`, 2026-11-22):
   it applies to games started afterwards, while a game in progress and a loaded save keep the setting they started
   with. `--fleet-groups` turns it on whatever the option says. (The retail Gameplay dialog takes no port controls.)
@@ -200,6 +200,11 @@ retail behaviour. Design: the claude.ai doc "Fleet groups design" (2026-11-13). 
   galactic fleet (`galactic.state` is unchanged). A human player's units that spawn from a galactic fleet, the opening
   fleet at the battle start and each reinforcement as it arrives, join that player's group of the same galactic fleet,
   or a new one when there is none or it is full. AI players get no automatic groups.
+- Reinforcement group pick (2026-11-26 on #645): before calling a reinforcement in, its owner may pick the group it
+  joins (a right click on its pad cycles the galactic-fleet rule, each of their groups, no group). The pick is one
+  `AssignReserve` fleet group command, saved and hashed with the groups; a picked group that is gone or full by the
+  arrival falls back to the galactic-fleet rule. A landing that unloads in steps follows the pick at every step. The
+  pad's label shows the pick, or with "Auto:" what the galactic-fleet rule would give.
 
 ## Modern HUD: exception to the current focus
 

@@ -25,6 +25,10 @@
 // stays ungrouped. A joining member's slot is its offset from the group's current centre in the group's frame, so the
 // other members' slots and a running move are untouched.
 //
+// #645: before calling a reinforcement in, its owner may pick the group it joins (AssignReserve): one of their groups, no
+// group, or back to the rule above. The pick is kept by the reserve's galactic id until the reserve spawns; a picked group
+// that is gone (dissolved, merged away) or full by then falls back to the rule above. Saved and hashed with the groups.
+//
 // Determinism (rule 3): groups in a vector in creation order, members ascending by id, every loop in that order, the math
 // is + - * / sqrt and alamo::dmath; ids are issued from a counter and never reused within a battle.
 #pragma once
@@ -102,11 +106,28 @@ public:
     // fleet - the oldest with room - or a new group keyed to it (while the player has room for one). Units that are
     // not valid, not the player's, already grouped, or past both caps stay ungrouped. kNoFleet does nothing.
     void join_spawned(uint8_t player, uint32_t fleet, std::span<const objects::ObjectId> units, const InfoFn& info);
+    // #645: `player`'s pick for reserve `reserve` (AssignReserve; the caller checked the reserve is the player's): a group
+    // of the player's, commands::kAssignNoGroup, or commands::kAssignDefault (clears it). Another player's or a missing
+    // group is refused (InvalidTarget).
+    commands::RejectReason assign_reserve(uint8_t player, uint32_t reserve, uint16_t group);
+    // The pick for `reserve`, kAssignDefault when none.
+    uint16_t reserve_assignment(uint32_t reserve) const;
+    // #645: units of `reserve` arrived for `player` from galactic fleet `fleet`: its pick applies (no group, or the
+    // picked group while it is the player's with room), else join_spawned's rule. `last`: the reserve's final arrival
+    // (a land landing unloads in steps, each calling this); the pick is used up then, so every step follows it.
+    void join_reserve(uint8_t player, uint32_t reserve, uint32_t fleet, std::span<const objects::ObjectId> units, const InfoFn& info,
+                      bool last = true);
+    struct ReserveAssignment {
+        uint32_t reserve = 0;
+        uint8_t owner = 0;
+        uint16_t group = 0;
+    };
+    const std::vector<ReserveAssignment>& reserve_assignments() const { return assigned_; }
 
     const std::vector<FleetGroup>& groups() const { return groups_; }
     const FleetGroup* group_of(objects::ObjectId id) const;
     const FleetGroup* group(uint16_t id) const;
-    bool used() const { return used_; }  // a group was made in this battle (CRC / save gate)
+    bool used() const { return used_; }  // a group or a reserve pick was made in this battle (CRC / save gate)
     bool any_moving() const;
 
     // A locked move of one group: one goal per moving member (ascending id) and the block's new facing.
@@ -155,8 +176,11 @@ private:
     static void capture_slots(FleetGroup& g, const InfoFn& info);
     // A moving member's progress toward its slot, 0 at the move's start, 1 there (regulate's p).
     static float progress(const FleetMember& m, const FleetUnitInfo& u);
+    // Adds `id` (valid, the group owner's, ungrouped) to `g` at its slot in the members' frame.
+    static void add_joiner(FleetGroup& g, objects::ObjectId id, const FleetUnitInfo& u, const InfoFn& info);
 
     std::vector<FleetGroup> groups_;
+    std::vector<ReserveAssignment> assigned_;  // #645 ascending reserve
     uint16_t next_id_ = 1;
     bool used_ = false;
 };

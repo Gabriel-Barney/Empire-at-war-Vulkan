@@ -1030,7 +1030,7 @@ void TacticalBattle::deploy(TacticalMode& mode, uint32_t pi, SimRng& rng, uint32
     if (!cfg_.skirmish && !P.reserve && !deploy_script_ && !range)
         for (size_t i = first; i < units_.size(); ++i)
             if (units_[i].container == kNoContainer) (void)mv_adopt(mode, units_[i].h, rng);
-    fleet_join_spawned(mode, pi, first);  // #173 [port] fleet groups (off: nothing)
+    fleet_join_spawned(mode, pi, first, mk_end >= members_types.size());  // #173 [port] fleet groups (off: nothing)
 }
 
 // refixf t02 (MOVEMENT §2.2 [H]): SpaceObstacleBehaviorClass inserts its object into the space occupancy as a static entry on

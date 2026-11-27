@@ -600,6 +600,11 @@ private:
     };
     std::vector<FlyTextRecord> fly_texts_;
     std::vector<ui::HudFlyText> fly_hud_;
+    // #645 [port] fleet groups on: the reinforcement pad's group label for reserve `reserve` (its pick, else the
+    // galactic-fleet rule's group: the group's name, else "Group <id>"; "No group"; "New group"), and the next choice on a
+    // right click (the rule, each of the local player's groups in creation order, no group), sent as AssignReserve.
+    std::u32string reserve_group_label(const sim::TacticalBattle& b, objects::ObjectId reserve) const;
+    void cycle_reserve_group(objects::ObjectId reserve);
     // cu9g t03 (HUD_GAPS §9.4 - §9.6): the land bombing-run targeting state (HUD +0x20b2): toggled by the b_special_weapon
     // click and the super-weapon hotkey; the world's next left click on a valid point sends command 28.
     bool bombing_targeting_ = false;
