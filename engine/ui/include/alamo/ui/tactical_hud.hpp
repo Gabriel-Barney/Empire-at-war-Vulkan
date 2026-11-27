@@ -356,6 +356,18 @@ struct HudBombardSwitch {
     float recharge = 0.0f;  // 0x5294d0, 0..1
 };
 
+// #718 the space Death Star switch deathstar_switch (0x107), updated every frame by 0x31acd0 [H]
+// (docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "Death Star switch"): hidden unless `shown` (space, the local faction is the
+// HUD's Empire, the battle has a tactical super weapon); enabled with Icon_Alternate_Texture_Name entry 0 when the TSW is
+// ready (state 4) and the switch was not pressed this battle (HUD +0x2040); not pressed and not ready: Icon_Texture_Name,
+// disabled; pressed: disabled with the icon it had. `present` false (no battle feed): it keeps its state (hidden from init).
+struct HudTswSwitch {
+    bool present = false;
+    bool shown = false;
+    bool ready = false;
+    bool pressed = false;
+};
+
 // the other command-bar buttons the land / space HUD update enables in the same pass as c_button00..05
 // (HUD_GAPS §5.1: "reinforcement availability, retreat allowed") and the reinforcement window's texts. `present` false
 // (no battle feed): the components keep their data state. Lua GUI_Component_Visibility / _Enable override (mods).
@@ -501,6 +513,7 @@ struct TacticalHudFrame {
     HudOrderButtons order_buttons;  // c_button00..05 enable state (HUD_GAPS §5)
     HudBombingRunButton bombing_run;  // b_special_weapon in land (HUD_GAPS §9)
     HudBombardSwitch bombard;         // pb_switch / pb_switch_recharge in land (#717)
+    HudTswSwitch tsw;                 // deathstar_switch in space (#718)
     // #474 garrison_respawn_counter (0x231): the local player's skirmish start-force re-delivery fill 0..1 (the sim's
     // garrison_respawn), drawn as the component's Build_Texture_Name dial; < 0 hides it.
     float garrison_respawn = -1.0f;
@@ -652,6 +665,7 @@ private:
     void apply_order_buttons(const HudOrderButtons& s);
     void apply_bombing_run_button(const HudBombingRunButton& s);
     void apply_bombard_switch(const HudBombardSwitch& s);
+    void apply_tsw_switch(const HudTswSwitch& s);
     void build_bombard_recharge();
     void build_garrison_respawn(const TacticalHudFrame& f);
     void build_sell(const TacticalHudFrame& f);
@@ -720,6 +734,7 @@ private:
     uint32_t sell_drawn_ = 0;                             // the object of the sell button drawn this frame (0 = none)
     int32_t special_weapon_ = -1;                         // b_special_weapon (land: the bombing-run button)
     int32_t pb_switch_ = -1, pb_recharge_ = -1;           // pb_switch / pb_switch_recharge (#717)
+    int32_t ds_switch_ = -1;                              // deathstar_switch (#718)
     float bombard_recharge_ = 0.0f;                       // the bar's fill of this frame
     int32_t reinforce_button_ = -1, beacon_button_ = -1, beacon_t_ = -1, camera_t_ = -1;  // ui3 t03
     int32_t reinforce_counter_ = -1, r_pop_icon_ = -1, r_pop_text_ = -1;                 // ui3 t04

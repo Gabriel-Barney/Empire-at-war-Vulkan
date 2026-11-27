@@ -673,7 +673,7 @@
 {"GameObjectType", "TSW_Power_Up_Countdown_Seconds", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameObjectType", "TSW_Attack_Anim_Duration_Seconds", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameObjectType", "TSW_Explosion_Debris_Creation_Frame_Delay", 0x6, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
-{"GameObjectType", "TSW_SFXEvent_GUI_Bttton_Press", 0x1f, LedgerState::Stored, "docs/re/xml_reference_index.md", 1, 1},
+{"GameObjectType", "TSW_SFXEvent_GUI_Bttton_Press", 0x1f, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameObjectType", "TSW_SFXEvent_Activate_Voice", 0x1f, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameObjectType", "TSW_SFXEvent_Weapon_Power_Up", 0x1f, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameObjectType", "TSW_MusicEvent_Activation_Start", 0x21, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},

@@ -1118,6 +1118,7 @@ public:
     bool special_weapons_allowed(int32_t player) const;
     int32_t tsw_state(objects::ObjectId tsw) const;                         // < 0: not a TSW
     bool tsw_fire(objects::ObjectId tsw);                                   // 0x42a200 incl. the planet checks
+    bool tsw_planet_ok() const;  // 0x42a720: the battle planet exists, is not destroyed, its type Planet_Is_Destroyable_By_TSW
     bool tsw_planet_destroyed() const { return l1_planet_destroyed_; }      // the TSW destroyed the battle planet
     // TSW planet destruction (legacy docs/re/TSW_PLANET_DESTROY.md): state 9 kills the target dummy (its Death_Explosions pick
     // for the neutral player) and latches the destroyed planet; the battle host then destroys the galactic planet in the

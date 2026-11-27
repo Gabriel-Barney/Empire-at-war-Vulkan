@@ -108,6 +108,15 @@ ui::HudBombardSwitch bombard_switch(bool land, bool shown, bool available, float
     return s;
 }
 
+ui::HudTswSwitch tsw_switch(bool space, bool empire, bool has_tsw, bool ready, bool pressed) {
+    ui::HudTswSwitch s;
+    s.present = true;
+    s.shown = space && empire && has_tsw;
+    s.ready = s.shown && ready;
+    s.pressed = pressed;
+    return s;
+}
+
 const char* hardpoint_type_name(uint8_t kind) {
     static const char* const kNames[] = {"HARD_POINT_ENGINE",        "HARD_POINT_SHIELD_GENERATOR", "HARD_POINT_GRAVITY_WELL",
                                          "HARD_POINT_FIGHTER_BAY",   "HARD_POINT_TRACTOR_BEAM",     "HARD_POINT_WEAPON_LASER",

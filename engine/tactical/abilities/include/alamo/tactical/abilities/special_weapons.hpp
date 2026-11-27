@@ -223,6 +223,9 @@ public:
     // ---- tactical superweapon (§1.2) ----
     int32_t tsw_state(ObjectId id) const;  // < 0: not a TSW
     ObjectId tsw_target(ObjectId id) const;
+    // #718 the first TSW by ascending id (retail's first object with the TSW behaviour, 0x2a9ff0 with 0x2c [M: its list
+    // order]); kNoObject = none.
+    ObjectId first_tsw() const;
     // mcx4 t13 (presentation read; MCX4_T13_RE_ANSWERS "Faction.SpeechEvent_Super_Weapon_Moving_Range_60_Seconds
     // family", 0x42b560): in state 3 (arming), the seconds until the TSW reaches its attack distance at `position`:
     // remaining distance / Max_Speed / 30 - 2 (the port moves Max_Speed per frame); < -1e29 when not arming.

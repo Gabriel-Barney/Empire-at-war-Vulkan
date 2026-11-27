@@ -1512,6 +1512,44 @@ void test_bombard_switch() {
     CHECK2(hidden(sw) && hidden(bar) && !hud.stats().bombard_bar);
 }
 
+// #718 deathstar_switch (0x31acd0): hidden from init and while not shown; ready and not pressed -> enabled with
+// Icon_Alternate_Texture_Name 0; not ready -> disabled with the Icon_Texture_Name; pressed -> disabled, the icon kept.
+void test_tsw_switch() {
+    const std::string xml =
+        "<CommandBarComponents><CommandBarComponent Name=\"deathstar_switch\"><Type>TextButton</Type>"
+        "<Icon_Texture_Name>i_button_special_deathstar_switch_03.tga</Icon_Texture_Name>"
+        "<Icon_Alternate_Texture_Name>i_button_special_deathstar_switch_00.tga</Icon_Alternate_Texture_Name></CommandBarComponent>"
+        "</CommandBarComponents>";
+    ComponentTable t;
+    const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(xml), "ds.xml");
+    CHECK2(doc.ok());
+    t.parse(doc.root());
+    const TextureAtlas atlas = stage2_atlas();
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    TacticalHud hud;
+    hud.init(t, atlas, fonts);
+    hud.resize(1024, 768);
+    TacticalHudFrame fr;
+    fr.world.view = top_view2(1024, 768);
+    const auto ci = static_cast<uint32_t>(t.find("deathstar_switch"));
+    auto state = [&]() { return hud.buttons().find_state(ci); };
+    hud.build(fr, {}, {});
+    CHECK2(!state() || state()->hidden);
+    fr.tsw.present = true;  // no TSW
+    hud.build(fr, {}, {});
+    CHECK2(state() && state()->hidden);
+    fr.tsw.shown = true;  // arming
+    hud.build(fr, {}, {});
+    CHECK2(state() && !state()->hidden && state()->disabled && state()->icon_override.empty());
+    fr.tsw.ready = true;
+    hud.build(fr, {}, {});
+    CHECK2(state() && !state()->disabled && state()->icon_override == "i_button_special_deathstar_switch_00.tga");
+    fr.tsw.pressed = true;
+    hud.build(fr, {}, {});
+    CHECK2(state() && state()->disabled && state()->icon_override == "i_button_special_deathstar_switch_00.tga");
+}
+
 // #474 garrison_respawn_counter (docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "Garrison respawn counter"): hidden at -1; at
 // 0.25 the icon plus the Build_Texture_Name dial at 25 %, centred 30 right and 60 down from the top-left corner.
 void test_garrison_respawn_counter() {
@@ -2238,6 +2276,7 @@ int run_stage2_tests() {
     test_order_buttons();
     test_bombing_run_button();
     test_bombard_switch();
+    test_tsw_switch();
     test_garrison_respawn_counter();  // #474
     test_tactical_sell_button();  // #477
     test_fly_texts();             // #664

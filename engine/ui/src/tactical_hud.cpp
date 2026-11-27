@@ -251,6 +251,7 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
     special_weapon_ = table.find("b_special_weapon");
     pb_switch_ = table.find("pb_switch");
     pb_recharge_ = table.find("pb_switch_recharge");
+    ds_switch_ = table.find("deathstar_switch");
     reinforce_button_ = table.find("b_reinforcement");
     beacon_button_ = table.find("b_special_weapon2");
     beacon_t_ = table.find("b_beacon_t");
@@ -811,6 +812,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         apply_order_buttons(frame.order_buttons);
         apply_bombing_run_button(frame.bombing_run);
         apply_bombard_switch(frame.bombard);
+        apply_tsw_switch(frame.tsw);
         apply_command_buttons(frame.command_buttons);
         build_buttons(frame);
         build_bombard_recharge();
@@ -1389,6 +1391,18 @@ void TacticalHud::apply_bombard_switch(const HudBombardSwitch& s) {
         r.hidden = script_hidden(r.script_visible, !s.shown);
     }
     bombard_recharge_ = std::clamp(s.recharge, 0.0f, 1.0f);
+}
+
+// #718 0x31acd0 [H]: deathstar_switch. [port] the original also raises its bone in the command-bar shell while shown
+// (z 8) and shows the HUD's +0x2050 object; the port's shell keeps it in place.
+void TacticalHud::apply_tsw_switch(const HudTswSwitch& s) {
+    if (!s.present || ds_switch_ < 0) return;
+    const auto ci = static_cast<uint32_t>(ds_switch_);
+    const CommandBarComponent& c = (*table_)[ci];
+    ButtonRuntime& r = buttons_.state(ci);
+    r.hidden = script_hidden(r.script_visible, !s.shown);
+    r.disabled = script_disabled(r.script_enabled, !s.ready || s.pressed);
+    if (!s.pressed) r.icon_override = s.ready && !c.icon_alternate_texture.empty() ? c.icon_alternate_texture[0] : std::string();
 }
 
 // pb_switch_recharge (a Smooth_Bar Bar): Bar_Texture_Name under the Bar_Overlay_Name clipped to the fill (0x351a90 [M]).
