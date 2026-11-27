@@ -931,15 +931,12 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         // lead_drop clears every other lead of the pane, so only a merge of two led fleets leaves one; presentation, tier 3.
         const GalacticFleet* lead_fleet = nullptr;
         const GalacticFleetSlot* lead = nullptr;
-        for (const GalacticFleet* gf : in_pane)
-            for (const GalacticFleetSlot& u : gf->units)
-                if (u.lead && u.object != 0) {
-                    if (!gf->enemy) pane_leads_[fl].push_back(u.object);
-                    if (!lead) {
-                        lead = &u;
-                        lead_fleet = gf;
-                    }
-                }
+        for (const GalacticFleet* gf : in_pane) {
+            if (!gf->enemy)
+                for (const GalacticFleetSlot& u : gf->units)
+                    if (u.lead && u.object != 0) pane_leads_[fl].push_back(u.object);
+            if (!lead && (lead = galactic_fleet_lead(gf->units)) != nullptr) lead_fleet = gf;
+        }
         if (pathfinder_[fl] >= 0) {
             const bool drawn = lead ? draw_slot(pathfinder_[fl], *lead, lead_fleet->enemy ? std::vector<uint32_t>{} : std::vector<uint32_t>{lead->object}, fi,
                                                 lead_fleet->fleet, lead->object, lead_fleet->enemy)
@@ -958,17 +955,9 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         };
         std::vector<Stack> stacks;
         std::vector<GalacticUnitStack> of_fleet;
-        std::vector<GalacticFleetSlot> without_lead;
         for (const GalacticFleet* gf : in_pane) {
             of_fleet.clear();
-            if (lead && lead_fleet == gf) {  // #515: the lead is on the header pad, not in a stack
-                without_lead.clear();
-                for (const GalacticFleetSlot& u : gf->units)
-                    if (&u != lead) without_lead.push_back(u);
-                galactic_unit_stacks(without_lead, of_fleet);
-            } else {
-                galactic_unit_stacks(gf->units, of_fleet);
-            }
+            galactic_unit_stacks(gf->units, lead_fleet == gf ? lead : nullptr, of_fleet);  // #515: the lead is on the header pad
             for (GalacticUnitStack& s : of_fleet) stacks.push_back({gf, std::move(s.slot), std::move(s.members)});
         }
         size_t next = 0;
@@ -1152,9 +1141,20 @@ bool GalacticHud::draggable(int32_t component) const {
 
 int32_t GalacticHud::planet_at(float px, float py) const { return galactic_planet_at(planet_px_, px, py); }
 
+const GalacticFleetSlot* galactic_fleet_lead(std::span<const GalacticFleetSlot> units) {
+    for (const GalacticFleetSlot& u : units)
+        if (u.lead && u.object != 0) return &u;
+    return nullptr;
+}
+
 void galactic_unit_stacks(std::span<const GalacticFleetSlot> units, std::vector<GalacticUnitStack>& out) {
+    galactic_unit_stacks(units, nullptr, out);
+}
+
+void galactic_unit_stacks(std::span<const GalacticFleetSlot> units, const GalacticFleetSlot* lead, std::vector<GalacticUnitStack>& out) {
     const size_t first = out.size();
     for (const GalacticFleetSlot& u : units) {
+        if (&u == lead) continue;
         GalacticUnitStack* into = nullptr;
         if (u.type != kNoSlotType && u.name.empty())  // [port] a named unit keeps a pad of its own
             for (size_t k = first; k < out.size(); ++k)
@@ -1374,12 +1374,17 @@ bool GalacticHud::lead_drop(int32_t over_component, std::vector<commands::EventD
     if (!over || !over->lead_pad || over->foreign || over->fleet == 0) return false;
     if (drag_.fleet_index < 0 || drag_.fleet_index >= 3 || drag_.unit == 0 || drag_.no_lead || drag_.unit == over->unit) return false;
     if (!out) return true;
-    if (drag_.fleet_index != over->fleet_index)
-        out->push_back(fleet_management_event(commands::kFleetMerge, over->fleet, drag_.fleet, drag_.unit));
-    for (const uint32_t u : pane_leads_[static_cast<size_t>(over->fleet_index)])
-        if (u != drag_.unit) out->push_back(commands::ev::set_gui_index(u, commands::kNoGuiIndex));
-    out->push_back(commands::ev::set_gui_index(drag_.unit, commands::kPathfinderGuiIndex));
+    galactic_lead_events(drag_.fleet, drag_.unit, over->fleet, drag_.fleet_index != over->fleet_index,
+                         pane_leads_[static_cast<size_t>(over->fleet_index)], *out);
     return true;
+}
+
+void galactic_lead_events(uint32_t from, uint32_t unit, uint32_t to, bool merge, std::span<const uint32_t> leads,
+                          std::vector<commands::EventData>& out) {
+    if (merge) out.push_back(fleet_management_event(commands::kFleetMerge, to, from, unit));
+    for (const uint32_t u : leads)
+        if (u != unit) out.push_back(commands::ev::set_gui_index(u, commands::kNoGuiIndex));
+    out.push_back(commands::ev::set_gui_index(unit, commands::kPathfinderGuiIndex));
 }
 
 void GalacticHud::build_objectives(const GalacticHudFrame& f) {

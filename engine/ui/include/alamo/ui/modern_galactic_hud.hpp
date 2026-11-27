@@ -80,9 +80,15 @@ struct ModernOrganiserPad {
     std::string icon;
     std::u32string name;            // the fleet's or the unit's player-given name ("" none)
     uint32_t count = 1;
+    // #669 (the Classic header pad, #515): the fleet's lead tile, after its header: the lead (unit), or empty (unit 0). A
+    // drop of a fleet unit there makes it the lead (galactic_lead_events).
+    bool lead = false;
+    bool no_lead = false;           // the unit may not lead (GalacticFleetSlot::no_lead): a drop on a lead tile is refused
+    std::vector<uint32_t> leads;    // a lead tile: every unit of the fleet marked lead (a new lead clears the others)
 };
 
 struct ModernGalacticStats {
+    uint32_t organiser_leads = 0;   // #669 lead tiles showing a lead
     bool status_corner = false;
     // the status corner's values ("" = that row not drawn)
     std::u32string credits_text, income_text, pop_text, tech_text, planets_text, day_text;
@@ -169,6 +175,7 @@ private:
     GalacticDropTarget drop_target(int32_t component, Vec2f px) const;
     bool drop(std::vector<commands::EventData>* out) const;
     const ModernOrganiserPad* org_pad(int32_t id) const;
+    bool lead_drop(const ModernOrganiserPad& over, std::vector<commands::EventData>* out) const;  // #669
     bool dragging() const { return drag_.active || classic_drag_.active; }
     // A target tile / row `id` is under the cursor and the drag in progress (this view's, else Classic's) takes the drop.
     bool highlight(int32_t id) const {

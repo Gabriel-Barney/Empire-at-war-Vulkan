@@ -495,6 +495,16 @@ struct GalacticUnitStack {
     std::vector<uint32_t> members;  // every unit in it: a click selects them, a drag takes the first (slot.object)
 };
 void galactic_unit_stacks(std::span<const GalacticFleetSlot> units, std::vector<GalacticUnitStack>& out);
+// #515 / #669 (legacy docs/re/UI.md §7.4, stack builder 0x3cac60): a fleet's lead, its first unit with `lead` and an object;
+// nullptr when it has none. Both organisers show the lead apart: the overload below leaves `lead` (nullptr: none) out of
+// the stacks.
+const GalacticFleetSlot* galactic_fleet_lead(std::span<const GalacticFleetSlot> units);
+void galactic_unit_stacks(std::span<const GalacticFleetSlot> units, const GalacticFleetSlot* lead, std::vector<GalacticUnitStack>& out);
+// #515 / #669: the commands of a drop that makes `unit` (of fleet `from`, a unit that may lead) the lead of fleet `to`:
+// with `merge` the unit first joins `to` (FleetManagement merge), then every other unit of `leads` loses its lead and
+// `unit` takes it (SetGUIIndex kNoGuiIndex / kPathfinderGuiIndex).
+void galactic_lead_events(uint32_t from, uint32_t unit, uint32_t to, bool merge, std::span<const uint32_t> leads,
+                          std::vector<commands::EventData>& out);
 // The planets on screen for drop picking: each visible planet that projects, its centre and radius in pixels.
 struct GalacticPlanetScreen {
     uint32_t planet = 0;
