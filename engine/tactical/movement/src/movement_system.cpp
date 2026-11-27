@@ -488,6 +488,7 @@ UnitView MovementSystem::view(ObjectId id) const {
     v.start_frame = u->start_frame;  // OI tactical
     v.formation_speed = u->formation_speed;
     v.cohesion_speed = u->cohesion_speed;  // [port] fleet cohesion
+    v.air_fit = u->air_fit;  // #649
     v.team_speed = u->team_cap;  // s78k t03
     v.team_coast = u->d.team_container && u->coast;  // s78n t18 review
     v.team_final_turn = u->d.team_container && u->fturn;
@@ -1050,6 +1051,7 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
                     u.adopted = false;  // it leaves the adopt's coordinator for the order's
                 }
                 u.formation_speed = f.size() > 1 ? fspeed : kInf;
+                u.air_fit = kInf;  // #649: set again by the type-2 re-plan (attack_plan, below)
                 u.in_formation = f.size() > 1;  // OI tactical
                 u.exit_host = -1;  // s78n t18 (MOVEMENT §5.3): a new order ends the garrison-host gate of a unit that left
                 if (u.d.team_container) {
@@ -1880,6 +1882,11 @@ void MovementSystem::crush_pass(const std::vector<WalkResult>& res) {
     }
 }
 
+float MovementSystem::air_plan_speed(const Unit& u) const {
+    const float vmax = loco_max_speed(u);
+    return u.formation_speed > 0.0f ? std::min(vmax, u.formation_speed) : vmax;
+}
+
 void MovementSystem::fill_air_request(const Unit& u, uint32_t frame, SpaceRequest& q) const {
     q.self = u.d.id;
     q.start = u.m.pos;
@@ -1891,8 +1898,7 @@ void MovementSystem::fill_air_request(const Unit& u, uint32_t frame, SpaceReques
     // _Rate_Of_Turn. S7 t15 (§3.1.1 [H]): acceleration / deceleration are vf91 / vf92 = the common getters:
     // the override x (effective max speed / Max_Speed), else the NORMAL effective max speed (configure's
     // lp.accel / lp.decel), never the alternate one, airborne or not.
-    const float vmax = loco_max_speed(u);
-    q.speed = u.formation_speed > 0.0f ? std::min(vmax, u.formation_speed) : vmax;
+    q.speed = std::min(air_plan_speed(u), u.air_fit);  // #649: the type-2 re-plan's speed fit (3e38 = none)
     q.turn_rate = loco_turn_rate(u);
     q.radius = u.d.radius;
     q.layer = u.d.space_layer;
@@ -2004,6 +2010,7 @@ void MovementSystem::plan_land(uint32_t frame, const ParallelFor& pf) {
         u.approx_countdown = 0;  // a path push zeroes pack +0x275
         u.cut_pending = false;   // the plan (after the driver) replaced the path a cut left
         if (is_air(u)) {
+            u.air_fit = kInf;  // #649: retail's fit is the one request's speed (0x417520's local), not kept
             if (air_out[r].fallback) ++stats_.space_fallbacks;
             if (!air_out[r].ok || air_out[r].wps.empty()) {
                 ++stats_.path_failures;

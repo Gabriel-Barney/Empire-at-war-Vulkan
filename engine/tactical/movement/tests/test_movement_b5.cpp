@@ -873,6 +873,108 @@ void test_scene_air_type2() {
     }
 }
 
+// #649 (#482 slice 2, 0x417520's speed fit [H]): the lead at the origin heading +x at cruise 10, turn rate 2 deg / frame
+// (R = 10 / (0.017453 x 2) = 286.5). A goal inside the left turn circle (0, 300): one pass gives v x 0.9 x 300 / 2R, and it
+// settles there. Branch 2 (accel 1, the goal 300 ahead): x0.9 steps while 300 < R(v) + v^2 / a: 10 -> 9 -> 8.1; with
+// turn rate 0.5, accel 0.5, 100 ahead the steps run out under 0.1 x cruise. A goal behind and near (-50, 0): the 0.1 x
+// cruise floor. Outside both (2000 ahead), under 40 away, a TEAM lead (the behind case, accel 0): no fit (cruise).
+void test_air_speed_fit() {
+    ::alamo::test::section("air_speed_fit");
+    AirSpeedFit in;
+    in.yaw_deg = 0.0f;
+    in.speed = 10.0f;
+    in.cruise = 10.0f;
+    in.turn_rate = 2.0f;
+    const float r = 10.0f / (0.017453292f * 2.0f);
+    in.goal = {0.0f, 300.0f};
+    const float circle = air_speed_fit(in);
+    CHECK(std::fabs(circle - 10.0f * 0.9f * 300.0f / (2.0f * r)) < 1e-3f);
+    in.goal = {300.0f, 0.0f};
+    const float ahead0 = air_speed_fit(in);
+    CHECK(ahead0 == 10.0f);  // ahead, accel 0: no fit
+    in.accel = 1.0f;
+    const float steps = air_speed_fit(in);
+    CHECK(std::fabs(steps - 8.1f) < 1e-3f);
+    // branch 2 runs out of steps (turn rate 0.5, accel 0.5, 100 ahead): 10 x 0.9^22 (the first step below 0.1 x cruise),
+    // then a second pass from there settles at 10 x 0.9^24, under the 0.1 x cruise floor of branch 1
+    in.turn_rate = 0.5f;
+    in.accel = 0.5f;
+    in.goal = {100.0f, 0.0f};
+    const float below = air_speed_fit(in);
+    CHECK(below < 1.0f && std::fabs(below - 10.0f * static_cast<float>(std::pow(0.9, 24))) < 1e-3f);
+    in.turn_rate = 2.0f;
+    in.accel = 1.0f;
+    in.goal = {2000.0f, 0.0f};
+    const float far = air_speed_fit(in);
+    CHECK(far == 10.0f);
+    in.accel = 0.0f;
+    in.goal = {-50.0f, 0.0f};
+    const float behind = air_speed_fit(in);
+    CHECK(std::fabs(behind - 1.0f) < 1e-4f);
+    in.team = true;
+    const float team = air_speed_fit(in);
+    CHECK(team == 10.0f);
+    in.team = false;
+    in.goal = {0.0f, 30.0f};
+    const float near = air_speed_fit(in);
+    CHECK(near == 10.0f);
+    std::printf("speed fit (cruise 10, R %.1f): in the circle %.3f, ahead %.3f / accel 1 %.3f, below the floor %.4f, far %.3f, behind %.3f, team %.3f, "
+                "under 40 %.3f\n",
+                static_cast<double>(r), static_cast<double>(circle), static_cast<double>(ahead0), static_cast<double>(steps),
+                static_cast<double>(below), static_cast<double>(far), static_cast<double>(behind), static_cast<double>(team), static_cast<double>(near));
+}
+
+// #649 in the system: the scene_air_type2 pair (flag on) re-planned onto a standing unit 60 away with a slow acceleration
+// (0.01) gets a speed fit on both members; the air request carries it (its speed is the fit, below the cruise speed, a
+// x0.9 step of it), and the plan clears it. The target 1000 away: no fit. Flag off: none.
+void test_scene_air_speed_fit() {
+    ::alamo::test::section("scene_air_speed_fit");
+    for (const int k : {0, 1, 2}) {  // 0: flag off, near; 1: on, near; 2: on, far
+        MovementConfig cfg;
+        cfg.air_formation_approach = k != 0;
+        MovementSystem sys{cfg};
+        scene_system(sys);
+        UnitDesc a = attacker(10, kO);
+        UnitDesc b = attacker(11, kO + V2{0.0f, 50.0f});
+        a.locomotor = b.locomotor = LocomotorKind::Flying;
+        a.accel = a.decel = b.accel = b.decel = 0.01f;
+        CHECK(sys.add_unit(a));
+        CHECK(sys.add_unit(b));
+        const V2 c = kO + V2{k == 2 ? 1000.0f : 60.0f, 0.0f};
+        UnitDesc t = attacker(900, c, 5.0f);
+        t.owner = 2;
+        CHECK(sys.add_unit(t));
+        geometric_fire(sys, c, 300.0f);
+        SimRng rng(7);
+        sys.move(attack_order({10, 11}, 900, c, 5.0f, 300.0f), rng, 1);
+        SpaceRequest q0;
+        CHECK(sys.air_request(10, 1, q0));
+        MoveOrder re = attack_order({10, 11}, 900, c, 5.0f, 300.0f);
+        re.attack.replan = true;
+        sys.move(re, rng, 2);
+        SpaceRequest q;
+        CHECK(sys.air_request(10, 2, q));
+        const float f10 = sys.view(10).air_fit, f11 = sys.view(11).air_fit;
+        const double steps = f10 < 1.0e38f ? std::log(static_cast<double>(f10 / q0.speed)) / std::log(0.9) : 0.0;
+        if (k == 1) {
+            CHECK(sys.stats().air_speed_fits >= 1 && sys.stats().air_speed_fits == sys.stats().air_formation_goals);
+            CHECK(f10 < q0.speed && f11 < q0.speed);  // both members fitted (near the target each is its own lead)
+            CHECK(q.speed == f10);                    // the request carries the fit
+            CHECK(std::fabs(steps - std::round(steps)) < 1e-3);  // a x0.9 step of the cruise speed
+        } else {
+            CHECK(sys.stats().air_speed_fits == 0 && f10 >= 1.0e38f && f11 >= 1.0e38f && q.speed == q0.speed);
+        }
+        sys.tick(2, rng);
+        CHECK(sys.view(10).air_fit == f10);  // kept (saved) until the plan: the order batch starts it at frame 61
+        const uint64_t planned = sys.stats().paths_planned;
+        for (uint32_t f = 3; f < 80; ++f) sys.tick(f, rng);
+        CHECK(sys.stats().paths_planned > planned && sys.view(10).air_fit >= 1.0e38f && sys.view(11).air_fit >= 1.0e38f);  // taken once
+        std::printf("flag %d, target %.0f away: cruise %.3f, fit %.3g (x0.9^%.0f), request %.3f, after the plan %.3g\n", k ? 1 : 0,
+                    static_cast<double>(c.x - kO.x), static_cast<double>(q0.speed), static_cast<double>(f10), steps,
+                    static_cast<double>(q.speed), static_cast<double>(sys.view(10).air_fit));
+    }
+}
+
 // s78n t26 review round 3 (FIGHTER_FLYING §4.11 G 5 [H]): "with a non-guard object top, a member that is in max range
 // (slot 44), not inside min range (slot 45) and not moving (locomotor vf +0x1c0(0) false) keeps its own path" when the
 // moving formation re-paths (0x4192b0 step 4). Two vehicles 50 apart, one attack formation, 1500 from the target; after 60
@@ -1263,6 +1365,8 @@ int main() {
     test_scene_unseen();  // s78n t26 review round 3
     test_scene_air_lead();  // #89
     test_scene_air_type2();  // #648
+    test_air_speed_fit();  // #649
+    test_scene_air_speed_fit();  // #649
     test_scene_repath_keep();
     return ::alamo::test::report("alamo_tactical_movement_b5_tests");
 }
