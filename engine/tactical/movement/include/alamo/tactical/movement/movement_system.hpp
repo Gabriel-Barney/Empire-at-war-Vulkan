@@ -302,7 +302,7 @@ struct UnitView {
     V2 jiggle;                    // OI tactical: formation jiggle offset
     float formation_speed = 3.0e38f;     // land: slowest member's max speed of its formation (3e38 = alone)
     float cohesion_speed = 3.0e38f;      // [port] space fleet cohesion cap of the current move (3e38 = none; MoveOrder::cohesion_tight)
-    float air_fit = 0.0f;                // #649: the type-2 re-plan's speed fit, the next air plan's cap (0 = none)
+    float air_fit = 3.0e38f;             // #649: the type-2 re-plan's speed fit, the next air plan's cap (3e38 = none)
     // land team locomotor cap of the last tick (set_team; 3e38 = none): the team's minimum raw Max_Speed x the
     // mode multiplier x the container's speed factor
     float team_speed = 3.0e38f;
@@ -1202,7 +1202,9 @@ private:
         uint32_t start_frame = 0;
         float formation_speed = 3.0e38f;
         float cohesion_speed = 3.0e38f;  // [port] fleet cohesion: the space plan speed cap of this move (saved, version 32)
-        float air_fit = 0.0f;  // #649: the next air plan's speed cap from the type-2 speed fit (0 = none; saved, version 39)
+        // #649: the next air plan's speed cap from the type-2 speed fit (3e38 = none; saved, version 39; [port] not hashed -
+        // it acts through the plan)
+        float air_fit = 3.0e38f;
         // mov1 t02 / t05 (BKR1_RE_ANSWERS Q3 [H]; save version 34; [port] not hashed - they act through positions): form_rank = the formation's
         // +0x23c rank written by the destination check 0x439360 (descending goal projection on the order axis, fastest
         // first with flag 0x80; 0 when it did not rank: the overtake's same-coordinator test); form_first = the id of the
@@ -1465,6 +1467,7 @@ private:
     void compose_land(const PendingComposition& pc, uint32_t frame, uint64_t global_frame, SimRng& rng);
     bool compose_space(const PendingComposition& pc, uint32_t frame, SimRng& rng);  // false: stopped, retry next update
     bool is_air(const Unit& u) const;           // land Jetpack / Flying / LandBomber
+    float air_plan_speed(const Unit& u) const;  // an air plan's speed: the formation speed capped by the max speed
     void fill_air_request(const Unit& u, uint32_t frame, SpaceRequest& q) const;  // plan_land's request (no threat)
     static void special_idle(Unit& u);          // §4.3-4.7: the idle state of the active special locomotor
     bool swap_locomotor(Unit& u, bool secondary);  // S7 t06 / t14 (0x3a9910)

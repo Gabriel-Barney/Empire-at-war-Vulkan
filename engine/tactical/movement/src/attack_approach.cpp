@@ -568,14 +568,16 @@ void MovementSystem::attack_slots(const MoveOrder& order, const std::vector<uint
 //   v' = v x clamp(|goal - S| x 0.9 / 2R, 0.1, 1), at least 0.1 x the first v;
 // - a > 0: with d = |goal - the lead| (the lead's own position) and d < v^2 / a + R, v'' = v x 0.9^k for the least k with
 //   d >= R(v'') + v''^2 / a, or the first step below 0.1 x v; v' = min(v', v'').
-// [port] at most 256 passes (retail loops until it settles). [L] not modelled: the block byte +0x5c (R x 3, the block's
+// Branch 2 may end one x0.9 step below 0.1 x v (retail's break keeps that step), so the fit can fall under 0.1 x cruise.
+// [port] at most 256 passes (retail loops until it settles; each pass lowers v by >= 0.001, so a real type settles long
+// before: parity tier 1, the same request speed). [L] not modelled: the block byte +0x5c (R x 3, the block's
 // +0x44 in the request), +0x5d (the request's own speed instead of F +0x20c) and the +0x54 speed fallback when nothing fits.
 float air_speed_fit(const AirSpeedFit& in) {
-    constexpr float kRad = 0.017453292f;
+    constexpr float kRad = kDegToRad;
     const float v0 = in.cruise;
+    // [port] a cruise or turn rate <= 0 gets no fit (retail's R = v / 0 is infinite there; no type reaches it)
     if (!(v0 > 0.0f) || !(in.turn_rate > 0.0f) || distance(in.pos, in.goal) < 40.0f) return v0;
-    const float h = in.yaw_deg * kRad;
-    const V2 fwd{std::cos(h), std::sin(h)};
+    const V2 fwd = dir_from_deg(in.yaw_deg);  // dmath::sincos (docs/SIMULATION.md: no CRT trig in sim code)
     const V2 left{-fwd.y, fwd.x};
     float v = v0;
     for (int pass = 0; pass < 256; ++pass) {
@@ -587,8 +589,8 @@ float air_speed_fit(const AirSpeedFit& in) {
             const float d1 = distance(in.goal, st + left * r);
             const float d2 = distance(in.goal, st - left * r);
             const V2 to = in.goal - st;
-            const float dist = std::sqrt(length_sq(to));
-            const bool behind = fwd.x * to.x + fwd.y * to.y < -0.001f && dist < r * 2.0f;
+            const float dist = length(to);
+            const bool behind = dot(fwd, to) < -0.001f && dist < r * 2.0f;
             if (d1 < r || d2 < r || behind) {
                 const float f = std::max(0.1f, dist * 0.9f / (r * 2.0f));
                 if (f * v <= v) s = f * v;
@@ -647,14 +649,13 @@ void MovementSystem::air_formation_goal(const MoveOrder& order, const std::vecto
     in.goal = p;
     in.yaw_deg = lead.m.yaw;
     in.speed = lead.m.speed;
-    const float vmax = loco_max_speed(lead);
-    in.cruise = lead.formation_speed > 0.0f ? std::min(vmax, lead.formation_speed) : vmax;
+    in.cruise = air_plan_speed(lead);  // [port] F +0x20c as the plan request takes it (capped by the lead's own max speed)
     in.turn_rate = loco_turn_rate(lead);
     in.accel = lead.lp.accel;
     in.team = lead.d.team_container;
     const float fit = air_speed_fit(in);
-    const float cap = fit < in.cruise ? fit : 0.0f;
-    if (cap > 0.0f) ++stats_.air_speed_fits;
+    const float cap = fit < in.cruise ? fit : 3.0e38f;
+    if (fit < in.cruise) ++stats_.air_speed_fits;
     for (const uint32_t m : f.members) {
         Unit& x = units_[idx[m]];
         if (m < kept.size() && kept[m]) continue;

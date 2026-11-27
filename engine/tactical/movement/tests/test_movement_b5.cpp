@@ -875,9 +875,9 @@ void test_scene_air_type2() {
 
 // #649 (#482 slice 2, 0x417520's speed fit [H]): the lead at the origin heading +x at cruise 10, turn rate 2 deg / frame
 // (R = 10 / (0.017453 x 2) = 286.5). A goal inside the left turn circle (0, 300): one pass gives v x 0.9 x 300 / 2R, and it
-// settles there. Branch 2 (accel 1, the goal 300 ahead): x0.9 steps while 300 < R(v) + v^2 / a: 10 -> 9 -> 8.1. A goal
-// behind and near (-50, 0): the 0.1 x cruise floor. Outside both (2000 ahead), under 40 away, a TEAM lead (the behind
-// case, accel 0): no fit (cruise).
+// settles there. Branch 2 (accel 1, the goal 300 ahead): x0.9 steps while 300 < R(v) + v^2 / a: 10 -> 9 -> 8.1; with
+// turn rate 0.5, accel 0.5, 100 ahead the steps run out under 0.1 x cruise. A goal behind and near (-50, 0): the 0.1 x
+// cruise floor. Outside both (2000 ahead), under 40 away, a TEAM lead (the behind case, accel 0): no fit (cruise).
 void test_air_speed_fit() {
     ::alamo::test::section("air_speed_fit");
     AirSpeedFit in;
@@ -895,6 +895,15 @@ void test_air_speed_fit() {
     in.accel = 1.0f;
     const float steps = air_speed_fit(in);
     CHECK(std::fabs(steps - 8.1f) < 1e-3f);
+    // branch 2 runs out of steps (turn rate 0.5, accel 0.5, 100 ahead): 10 x 0.9^22 (the first step below 0.1 x cruise),
+    // then a second pass from there settles at 10 x 0.9^24, under the 0.1 x cruise floor of branch 1
+    in.turn_rate = 0.5f;
+    in.accel = 0.5f;
+    in.goal = {100.0f, 0.0f};
+    const float below = air_speed_fit(in);
+    CHECK(below < 1.0f && std::fabs(below - 10.0f * static_cast<float>(std::pow(0.9, 24))) < 1e-3f);
+    in.turn_rate = 2.0f;
+    in.accel = 1.0f;
     in.goal = {2000.0f, 0.0f};
     const float far = air_speed_fit(in);
     CHECK(far == 10.0f);
@@ -909,10 +918,10 @@ void test_air_speed_fit() {
     in.goal = {0.0f, 30.0f};
     const float near = air_speed_fit(in);
     CHECK(near == 10.0f);
-    std::printf("speed fit (cruise 10, R %.1f): in the circle %.3f, ahead %.3f / accel 1 %.3f, far %.3f, behind %.3f, team %.3f, "
+    std::printf("speed fit (cruise 10, R %.1f): in the circle %.3f, ahead %.3f / accel 1 %.3f, below the floor %.4f, far %.3f, behind %.3f, team %.3f, "
                 "under 40 %.3f\n",
                 static_cast<double>(r), static_cast<double>(circle), static_cast<double>(ahead0), static_cast<double>(steps),
-                static_cast<double>(far), static_cast<double>(behind), static_cast<double>(team), static_cast<double>(near));
+                static_cast<double>(below), static_cast<double>(far), static_cast<double>(behind), static_cast<double>(team), static_cast<double>(near));
 }
 
 // #649 in the system: the scene_air_type2 pair (flag on) re-planned onto a standing unit 60 away with a slow acceleration
@@ -946,19 +955,21 @@ void test_scene_air_speed_fit() {
         SpaceRequest q;
         CHECK(sys.air_request(10, 2, q));
         const float f10 = sys.view(10).air_fit, f11 = sys.view(11).air_fit;
-        const double steps = f10 > 0.0f ? std::log(static_cast<double>(f10 / q0.speed)) / std::log(0.9) : 0.0;
-        if (k == 1)
-            CHECK(sys.stats().air_speed_fits >= 1 && sys.stats().air_speed_fits == sys.stats().air_formation_goals &&
-                  f10 > 0.0f && f10 < q0.speed && f11 > 0.0f && q.speed == f10 &&
-                  std::fabs(steps - std::round(steps)) < 1e-3);
-        else
-            CHECK(sys.stats().air_speed_fits == 0 && f10 == 0.0f && f11 == 0.0f && q.speed == q0.speed);
+        const double steps = f10 < 1.0e38f ? std::log(static_cast<double>(f10 / q0.speed)) / std::log(0.9) : 0.0;
+        if (k == 1) {
+            CHECK(sys.stats().air_speed_fits >= 1 && sys.stats().air_speed_fits == sys.stats().air_formation_goals);
+            CHECK(f10 < q0.speed && f11 < q0.speed);  // both members fitted (near the target each is its own lead)
+            CHECK(q.speed == f10);                    // the request carries the fit
+            CHECK(std::fabs(steps - std::round(steps)) < 1e-3);  // a x0.9 step of the cruise speed
+        } else {
+            CHECK(sys.stats().air_speed_fits == 0 && f10 >= 1.0e38f && f11 >= 1.0e38f && q.speed == q0.speed);
+        }
         sys.tick(2, rng);
         CHECK(sys.view(10).air_fit == f10);  // kept (saved) until the plan: the order batch starts it at frame 61
         const uint64_t planned = sys.stats().paths_planned;
         for (uint32_t f = 3; f < 80; ++f) sys.tick(f, rng);
-        CHECK(sys.stats().paths_planned > planned && sys.view(10).air_fit == 0.0f && sys.view(11).air_fit == 0.0f);  // taken once
-        std::printf("flag %d, target %.0f away: cruise %.3f, fit %.3f (x0.9^%.0f), request %.3f, after the plan %.3f\n", k ? 1 : 0,
+        CHECK(sys.stats().paths_planned > planned && sys.view(10).air_fit >= 1.0e38f && sys.view(11).air_fit >= 1.0e38f);  // taken once
+        std::printf("flag %d, target %.0f away: cruise %.3f, fit %.3g (x0.9^%.0f), request %.3f, after the plan %.3g\n", k ? 1 : 0,
                     static_cast<double>(c.x - kO.x), static_cast<double>(q0.speed), static_cast<double>(f10), steps,
                     static_cast<double>(q.speed), static_cast<double>(sys.view(10).air_fit));
     }
