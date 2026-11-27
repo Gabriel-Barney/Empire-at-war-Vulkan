@@ -114,6 +114,9 @@ bool App::render_frame() {
         ui::CameraParams cp = gview_.camera_params(w, h);
         bench_camera(cp, 1, w, h);  // a scenario's scripted camera
         const auto prep0 = Clock::now();
+        // #727 0x2be640: the galactic pause, the mode's pause count (GalacticSim::paused: the battle banner, a story block)
+        // or the port's session pause, which stops the ticks.
+        gview_.set_paused((session_ && session_->pause_requested()) || (galaxy() && galaxy()->paused()));
         gview_.prepare(render_alpha(), now_s_, selected_planet_, &cp);
         ft_.prepare += static_cast<float>(ms_since(prep0));
         gview_.use_scene(gpu_);

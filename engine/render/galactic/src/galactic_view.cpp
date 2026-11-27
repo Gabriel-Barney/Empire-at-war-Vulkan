@@ -11,6 +11,7 @@
 #include "alamo/assets/model.hpp"
 #include "alamo/assets/vertex_layout.hpp"
 #include "alamo/core/ascii.hpp"
+#include "alamo/data/values.hpp"
 #include "alamo/data/xml.hpp"
 #include "alamo/render/sim_snapshot.hpp"
 
@@ -826,7 +827,7 @@ void GalacticSceneBuilder::build(const GalacticFrame& frame, GalacticModelSource
         // the selected planet pulses towards red (0x3ca480 overrides the cycle colour to 6, 0, 0).
         if (p.id == sel_.planet && sel_.planet != objects::kNoObjectId && sel_.cycle_darken > 0.0f)
             in.light_scale = cycle_light_scale(in.light_scale, Vec3{6.0f, 0.0f, 0.0f}, sel_.cycle_phase, sel_.cycle_darken);
-        in.bone_world = pose(anims_[p.row], m, name, ti, frame.anim_frames, models);
+        in.bone_world = pose(anims_[p.row], m, name, ti, frame.anim_frames + frame.pause_anim_frames, models);
         st.animated += in.bone_world.empty() ? 0u : 1u;
         st.fogged += fog ? 1u : 0u;
         const bool bg = (p.flags & kGalBackground) != 0;
@@ -1013,7 +1014,7 @@ void GalacticSceneBuilder::build(const GalacticFrame& frame, GalacticModelSource
             in.transform = selection_transform(sp->position, sel_);
             // Instance colour (+0x13c..+0x148) -> LIGHT_SCALE.rgb; [port] the additive meshes fade with both, w is the alpha.
             in.light_scale = {c.x * overlay, c.y * overlay, c.z * overlay, overlay};
-            in.bone_world = pose(sel_anim_, m, opt_.selection_model, ti, frame.anim_frames, models);
+            in.bone_world = pose(sel_anim_, m, opt_.selection_model, ti, frame.anim_frames + frame.pause_anim_frames, models);
             st.animated += in.bone_world.empty() ? 0u : 1u;
             main.push_back(in);
             ++st.selection;
@@ -1081,6 +1082,22 @@ GalacticLightSettings load_galactic_light_settings(const data::XmlNode& root) {
     float lv = 0.0f;
     if (parse_float_list(root.child_text("Galactic_Zoom_Light_Level"), &lv, 1) == 1 && std::isfinite(lv)) s.zoom_light_level = lv;
     return s;
+}
+
+float GalacticPauseClock::advance(double now_s, bool paused) {
+    if (now_s >= 0.0) {
+        if (paused && animate_while_paused && last_s_ >= 0.0)
+            offset_frames_ += std::clamp(now_s - last_s_, 0.0, kMaxStepSeconds) * kFramesPerSecond;
+        last_s_ = now_s;
+    }
+    return static_cast<float>(offset_frames_);
+}
+
+GalacticPauseClock load_galactic_pause_clock(const data::XmlNode& root) {
+    GalacticPauseClock c;
+    // ledger: consumes GameConstants.Animate_During_Galactic_Mode_Pause
+    if (root) c.animate_while_paused = data::parse_bool_or(ascii_trim(root.child_text("Animate_During_Galactic_Mode_Pause")), false);
+    return c;
 }
 
 GalacticCorruptionSettings load_galactic_corruption_settings(const data::XmlNode& root) {

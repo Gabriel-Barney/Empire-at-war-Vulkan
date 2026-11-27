@@ -363,6 +363,25 @@ struct GalacticCorruptionSettings {
     float brightness[2] = {0.3f, 1.0f};
 };
 GalacticCorruptionSettings load_galactic_corruption_settings(const data::XmlNode& game_constants_root);  // cu5 t04
+// #727 Animate_During_Galactic_Mode_Pause (the object animation loop 0x2be640 [H], FoC no; docs/re/GALACTIC_PAUSE.md):
+// while the galactic game is paused the objects animate only when it is set. The objects' clips run on the galactic mode
+// frame (GalacticFrame::anim_frames), which stops while paused; with the flag set this clock gives the frames to add to
+// it (GalacticFrame::pause_anim_frames), growing while paused and kept after, so the clips do not jump back.
+class GalacticPauseClock {
+public:
+    static constexpr double kFramesPerSecond = 30.0;  // the galactic mode frame's rate (30 Hz ticks), the clips' timebase
+    static constexpr double kMaxStepSeconds = 0.1;
+    bool animate_while_paused = false;
+    // The frames to add this render frame (`now_s` wall seconds, < 0: no clock). [port] (tier 1: docs/SIMULATION.md
+    // "Parity tiers") retail steps each object by its own frame dt (0x3a6b80); the port runs the clips at the mode
+    // frame's rate on wall time, and a render frame longer than kMaxStepSeconds counts as that long. It is harmless:
+    // the clip stays continuous, and a stall only shortens the paused animation by the stalled time.
+    float advance(double now_s, bool paused);
+
+private:
+    double offset_frames_ = 0.0, last_s_ = -1.0;
+};
+GalacticPauseClock load_galactic_pause_clock(const data::XmlNode& game_constants_root);
 // One corruption effect to keep alive this frame (the host syncs it as a particle effect by `key`, from the Particle
 // type `type`'s Galactic_Model_Name).
 struct GalacticCorruptionEffect {

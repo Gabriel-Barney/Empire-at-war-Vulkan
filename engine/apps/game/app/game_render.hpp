@@ -98,6 +98,8 @@ public:
     // #468: the palette and route classes of IDC_SIMPLIFIED_FACTION_COLORS (`c.on`); rebuilt when `on` changes, used
     // from the next capture.
     void set_simplified_colors(const galactic::GalacticSim& sim, const render::SimplifiedColors& c);
+    // #727 the galactic game's pause for the next prepare() (Animate_During_Galactic_Mode_Pause, render::GalacticPauseClock).
+    void set_paused(bool paused) { paused_ = paused; }
     void capture(const sim::SimHost& host);                               // after every tick (const reads)
     // frame thread (now_s: wall clock, particles). GALAXY_MAP_PRESENTATION §3: `selected_planet` (planet object id, 0 =
     // none) and the camera (`cam`, null = the builder's default) drive the selection model (GalacticSceneBuilder::set_selection).
@@ -154,6 +156,8 @@ private:
     float cycle_speed_ = 5.0f, cycle_darken_ = 0.5f;   // GUI_Cycle_Speed / GUI_Darken_Level
     uint32_t cycle_planet_ = 0;                        // the selection the cycle started for
     double cycle_t0_ = 0.0;
+    render::GalacticPauseClock pause_clock_;  // #727
+    bool paused_ = false;
     ui::GalacticCameraController camera_;
     GpuCore* gpu_ = nullptr;
     int32_t local_ = -1;  // fog viewpoint (attach)

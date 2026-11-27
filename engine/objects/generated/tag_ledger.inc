@@ -1549,7 +1549,7 @@
 {"GameConstants", "Radar_Selected_Units_Color", 0x16, LedgerState::Verified, "", 1, 1},
 {"GameConstants", "Radar_Colorize_Multiplayer_Enemy", 0x0, LedgerState::OutOfScope, "docs/xml-scope.md \"Out-of-scope tag-ledger rows\": multiplayer", 1, 1},
 {"GameConstants", "Radar_Multiplayer_Enemy_Color", 0x16, LedgerState::OutOfScope, "docs/xml-scope.md \"Out-of-scope tag-ledger rows\": multiplayer", 1, 1},
-{"GameConstants", "Animate_During_Galactic_Mode_Pause", 0x0, LedgerState::Stored, "docs/re/xml_reference_index.md", 1, 1},
+{"GameConstants", "Animate_During_Galactic_Mode_Pause", 0x0, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "Land_Base_Destruction_Forces_Retreat", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "Space_Station_Destruction_Forces_Retreat", 0x0, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "Land_Capture_Allowed_Countdown_Seconds", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},

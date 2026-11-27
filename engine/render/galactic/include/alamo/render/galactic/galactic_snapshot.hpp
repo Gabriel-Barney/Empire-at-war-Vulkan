@@ -292,6 +292,9 @@ struct GalacticFrame {
     float alpha = 1.0f;
     InterpMode mode = InterpMode::Original;
     float anim_frames = 0.0f;  // galactic mode frames for idle animations (smooth: blended)
+    // #727 the objects' clips are posed at anim_frames + this (GalacticPauseClock: Animate_During_Galactic_Mode_Pause); the
+    // route sparks stay on anim_frames (they are not objects of the animation loop 0x2be640).
+    float pause_anim_frames = 0.0f;
     std::vector<GalacticPlanetSnap> planets;
     std::vector<GalacticRouteSnap> routes;
     std::vector<GalacticFleetSnap> fleets;
