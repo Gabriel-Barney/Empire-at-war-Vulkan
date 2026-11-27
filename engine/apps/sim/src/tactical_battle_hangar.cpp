@@ -1191,8 +1191,6 @@ void TacticalBattle::ga_spawn_upgrades(TacticalMode& mode) {
     corruption_upgrades_.clear();
 }
 
-}  // namespace alamo::sim
-
 // #478: the skirmish_upgrade sidebar's inputs (see the header). Presentation only: nothing here is written.
 void TacticalBattle::sidebar_feed(int32_t player, SidebarFeed& out) const {
     out = {};
@@ -1229,3 +1227,5 @@ void TacticalBattle::sidebar_feed(int32_t player, SidebarFeed& out) const {
         out.interdicted = retreat_refusal(player) == 3;
     }
 }
+
+}  // namespace alamo::sim
