@@ -365,7 +365,9 @@ bool FileSystem::find(std::string_view name, Hit& out) const {
 
 bool FileSystem::read(std::string_view name, std::vector<uint8_t>& out) const {
     Hit h{};
-    return find(name, h) && h.archive->read(*h.entry, out);
+    // #21 (C6011): find() sets both on success; tested so the analyzer sees it
+    if (!find(name, h) || !h.archive || !h.entry) return false;
+    return h.archive->read(*h.entry, out);
 }
 
 }  // namespace alamo::meg

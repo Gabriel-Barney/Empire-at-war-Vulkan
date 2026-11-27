@@ -586,7 +586,7 @@ bool decode_dds(std::vector<std::uint8_t> file, TextureAsset& out, std::string* 
                 dst_off += sz;
             }
         }
-        if (src == Source::P8 || src == Source::A8P8) {  // a palette whose flags byte is 0 everywhere is opaque
+        if (palette && (src == Source::P8 || src == Source::A8P8)) {  // a palette whose flags byte is 0 everywhere is opaque (#21: set for both)
             bool any_alpha = false;
             for (std::size_t i = 0; i < 256 && !any_alpha; ++i) any_alpha = palette[i * 4 + 3] != 0;
             if (!any_alpha && src == Source::P8)
