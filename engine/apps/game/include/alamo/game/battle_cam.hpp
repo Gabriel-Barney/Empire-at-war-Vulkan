@@ -42,6 +42,33 @@ struct BattleCamShot {
     bool interesting = false;        // #568: an interesting-object shot; starting one sets +0x360, so the chain reaches the next
     bool bombing_run = false;        // #563 (+0x32c): the shot ends with the local bombing run (bombing_run_ended)
     bool engine_loop = true;         // the shot moves the cinematic engine-loop SFX (+0x318) to its object (#563: not the run)
+    // #671 +0x1bd: true = the view looks at the filtered look (LookFilter), false = the raw look. Unset: the template
+    // does not write it, so the previous shot's value carries on (End_Cinematic_Mode clears it).
+    std::optional<bool> look_filter;
+};
+
+// #671 0x4a96d0 [H] (seeded by 0x49ff50 when a shot's first look key goes in): a lag-compensated moving average of the
+// look point. N = FPS + 1 samples of history H, averages S, velocities V and accelerations Acc; weights w[i] = i / N + 1
+// with C their running sums; A = (int)(FPS x 0.5), L = (int)(FPS x 0.7). Per new frame: avg = (look + H[0..A-2]) / A,
+// then H, S, V, Acc each drop their last and take look, avg, S[0] - S[1], V[0] - V[1] in front, and the output is
+// S[L] + (sum_{i<L} w[i] V[i]) / C[L-1] x (0.25 + 0.7) x FPS + (sum_{i<L} w[i] Acc[i]) / C[L-1]. A frame at or before
+// the last one updates nothing. The state updates even while the raw look is asked for. Unseeded: the input.
+class LookFilter {
+public:
+    static constexpr float kLagSeconds = 0.7f;      // ctrl +0x1d0
+    static constexpr float kAverageSeconds = 0.5f;  // ctrl +0x1d4
+    void seed(const tactical::Vec3& p, int32_t fps = kCinematicFps);  // 0x49ff50
+    tactical::Vec3 step(int32_t frame, const tactical::Vec3& look, bool raw);  // 0x4a96d0
+    void clear() { on_ = false; }  // End_Cinematic_Mode (+0x1bc)
+    bool seeded() const { return on_; }
+
+private:
+    bool on_ = false;  // +0x1bc
+    int32_t fps_ = kCinematicFps;
+    int32_t last_ = 0;  // +0x1c0
+    tactical::Vec3 out_;  // +0x1c4
+    std::vector<tactical::Vec3> h_, s_, v_, a_;
+    std::vector<float> w_, c_;
 };
 
 // 0x4a6790 [H]: view n (0..7) steps 45 degrees clockwise round the object: yaw 0, 315, 270 ... 45.
@@ -157,6 +184,11 @@ public:
 
     // +0x270 eye smoothing at shot clock `clock` (once per clock value; the first frame is the keyed eye).
     tactical::Vec3 smooth_eye(const tactical::Vec3& keyed, int32_t clock);
+    // #671 the view's look at shot clock `clock` (0x49cd00 -> 0x4a96d0): the filter is seeded with the first look of each
+    // shot [port: retail seeds it with look key 0 resolved as the key goes in, the same frame] and steps every frame;
+    // with +0x1bd clear the raw look is drawn.
+    tactical::Vec3 filter_look(const tactical::Vec3& look, int32_t clock);
+    bool look_filter() const { return look_filter_; }  // +0x1bd
 
 private:
     void start(State s, BattleCamShot shot);
@@ -177,6 +209,9 @@ private:
     uint32_t serial_ = 0;
     int32_t smooth_clock_ = -1;
     float smoothing_ = 0.0f;  // +0x270, kept across chained shots
+    bool look_filter_ = false;  // +0x1bd, kept across chained shots (#671)
+    LookFilter filter_;
+    uint32_t filter_serial_ = 0;  // the shot the filter was seeded for
     bool on_interesting_ = false;  // +0x360 set: the run reached an interesting object (a chained clash keeps it)
     int32_t last_clock_ = 0;
     tactical::Vec3 smooth_eye_;

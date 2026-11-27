@@ -536,8 +536,8 @@ void App::battle_cam_step() {
     cine_.cam_clock = cine_.cam.serial() != serial ? 0 : c;
 }
 
-// 0x49cd00 for the battle cam: the keyed eye / look on the framed object's drawn transform, the eye smoothing, near / far
-// 1 / 10000 (0x49b1a0); FOV stays the mode camera's.
+// 0x49cd00 for the battle cam: the keyed eye / look on the framed object's drawn transform, the eye smoothing, the look
+// filter (#671), near / far 1 / 10000 (0x49b1a0); FOV stays the mode camera's.
 bool App::battle_cam_camera(ui::CameraParams& cp) {
     if (!cine_.cam.active()) return false;
     ObjectFrame f;
@@ -554,7 +554,7 @@ bool App::battle_cam_camera(ui::CameraParams& cp) {
             an.second = f2;
             an.z_second = shot_z_adjust(o2->type);
         }
-    const ui::Vec3 look = shot_keys_look(s.look, c, an);
+    const ui::Vec3 keyed_look = shot_keys_look(s.look, c, an);
     ui::Vec3 keyed = shot_keys_eye(s.eye, s.look, c, an);
     // #564 (+0x315 [H]): on land, with the sticky clamp set, the eye keeps over the ground; before the smoothing.
     if (!bview_.space() && cine_.cam.terrain_clamp() && bview_.scene()) {
@@ -562,6 +562,7 @@ bool App::battle_cam_camera(ui::CameraParams& cp) {
         keyed = terrain_clamped_eye(keyed, [m](float x, float y) { return m->terrain.sample_height(x, y); });
     }
     const ui::Vec3 eye = cine_.cam.smooth_eye(keyed, c);
+    const ui::Vec3 look = cine_.cam.filter_look(keyed_look, c);  // #671 0x4a96d0, after the smoothing
     const CinematicPose pose = apply_shake(eye, look, 0.0f, cine_.shake, c);
     cp.eye = pose.eye;
     cp.target = pose.look;

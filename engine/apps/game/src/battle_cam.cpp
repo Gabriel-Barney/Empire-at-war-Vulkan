@@ -116,6 +116,7 @@ bool bombing_run_shot(const BombingRunView& v, UnsyncedRandom& rng, BattleCamSho
     s.second = v.target;
     s.bombing_run = true;
     s.engine_loop = false;
+    s.look_filter = false;  // #671 +0x1bd = 0
     s.smoothing = 0.0f;
     ShotKey chase;
     chase.segment = ShotKey::Segment::Linear;
@@ -151,6 +152,7 @@ void BattleCam::start(State s, BattleCamShot shot) {
     state_ = s;
     shot_ = std::move(shot);
     if (shot_.smoothing) smoothing_ = *shot_.smoothing;
+    if (shot_.look_filter) look_filter_ = *shot_.look_filter;  // #671 +0x1bd
     if (shot_.interesting) {
         on_interesting_ = true;
         terrain_clamp_ = true;
@@ -163,6 +165,9 @@ void BattleCam::start(State s, BattleCamShot shot) {
 void BattleCam::stop() {
     state_ = State::None;
     smoothing_ = 0.0f;  // End_Cinematic_Mode
+    look_filter_ = false;  // End_Cinematic_Mode 0x49b5c0: +0x1bc and +0x1bd
+    filter_.clear();
+    filter_serial_ = 0;
     on_interesting_ = false;
     view_ = 0;
     held_ = false;
@@ -321,6 +326,65 @@ int32_t BattleCam::tick(int32_t clock, bool tab_held, const BattleCamPicks& p) {
     if (held_ || tab_held) return last_clock_;  // frozen on the last frame
     if (!chain(p)) stop();
     return 0;
+}
+
+Vec3 BattleCam::filter_look(const Vec3& look, int32_t clock) {
+    if (filter_serial_ != serial_) {
+        filter_.seed(look);
+        filter_serial_ = serial_;
+    }
+    return filter_.step(clock, look, !look_filter_);
+}
+
+void LookFilter::seed(const Vec3& p, int32_t fps) {
+    fps_ = fps;
+    const auto n = static_cast<size_t>(std::max(fps + 1, 1));  // +0x1d8 = FPS + 1
+    h_.assign(n, p);
+    s_.assign(n, p);
+    v_.assign(n, Vec3{});
+    a_.assign(n, Vec3{});
+    w_.resize(n);
+    c_.resize(n);
+    for (size_t i = 0; i < n; ++i) {
+        w_[i] = static_cast<float>(i) / static_cast<float>(n) + 1.0f;
+        c_[i] = i == 0 ? w_[i] : c_[i - 1] + w_[i];
+    }
+    last_ = 0;
+    out_ = p;
+    on_ = true;
+}
+
+Vec3 LookFilter::step(int32_t frame, const Vec3& look, bool raw) {
+    if (!on_) return look;
+    if (frame <= last_) return raw ? look : out_;
+    last_ = frame;
+    const float fps = static_cast<float>(fps_);
+    const auto avg_n = static_cast<int32_t>(fps * kAverageSeconds);
+    const auto lag = static_cast<int32_t>(fps * kLagSeconds);
+    Vec3 avg = look;
+    if (avg_n != 0) {
+        for (int32_t i = 0; i + 1 < avg_n && static_cast<size_t>(i) < h_.size(); ++i) avg = avg + h_[static_cast<size_t>(i)];
+        avg = avg * (1.0f / static_cast<float>(avg_n));
+    }
+    const auto push = [](std::vector<Vec3>& q, const Vec3& v) {
+        if (!q.empty()) q.pop_back();
+        q.insert(q.begin(), v);
+    };
+    push(h_, look);
+    push(s_, avg);
+    push(v_, s_.size() > 1 ? s_[0] - s_[1] : Vec3{});
+    push(a_, v_.size() > 1 ? v_[0] - v_[1] : Vec3{});
+    Vec3 sv{}, sa{};
+    const auto l = static_cast<size_t>(std::max(lag, 0));
+    for (size_t i = 0; i < l && i < w_.size() && i < v_.size(); ++i) {
+        sv = sv + v_[i] * w_[i];
+        sa = sa + a_[i] * w_[i];
+    }
+    const float c = l > 0 && l <= c_.size() ? 1.0f / c_[l - 1] : 0.0f;
+    const float k = kAverageSeconds / 2.0f + kLagSeconds;
+    const Vec3 base = l < s_.size() ? s_[l] : s_.back();
+    out_ = base + sv * (c * k * fps) + sa * c;
+    return raw ? look : out_;
 }
 
 Vec3 BattleCam::smooth_eye(const Vec3& keyed, int32_t clock) {
@@ -489,6 +553,7 @@ bool fly_past_shot(const InterestingObject& o, bool space, UnsyncedRandom& rng, 
     s.target = o.id;
     s.interesting = true;
     s.smoothing = 0.9f;
+    s.look_filter = true;  // #671 +0x1bd = 1
     // 0x4a1c90 [H]: retail's _stricmp on the type name (docs/re/BATTLE_CAM.md "The three ported templates").
     const bool frigate = ascii_iequals(o.type_name, "Nebulon_B_Frigate") || ascii_iequals(o.type_name, "Alliance_Assault_Frigate");
     if (rng.range(0, 1) == 0 && space && !frigate) {  // A: under the hull, along +Y
@@ -590,6 +655,7 @@ bool attack_run_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamS
     s.handheld = true;
     s.handheld_frames = 2 * t;
     s.smoothing = 0.9f;
+    s.look_filter = true;  // #671 +0x1bd = 1
     out = std::move(s);
     return true;
 }
@@ -619,6 +685,7 @@ BattleCamShot fighter_chase_shot(const InterestingObject& o, UnsyncedRandom& rng
     s.look.push_back(key(0, ShotKey::Segment::Hold, true, {}, 0.1f));
     s.length = n;
     s.smoothing = 0.99f;
+    s.look_filter = false;  // #671 +0x1bd = 0
     s.handheld = true;
     s.handheld_frames = n;
     return s;
@@ -639,6 +706,7 @@ bool push_in_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCamShot
     s.look.push_back(key(0, ShotKey::Segment::Spline, true, {0.0f, 0.0f, 0.25f * h * e.z}, 0.25f));
     s.look.push_back(key(n, ShotKey::Segment::Spline, true, {0.0f, -2.0f * e.y, 0.1f * h * e.z}, 0.0f, 0.25f));
     s.length = n;
+    s.look_filter = true;  // #671 +0x1bd = 1
     s.handheld = true;
     s.handheld_frames = n;
     out = std::move(s);
@@ -691,6 +759,7 @@ bool land_flying_shot(const InterestingObject& o, UnsyncedRandom& rng, BattleCam
     s.eye.push_back(key(0, ShotKey::Segment::Hold, false, o.frame.apply({sgn * e.x, -e.y, e.z})));
     s.look.push_back(key(0, ShotKey::Segment::Hold, true, {}, 0.25f));
     s.length = n;
+    s.look_filter = true;  // #671 +0x1bd = 1
     out = std::move(s);
     return true;
 }
