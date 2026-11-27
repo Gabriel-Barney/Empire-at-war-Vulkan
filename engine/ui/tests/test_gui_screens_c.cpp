@@ -831,6 +831,12 @@ void test_anim_hack_drag() {
         at = press_and_move("q1_0002", "", {40.0f, 40.0f});
         const Vec2f cur = sh.canvas().pixel_to_canvas(40.0f, 40.0f);
         CHECK(std::fabs(at.x - cur.x) < 0.01f && std::fabs(at.y - cur.y) < 0.01f);
+        // Snap_Drag over a pad without Snap_Location (q1_0001): no snap either.
+        const Vec2f q1 = centre("q1_0001");
+        const Vec2f near_q1 = sh.canvas().canvas_to_pixel(q1.x + 3.0f, q1.y - 2.0f);
+        at = press_and_move("q1_0002", "q1_0001", near_q1);
+        const Vec2f nq1 = sh.canvas().pixel_to_canvas(near_q1.x, near_q1.y);
+        CHECK(std::fabs(at.x - nq1.x) < 0.01f && std::fabs(at.y - nq1.y) < 0.01f);
         // The dragged pad without Snap_Drag (q1_0001): no snap over q2_0001.
         at = press_and_move("q1_0001", "q2_0001", near_px);
         const Vec2f nc = sh.canvas().pixel_to_canvas(near_px.x, near_px.y);
