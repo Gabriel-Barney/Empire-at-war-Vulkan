@@ -696,7 +696,11 @@ public:
     // Pending at the death and Released at the deploy; the released unit is then an ordinary battle participant. Only a
     // death (Die) releases: a silent removal (Remove_From_World) and a retreat (#756) keep the record Inside. [port] a
     // host killed outside consume_events (a script kill: consume_kill_events) on a battle's last frame releases nothing.
-    enum class ContainedState : uint8_t { Inside, Pending, Released };
+    // #757 (the battle end): an Inside record survives with its host (or a retreated host) and the galaxy keeps the unit;
+    // a Released one follows its participant (a dead hero is a battle loss). Lost: the host died after its side's
+    // post-retreat (vf11 0x5335f0 [H] removes what is neither retreated nor inside a retreated flagship), so the
+    // contents are not created and the unit is a battle loss (result_.destroyed).
+    enum class ContainedState : uint8_t { Inside, Pending, Released, Lost };
     static constexpr uint32_t kNoParticipant = 0xFFFFFFFFu;
     struct ContainedUnit {
         objects::ObjectId galactic = objects::kNoObjectId;
@@ -2640,6 +2644,7 @@ private:
     // deploys the Pending records (consume_events, after its deaths, when no caller holds a Unit reference).
     void contents_host_died(objects::ObjectId host_galactic, Vec3 at, Vec3 face);
     void release_contents(TacticalMode& mode, SimRng& rng);
+    bool contents_swept(const ContainedUnit& c) const;  // #757: the record's side finished its space retreat
     // #402: true when a combat list has events past consumed_ (and is not left to consume_events).
     bool has_unconsumed_kill_events() const;
     // #402: how far each combat list has been consumed (list sizes; u32 like the combat save's counts). kUnread from the

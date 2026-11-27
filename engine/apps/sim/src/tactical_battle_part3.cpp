@@ -850,6 +850,10 @@ void TacticalBattle::contents_host_died(objects::ObjectId host_galactic, Vec3 at
         }
 }
 
+bool TacticalBattle::contents_swept(const ContainedUnit& c) const {
+    return space_ && retreat_complete_ && retreat_side_ >= 0 && owner_side(c.owner) == static_cast<uint8_t>(retreat_side_);
+}
+
 void TacticalBattle::release_contents(TacticalMode& mode, SimRng& rng) {
     // #755 (0x37a060 [H]): each Pending record, in record order, is created at its host's position and facing. [port] as
     // a new participant of the owner's side, deployed with every member at that point (drop_pos_ / drop_face_); retail's
@@ -857,6 +861,10 @@ void TacticalBattle::release_contents(TacticalMode& mode, SimRng& rng) {
     for (size_t i = 0; i < contained_.size(); ++i) {
         if (contained_[i].state != ContainedState::Pending) continue;
         const ContainedUnit c = contained_[i];
+        if (contents_swept(c)) {  // #757: released after the post-retreat - removed with the rest of the side
+            contained_[i].state = ContainedState::Lost;
+            continue;
+        }
         contained_[i].state = ContainedState::Released;
         const objects::ObjectHandle g = galaxy_->store().find(c.galactic);
         const size_t before = parts_.size();
