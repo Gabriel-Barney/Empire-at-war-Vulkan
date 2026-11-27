@@ -7,6 +7,8 @@
 namespace alamo::sim {
 
 struct TacticalBattleTestAccess {
+    // #418: the BOMBARD_DELAY story reward's override (TacticalBattle::reward_bombard_delay; 0 = none)
+    static float bombard_delay_override(const TacticalBattle& b) { return b.bombard_delay_override_; }
     static tactical::abilities::AbilitySystem& abilities(TacticalBattle& b) { return *b.abilities_; }
     // #487: the battle's special-weapon packs, mutable (a test restarts a new pack's charge: packs start ready).
     static tactical::abilities::SpecialWeaponSystem& special_weapons(TacticalBattle& b) { return b.l1_sw_; }

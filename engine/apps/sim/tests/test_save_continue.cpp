@@ -2,7 +2,8 @@
 // Each fixture (battle_test_fixture.hpp sessions: a space battle, a land invasion, a space battle with a retreat, a land
 // battle whose map carries placement records - hints, a company with a hint, a marker name, a build pad with a base
 // level on a planet with a ground structure - roadmap map3, and #146 a space battle whose ships turn POWER_TO_WEAPONS
-// on, so checkpoints fall in its active time and then in its recharge) runs twice from the same start:
+// on, so checkpoints fall in its active time and then in its recharge; #418 a land battle given a BOMBARD_DELAY story
+// reward, TacticalBattle::reward_bombard_delay, at a battle frame) runs twice from the same start:
 //   continuous   ticked straight through;
 //   reloaded     at every 64-tick checkpoint (the CRC golden checkpoints, ALAMO_CRC 2) the session is saved, a fresh
 //                session is built like a new game, the save is loaded into it (a battle is rebuilt, then its parts are
@@ -12,7 +13,8 @@
 // Find_Hint / Get_Hint (TacticalBattle::map_hint, which lua::ObjectBridge::map_hint reads), the marker names and the
 // pads' base levels, for every object of the battle; no object created after the battle start (after a load included)
 // answers a map hint. #146: every ship's POWER_TO_WEAPONS state (active, ready) after a load equals the continuous run's
-// at that checkpoint, and the ability fixture reaches both an active and a recharging checkpoint. On every running
+// at that checkpoint, and the ability fixture reaches both an active and a recharging checkpoint. #418: the battle's
+// BOMBARD_DELAY override after a load equals the continuous run's at that checkpoint, and is set at some. On every running
 // battle the save ledger self-check holds too
 // (TacticalBattle::check_save_ledger: state_io walks exactly the SAVED members of tactical_battle_ledger.hpp).
 // Modes:
@@ -34,6 +36,8 @@ struct Fixture {
     bool records;  // land map with placement records (hints, a hinted company, a marker name, a levelled pad)
     uint64_t ticks;
     uint64_t ability_frame = 0;  // #146: the battle frame at which every ship with POWER_TO_WEAPONS turns it on (0: never)
+    uint64_t reward_frame = 0;   // #418: the battle frame of the BOMBARD_DELAY reward (0: never)
+    float bombard_delay = 0.0f;  // its seconds
 };
 
 const Fixture kFixtures[] = {
@@ -42,6 +46,7 @@ const Fixture kFixtures[] = {
     {"space_retreat", false, 0.95f, false, 2600},
     {"land_records", true, 0.0f, true, 3000},
     {"space_ability", false, 0.0f, false, 2500, 30},
+    {"land_bombard_delay", true, 0.0f, false, 3000, 0, 40, 7.5f},
 };
 
 constexpr auto kPowerToWeapons = static_cast<uint8_t>(tactical::abilities::kPowerToWeapons);
@@ -107,11 +112,14 @@ struct Session {
     std::vector<ai::tactical::TacticalBudgetCategory> budget = std::vector<ai::tactical::TacticalBudgetCategory>(1);
 #endif
     bool land = false, invaded = false;
-    uint64_t ability_frame = 0;
+    uint64_t ability_frame = 0, reward_frame = 0;
+    float bombard_delay = 0.0f;
     bool ability_sent = false;  // #146: the fixture's POWER_TO_WEAPONS order was given (a loaded session carries it over)
+    bool reward_sent = false;   // #418: the BOMBARD_DELAY reward was given (likewise)
     size_t crc_seen = 0;  // records of crc_log() already collected
 
-    Session(const Data& d, const Fixture& f, uint32_t workers, bool launch) : land(f.land), ability_frame(f.ability_frame) {
+    Session(const Data& d, const Fixture& f, uint32_t workers, bool launch)
+        : land(f.land), ability_frame(f.ability_frame), reward_frame(f.reward_frame), bombard_delay(f.bombard_delay) {
         js = std::make_unique<jobs::JobSystem>(jobs::JobSystemConfig{static_cast<int32_t>(workers)});
         SimConfig cfg;
         cfg.seed = 2026;
@@ -178,6 +186,11 @@ struct Session {
                 }
                 CHECK(!by_owner.empty());
                 ability_sent = true;
+            }
+        if (reward_frame > 0 && !reward_sent)
+            if (TacticalBattle* b = battle(); b && b->frame() >= reward_frame) {
+                b->reward_bombard_delay(bombard_delay);  // #418: as the STY1 t06 BOMBARD_DELAY reward sets it
+                reward_sent = true;
             }
     }
 
@@ -255,7 +268,8 @@ struct RunResult {
     std::vector<Checkpoint> checkpoints;
     std::map<uint64_t, std::vector<std::string>> answers;  // checkpoint tick -> lookup answers (the reloaded run: after the load)
     std::map<uint64_t, std::vector<std::string>> abilities;  // #146: checkpoint tick -> POWER_TO_WEAPONS states (likewise)
-    bool ability_active_seen = false, ability_recharge_seen = false;
+    std::map<uint64_t, float> bombard_delays;                 // #418: checkpoint tick -> the BOMBARD_DELAY override (likewise)
+    bool ability_active_seen = false, ability_recharge_seen = false, bombard_delay_seen = false;
     uint32_t battle_checkpoints = 0, reloads = 0, battle_reloads = 0, refused = 0;
     uint32_t ledger_checks = 0;
     bool ledger_ok = true, load_ok = true;
@@ -268,6 +282,9 @@ struct RunResult {
         ability_active_seen = ability_active_seen || a.any_active;
         ability_recharge_seen = ability_recharge_seen || a.any_recharging;
         abilities[tick] = std::move(a.lines);
+        const float bd = TacticalBattleTestAccess::bombard_delay_override(b);
+        bombard_delays[tick] = bd;
+        bombard_delay_seen = bombard_delay_seen || bd > 0.0f;
     }
 };
 
@@ -312,6 +329,7 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         if (!fresh->gs) break;
         fresh->invaded = s->invaded;  // the test's own invasion order, given once (the save holds its effect)
         fresh->ability_sent = s->ability_sent;  // #146: likewise the ability order
+        fresh->reward_sent = s->reward_sent;    // #418: and the reward
         LoadReport rep;
         if (!fresh->host->load(save, &why, &rep)) {
             std::printf("  %s: load at tick %" PRIu64 " failed: %s\n", f.name, tick, rep.text().c_str());
@@ -425,6 +443,19 @@ std::string test_fixture(const Data& d, const Fixture& f, uint32_t workers) {
             std::printf("  %s: active seen %d/%d, recharge seen %d/%d\n", f.name, a.ability_active_seen, b.ability_active_seen,
                         a.ability_recharge_seen, b.ability_recharge_seen);
         CHECK(a.ability_active_seen && a.ability_recharge_seen && b.ability_active_seen && b.ability_recharge_seen);
+    }
+    for (const auto& [tick, want] : a.bombard_delays) {  // #418: the BOMBARD_DELAY override a load gives back
+        const auto it = b.bombard_delays.find(tick);
+        if (it == b.bombard_delays.end() || it->second == want) continue;
+        std::printf("  %s: BOMBARD_DELAY override differs after the load at tick %" PRIu64 ": want %.2f, got %.2f\n", f.name, tick,
+                    static_cast<double>(want), static_cast<double>(it->second));
+        CHECK(false);
+        break;
+    }
+    if (f.reward_frame > 0) {  // the reward fixture is saved and loaded while the override is set
+        std::printf("  %s: BOMBARD_DELAY %.2f s seen at a checkpoint %d / after a load %d\n", f.name, static_cast<double>(f.bombard_delay),
+                    a.bombard_delay_seen ? 1 : 0, b.bombard_delay_seen ? 1 : 0);
+        CHECK(a.bombard_delay_seen && b.bombard_delay_seen);
     }
     if (f.records) CHECK(hinted == compared && compared > 0);  // the records fixture has hints at every checkpoint
     if (f.records) CHECK(padded == compared);                  // and its pad keeps its base level
