@@ -517,7 +517,7 @@ void test_average_base_and_is_building_tokens() {
                 "AverageGroundbase %.4f (expected %.4f)\n", own.size(), sim.planets()[own[0]].starbase_level,
                 sim.planets()[own[1]].starbase_level, a_sb, sb, a_gb, gb);
     CHECK(sim.planets()[own[0]].starbase_level != sim.planets()[own[1]].starbase_level);
-    CHECK(a_sb == sb && a_gb == gb);
+    CHECK(a_sb == sb && a_gb == gb);  // exact: the same per-planet terms (level / max), summed in the same order
     // a player that owns no planet: 0, not a failure
     int32_t none = -1;
     for (int32_t q = 0; q < static_cast<int32_t>(sim.players().size()) && none < 0; ++q) {

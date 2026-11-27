@@ -76,7 +76,7 @@ void check_token_coverage(const GameData& d, ModCheckReport& r) {
     struct Acc {
         TokenGap g;
         bool unregistered = false;
-        bool location_unregistered = false;  // a Location leaf retail's location evaluators do not register (#692)
+        bool location_unregistered = false;  // Target.Location.Force: retail's location evaluators do not register it (#692)
         bool galactic = false, tactical = false;  // the resolver evaluates the path
         bool implemented = true;                  // every equation using it runs in a mode that evaluates it
         bool cited = false, cited_in_mod = false; // g.first_equation / first_file are set (from a mod file)
@@ -112,14 +112,12 @@ void check_token_coverage(const GameData& d, ModCheckReport& r) {
                 a.galactic = ai::GalacticSimTokenResolver::path_registered(n.root, key);
                 a.tactical = ai::tactical::TacticalTokenResolver::path_implemented(n.root, path, set.tokens());
                 a.unregistered = !a.galactic && !a.tactical && !registered;
-                // #692: a leaf of a unit target's Location that the tactical location evaluators do not register.
-                // Retail's location evaluators are TacticalLocation 0x72ef80, and LandLocation 0x6d5b70 on top of it
-                // (AI_TACTICAL_PERCEPTION §3.3, [H]: Force, for one, is registered only on the unit 0x733960 and
-                // player 0x736790 evaluators). The galactic evaluators have no Location sub-evaluator, so retail fails
-                // the whole equation too.
-                a.location_unregistered = !a.galactic && !a.tactical && registered && path.size() == 2 &&
-                                          (n.root == ai::Root::Target || n.root == ai::Root::Location) &&
-                                          key.compare(0, 9, "LOCATION.") == 0;
+                // #692: Variable_Target.Location.Force. Retail's Force token (Global.c DAT_140a43e2c) is registered
+                // only on the TacticalUnit 0x733960 and TacticalPlayer 0x736790 evaluators. The location evaluators,
+                // TacticalLocation 0x72ef80 and LandLocation 0x6d5b70 on top of it, do not register it, and the galactic
+                // evaluators have no Location sub-evaluator, so retail fails the whole equation too [H]. This is limited
+                // to the leaf that was checked in the registrations.
+                a.location_unregistered = !a.galactic && !a.tactical && n.root == ai::Root::Target && key == "LOCATION.FORCE";
             }
             // Each mode the equation runs in needs its resolver; an equation of unknown mode either one.
             const uint8_t mode = modes[i];
@@ -148,8 +146,8 @@ void check_token_coverage(const GameData& d, ModCheckReport& r) {
         }
         if (a.location_unregistered) {
             r.retail_equivalent.push_back({"unregistered_token", shown, a.g.equations, a.g.first_file, a.g.in_mod,
-                                           "a Location leaf retail's location evaluators do not register: retail fails the "
-                                           "whole equation too"});
+                                           "Force on a Location: retail's location evaluators do not register it, so retail "
+                                           "fails the whole equation too"});
             continue;
         }
         if (!a.implemented) tc.missing.push_back(std::move(a.g));
