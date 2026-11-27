@@ -571,13 +571,55 @@ void MovementSystem::attack_slots(const MoveOrder& order, const std::vector<uint
 // formation path). An air lead keeps the plain move the slot loop gave (the plan is for land formations).
 // s78n t26 review round 3: no item-6 stop when T is unseen (LandAttack::unseen: 0x40edd0's fog / stealth terms, FIGHTER_FLYING
 // §4.11 E [H]); the members a re-path keeps (G 5, `kept`) get no goal and are not stopped by a failed plan.
+// #648 (#482 slice 1): 0x417520's type-2 branch (formation type 2, reason >= 2 [H], read 2026-11-24 / 26), the goal part:
+// - T = the top block, the order's object block; its goal G (0x5833e0: the object's goal point, staged by 0x40e260 when the
+//   formation has more than one member: LandAttack::g);
+// - land mode (the mode manager's vf +0xe0 == 1) and an object block: P = G + unit(object - lead) x 0x373b30(T's type)
+//   [H]; 0x373b30 = Scale_Factor (+0x658) x the type's radius override (+0x16b8, else +0x16f0) or else the model box's
+//   larger half extent (0x373b50 [H]); [M] the port takes the target's footprint half extents (LandAttack::t_hx / t_hy,
+//   0x396850), the larger one;
+// - the members' goal F +0x200 = 0x583150(P) [H]: P clamped to the map box (x, y; z to +-5000; [port] the land air box);
+// - every member re-plans on the land air path (need_path: plan_space_path on air_). Members kept by a re-path keep theirs.
+// [L] not modelled: the block flag 0x10 skip (T +0x48 bit 4), the non-object (0x59caa0) branch, the goal height (type
+// +0x16dc), the speed fit (#649), the retry ladder (#650: the §2.4 chain) and the request byte +0x284.
+void MovementSystem::air_formation_goal(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f,
+                                        const std::vector<uint8_t>& kept) {
+    const Unit& lead = units_[idx[f.members[0]]];
+    const V2 d = order.attack.c - lead.m.pos;
+    const float len = std::sqrt(length_sq(d));
+    V2 p = order.attack.g;
+    if (len > 0.0f) {
+        const float r = std::max(order.attack.t_hx, order.attack.t_hy);
+        p = p + d * (r / len);
+    }
+    if (air_.has_box()) {
+        const V2 lo = air_.box_min(), hi = air_.box_max();
+        p = {std::clamp(p.x, lo.x, hi.x), std::clamp(p.y, lo.y, hi.y)};
+    }
+    ++stats_.air_formation_goals;
+    for (const uint32_t m : f.members) {
+        Unit& x = units_[idx[m]];
+        if (m < kept.size() && kept[m]) continue;
+        x.goal = p;
+        x.self_goal = p;
+        x.has_goal = true;
+        x.need_path = true;
+        x.arrived = false;
+        x.failed = false;
+        x.forced = false;
+    }
+}
+
 bool MovementSystem::attack_plan(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f, uint32_t frame,
                                  const std::vector<uint8_t>& kept, std::span<const FormationMember> mem, std::span<const Unit> snap) {
     const Unit& lead = units_[idx[f.members[0]]];
     // #89 [H]: an air lead's locomotor gives formation type 2 (FLYING_LOCOMOTOR vf +0x238 = 0x18cec0 returns 2; Walk's
     // 0x18ceb0 returns 1; 0x43c1b0 stores it as the type). 0x417520's land branch and 0x41c1a0's item-6 stop are type 1
-    // only, and the type-2 branch returns 0 at the order. [port] its approach at the later updates is #482.
-    if (is_air(lead)) return false;
+    // only, and the type-2 branch returns 0 at the order. #648: its goal at the later updates, behind the flag.
+    if (is_air(lead)) {
+        if (cfg_.air_formation_approach && order.attack.replan && order.attack.target >= 0) air_formation_goal(order, idx, f, kept);
+        return false;
+    }
     const ObjectId target = order.attack.target;
     const bool guard = order.attack.guard;
     std::vector<ObjectId> ids;
