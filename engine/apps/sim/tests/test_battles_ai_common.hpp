@@ -427,9 +427,10 @@ inline void test_landing_drop(bool timed, uint32_t destroy_at = 0) {
             // version 23 (HgOrderCost::ai); #84: version 24 (the land retreat list); #357: version 25 (spin-away wrecks, the
             // units' motion snapshots); #488: version 26 (the land formation records' block stack); #402: version 27 (how
             // far the combat event lists are consumed); #510: version 28 (the land formation records' state-6 wait); #660:
-            // version 29 (campaign-battle production: the _Campaign build lists in the type tables): 27, 28 and 30 are refused.
+            // version 29 (campaign-battle production: the _Campaign build lists in the type tables); #758: version 30 (the
+            // contained units): 28, 29 and 31 are refused.
             std::vector<uint8_t> stale(w.bytes().begin(), w.bytes().end());
-            for (const uint32_t v : {27u, 28u, 30u}) {
+            for (const uint32_t v : {28u, 29u, 31u}) {
                 for (size_t k = 0; k < 4; ++k) stale[k] = static_cast<uint8_t>(v >> (8 * k));
                 ByteReader rs(stale);
                 CHECK(!b->read_part(TacticalBattle::SavePart::State, rs));
