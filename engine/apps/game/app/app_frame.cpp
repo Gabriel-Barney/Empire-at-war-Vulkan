@@ -633,9 +633,11 @@ void App::frame() {
         if (screen() == Screen::Galactic) galactic_input();
         else if (screen() == Screen::Battle) battle_input();
     }
-    // The space reinforcement grid only while a drop point is being picked (battle_input does not run while paused or
-    // outside the battle screen, so the flag is kept here too).
-    if (bview_.active()) bview_.set_space_reinforcement_overlay(screen() == Screen::Battle && bview_.space() && reinforce_unit_ != 0);
+    // #727 the space reinforcement grid (ui::space_reinforce_overlay_shown: FoC while the reinforcement list is open; with
+    // SpaceReinforceFeedbackOnlyWhileDragging while a drop point is being picked). battle_input does not run while paused
+    // or outside the battle screen, so the flag is kept here too.
+    if (bview_.active())
+        bview_.set_space_reinforcement_overlay(screen() == Screen::Battle && bview_.space() && space_reinforce_overlay_now());
     // 3. Sim, then the story's presentation ops (movies, audio) of the ticks just run; Lua movies advance.
     if (battle_view_pending_ && load_intro_frames_ == 0) start_battle_view();  // the load screen is already up
     story_script_mode_check();  // before the sim and the Lua ops of this frame (a new mode's first calls must survive)

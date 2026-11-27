@@ -992,6 +992,9 @@ private:
     // #468 (0x33e340 [H]): IDC_SIMPLIFIED_FACTION_COLORS, or the local player is a story tutorial player (TUTORIAL_PLAYER);
     // the colours in force (simplified_colors_ with `on` set). Off without a local player.
     bool simplified_colors_now() const;
+    // #727 the space reinforcement grid now (ui::space_reinforce_overlay_shown of SpaceReinforceFeedbackOnlyWhileDragging,
+    // the Classic reinforcement list i_main_reinforce and the pending drop point).
+    bool space_reinforce_overlay_now() const;
     render::SimplifiedColors simplified_colors() const {
         render::SimplifiedColors c = simplified_colors_;
         c.on = simplified_colors_now();

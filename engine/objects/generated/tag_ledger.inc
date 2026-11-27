@@ -1175,7 +1175,7 @@
 {"GameConstants", "DesiredSpaceFOWCellSize", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "LandFOWRegrowTime", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "SpaceFOWRegrowTime", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
-{"GameConstants", "SpaceReinforceFeedbackOnlyWhileDragging", 0x0, LedgerState::Stored, "docs/re/xml_reference_index.md", 1, 1},
+{"GameConstants", "SpaceReinforceFeedbackOnlyWhileDragging", 0x0, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "Water_Render_Target_Resolution", 0x5, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "Water_Clip_Plane_Offset", 0x8, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "Occlusion_Silhouettes_Enabled", 0x0, LedgerState::Stored, "docs/re/xml_reference_index.md", 1, 1},

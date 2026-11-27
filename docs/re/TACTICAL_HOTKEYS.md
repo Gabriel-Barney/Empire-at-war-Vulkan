@@ -90,6 +90,14 @@ The port (`TacticalHud::toggle_reinforce_list`, `App::toggle_reinforcement_list`
   retail's held-object test, which plays nothing); right-click and Esc cancel the pick, R no longer does;
 - [port] the `i_main_reinforce` shell model itself is not loaded: the pad keeps its fallback positions.
 
+## The space reinforcement grid (SpaceReinforceFeedbackOnlyWhileDragging) [H] (#727)
+
+The space FOW update `0x4d8de0` draws the fog with palette 3 and `SpaceReinforceFOWSampler` (the reinforcement grid) when a flag is set, and the plain fog otherwise. The flag depends on `SpaceReinforceFeedbackOnlyWhileDragging` (GC +0x11d4, FoC `false`):
+- **Off:** `0x2f9c30`, which is true when `i_main_reinforce` (0x218) exists and `0x34ce60` (hidden, walking the parents) is false. So the grid shows while the reinforcement list is shown.
+- **On:** the space mode's +0x2cc. `0x33d50` sets it as it stores the reinforcement's type (+0x818), and `0x343e0` clears it. So the grid shows while a reinforcement is being placed. Mapping that to the port's drop-point pick is [M].
+
+The port: `ui::space_reinforce_overlay_shown` and `App::space_reinforce_overlay_now`. With FoC's value the grid follows the list: it shows during a pick while the list stays open, and goes when R or `b_reinforcement` closes the list mid-pick.
+
 ## Open
 
 - The names of the reinforcement list's four gates [M].
