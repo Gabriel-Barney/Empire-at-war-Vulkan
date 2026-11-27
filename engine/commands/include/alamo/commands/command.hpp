@@ -168,6 +168,10 @@ EventData retreat(bool request);
 // COMMANDS kind 53 (galactic only): object +0x3b0 := marker, the UI marker the object stands on in the planet map / its
 // next land battle (-1 = none). Execute 0x5b0660 sets it on any object found by id: no owner or type check.
 EventData set_marker_id(ObjectId object, int32_t marker);
+// COMMANDS kind 56 SetGUIIndex (galactic only; ctor 0x5b1170, execute 0x5b12a0): the object's organiser GUI index (12 bits);
+// index == kPathfinderGuiIndex makes the unit its fleet's lead ("pathfinder", legacy docs/re/UI.md §7.4), any other value
+// clears it (commands::kPathfinderGuiIndex / kNoGuiIndex, event_types.hpp).
+EventData set_gui_index(ObjectId object, uint32_t index);
 // Port-only event (id 63): engine test hooks / features without an original event.
 EventData port_extension(uint16_t subtype, std::span<const uint8_t> data);
 }  // namespace ev

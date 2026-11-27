@@ -2023,6 +2023,7 @@ void test_special_case_production() {
         tail += 4;  // the v14 persistent upgrade objects (#459; none: one u32 count)
         tail += 4;  // the v15 cleared-fleet list (#456; none: one u32 count)
         tail += 4;  // the v16 paid costs (#191; none: one u32 count)
+        tail += 4;  // the v17 fleet leads (#515; none: one u32 count)
         for (const PlanetState& pl : s.planets()) tail += 4 + 4 * pl.initial_placement.size();
         std::vector<uint8_t> v9(bytes.begin(), bytes.end() - static_cast<std::ptrdiff_t>(tail));
         v9[0] = 9;

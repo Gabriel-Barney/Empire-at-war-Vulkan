@@ -756,7 +756,8 @@ void test_synthetic() {
     // resolve by the one-shot rule.
     // #558: conflict save v6 adds the land planet flag; land auto-resolves fight with the planet, not its structures.
     // #191: galactic save v16 adds the paid costs, and the produced objects' paid costs enter the hash ("PDC1").
-    sc.pin = 0x2b57ccfc10d1a31bull;
+    // #515: galactic save v17 adds the fleet-lead count (0 here) to the save part.
+    sc.pin = 0xcc07b8eb523f065aull;
     run_scenario(sc);
 }
 
@@ -797,6 +798,89 @@ void test_set_marker_id() {
     e = s.structure_slot(store.id(planet));
     CHECK(e && e->slot == 2 && e->marker == -1);
     CHECK(s.execute(other, commands::ev::set_marker_id(commands::kNoObject, 5)) == RejectReason::InvalidUnit);
+}
+
+// #515 (COMMANDS kind 56 SetGUIIndex, execute 0x5b12a0; legacy docs/re/UI.md §7.4): index 999 (Pathfinder_Slot_Index) makes
+// the issuer's unit a fleet lead, any other index clears it; another player's unit is refused [port]. The flag is hashed
+// and saved (v17) for live units only, and moving units into a fleet that already has a lead clears the moved units' flags.
+void test_set_gui_index() {
+    std::printf("  SetGUIIndex (fleet lead)\n");
+    const GalacticRules rules = make_rules();
+    const objects::GameObjectTypes types;
+    const GalacticSetup setup = make_setup();
+    objects::IdCounter ids;
+    objects::ObjectStore store(objects::ModeKind::Galactic, objects::StoreKind::Primary, types, &ids);
+    SimRng rng(0x5A5Eu);
+    GalacticSim s(rules, store, rng);
+    CHECK(s.start(setup));
+    const uint32_t f1 = idle_fleet(s, rA, pEmpire);
+    CHECK(f1 != kNoFleet);
+    if (f1 == kNoFleet) return;
+    CHECK(s.fleets()[f1].contents.size() == 2);  // the two frigates at A
+    if (s.fleets()[f1].contents.size() != 2) return;
+    const ObjectHandle a = s.fleets()[f1].contents[0], b = s.fleets()[f1].contents[1];
+    const auto id = [&](ObjectHandle h) { return static_cast<uint32_t>(store.id(h)); };
+    const uint64_t h0 = sim_hash(s);
+    CHECK(!s.pathfinder(a) && s.pathfinders().empty());  // no unit starts as a lead
+    CHECK(s.execute(pUnder, commands::ev::set_gui_index(id(a), commands::kPathfinderGuiIndex)) == RejectReason::NotOwner);
+    CHECK(s.execute(pEmpire, commands::ev::set_gui_index(commands::kNoObject, commands::kPathfinderGuiIndex)) == RejectReason::InvalidUnit);
+    CHECK(s.execute(pEmpire, commands::ev::set_gui_index(id(a), commands::kPathfinderGuiIndex)) == RejectReason::None);
+    CHECK(s.pathfinder(a) && !s.pathfinder(b) && sim_hash(s) != h0);
+    CHECK(s.execute(pEmpire, commands::ev::set_gui_index(id(a), 5)) == RejectReason::None);  // any other index clears
+    CHECK(!s.pathfinder(a) && sim_hash(s) == h0);
+    CHECK(s.execute(pEmpire, commands::ev::set_gui_index(id(a), commands::kPathfinderGuiIndex)) == RejectReason::None);
+    CHECK(s.execute(pEmpire, commands::ev::set_gui_index(id(a), commands::kNoGuiIndex)) == RejectReason::None);
+    CHECK(!s.pathfinder(a));
+
+    // Save round trip: the lead survives a save and load, and the restored session hashes and saves alike.
+    CHECK(s.execute(pEmpire, commands::ev::set_gui_index(id(b), commands::kPathfinderGuiIndex)) == RejectReason::None);
+    const std::vector<uint8_t> bytes = sim_bytes(s);
+    const uint64_t h1 = sim_hash(s);
+    {
+        objects::IdCounter ids2;
+        objects::ObjectStore store2(objects::ModeKind::Galactic, objects::StoreKind::Primary, types, &ids2);
+        SimRng rng2(0x5A5Eu);
+        GalacticSim c(rules, store2, rng2);
+        CHECK(c.start(setup));
+        store2 = store;  // ObjectStore::read stand-in, as in run_scenario
+        ids2.set_next(ids.next());
+        ByteReader r(bytes);
+        CHECK(c.read(r));
+        CHECK(c.pathfinder(b) && !c.pathfinder(a) && c.pathfinders().size() == 1 && sim_hash(c) == h1 && sim_bytes(c) == bytes);
+    }
+
+    // Moving a lead into a fleet that already has one: the moved unit's flag is cleared, the target keeps its lead.
+    const ObjectHandle pa = s.planets()[rA].object;
+    CHECK(s.execute(pEmpire, commands::fleet_management_event(commands::kFleetDetach, id(pa), id(s.fleets()[f1].object), id(a))) == RejectReason::None);
+    const uint32_t f2 = s.fleet_containing(a);
+    CHECK(f2 != kNoFleet && f2 != f1);
+    if (f2 == kNoFleet || f2 == f1) return;
+    CHECK(s.execute(pEmpire, commands::ev::set_gui_index(id(a), commands::kPathfinderGuiIndex)) == RejectReason::None);
+    CHECK(s.pathfinder(a) && s.pathfinder(b));  // two fleets, one lead each
+    CHECK(s.execute(pEmpire, commands::fleet_management_event(commands::kFleetMerge, id(s.fleets()[f1].object), id(s.fleets()[f2].object), id(a))) ==
+          RejectReason::None);
+    CHECK(s.fleet_containing(a) == f1 && !s.pathfinder(a) && s.pathfinder(b));
+
+    // A lead that leaves its fleet (here detached into a fleet of its own) loses its flag; the other lead keeps its own.
+    CHECK(s.execute(pEmpire, commands::ev::set_gui_index(id(a), commands::kPathfinderGuiIndex)) == RejectReason::None);
+    CHECK(s.execute(pEmpire, commands::fleet_management_event(commands::kFleetDetach, id(pa), id(s.fleets()[f1].object), id(a))) == RejectReason::None);
+    CHECK(s.fleet_containing(a) != f1 && !s.pathfinder(a) && s.pathfinder(b));
+
+    // A dead lead is dropped from the save and the hash.
+    CHECK(s.destroy_object(b) && !s.pathfinder(b));
+    const std::vector<uint8_t> dead = sim_bytes(s);
+    {
+        objects::IdCounter ids2;
+        objects::ObjectStore store2(objects::ModeKind::Galactic, objects::StoreKind::Primary, types, &ids2);
+        SimRng rng2(0x5A5Eu);
+        GalacticSim c(rules, store2, rng2);
+        CHECK(c.start(setup));
+        store2 = store;
+        ids2.set_next(ids.next());
+        ByteReader r(dead);
+        CHECK(c.read(r));
+        CHECK(c.pathfinders().empty() && sim_hash(c) == sim_hash(s) && sim_bytes(c) == dead);
+    }
 }
 
 // A2k t04 (A2J_RE_BUILD_MARKET §4): start() draws each planet's two build-queue phases (synced Get_Int(1, 30), queue 0
@@ -919,16 +1003,32 @@ void test_queue_phases() {
         // v13 (#68) adds, per player, the per-planet tactical upgrade list (u32 count 0 here); a v12 image rebuilds it
         // from the corruption types (none here). v14 (#459) adds last the planets' persistent upgrade objects (u32 count 0
         // here); a v13 image has none. v15 (#456) adds last the fleets cleared by an AI magic spawn (u32 count 0 here); a
-        // v14 image reads every fleet as set. v16 (#191) adds last the paid costs (u32 count 0 here); a v15 image has none.
+        // v14 image reads every fleet as set. v16 (#191) adds last the paid costs (u32 count 0 here); a v15 image has none. v17 (#515) adds last the
+        // fleet-lead units (u32 count 0 here); a v16 image has none.
         const size_t tactical = 4 * s.players().size();
-        CHECK(bytes.size() >= galab + 36 + placement + tactical && bytes[0] == 16 && bytes[bytes.size() - 1] == 0);
-        std::vector<uint8_t> v15(bytes.begin(), bytes.end() - 4);
+        CHECK(bytes.size() >= galab + 36 + placement + tactical && bytes[0] == 17 && bytes[bytes.size() - 1] == 0);
+        std::vector<uint8_t> v16(bytes.begin(), bytes.end() - 4);
+        v16[0] = 16;
+        ByteReader r16(v16);
+        CHECK(o.read(r16) && o.pathfinders().empty() && sim_bytes(o) == bytes);
+        {  // a v17 image whose lead list is malformed is refused: an id of no live object, then two ids not ascending
+            const auto with_leads = [&bytes](std::initializer_list<uint32_t> words) {
+                std::vector<uint8_t> img(bytes.begin(), bytes.end() - 4);
+                for (const uint32_t v : words)
+                    for (int i = 0; i < 4; ++i) img.push_back(static_cast<uint8_t>(v >> (8 * i)));
+                return img;
+            };
+            const std::vector<uint8_t> dead = with_leads({1, 0x7FFFFFFFu}), repeated = with_leads({2, 1, 1});
+            ByteReader rd(dead), rn(repeated);
+            CHECK(!o.read(rd) && !o.read(rn));
+        }
+        std::vector<uint8_t> v15(v16.begin(), v16.end() - 4);
         v15[0] = 15;
         ByteReader r15(v15);
         CHECK(o.read(r15) && sim_bytes(o) == bytes);
         {  // a v16 image whose paid costs are malformed is refused: two records of one id, then a zero cost
-            const auto with_paid = [&bytes](std::initializer_list<uint32_t> words) {
-                std::vector<uint8_t> img(bytes.begin(), bytes.end() - 4);
+            const auto with_paid = [&v16](std::initializer_list<uint32_t> words) {
+                std::vector<uint8_t> img(v16.begin(), v16.end() - 4);
                 for (const uint32_t v : words)
                     for (int i = 0; i < 4; ++i) img.push_back(static_cast<uint8_t>(v >> (8 * i)));
                 return img;
@@ -1202,7 +1302,8 @@ void test_foc() {
     // #193: conflict save v5 (spawned pieces, the one shot) and the one-shot auto-resolve.
     // #558: conflict save v6 (the land planet flag) and the land planet combatant.
     // #191: galactic save v16 (the paid costs) and their hash.
-    sc.pin = 0xb41a0391e92db5caull;  // FoC data
+    // #515: galactic save v17 (the fleet-lead count) in the save part.
+    sc.pin = 0x1c3e7a6b0fdbfe5bull;  // FoC data
     run_scenario(sc);
 }
 
@@ -1214,6 +1315,7 @@ int main() {
     test_queue_phases();
     test_structure_slots_dead();  // map1 t06
     test_set_marker_id();  // ui4 t13
+    test_set_gui_index();  // #515
     test_name_rules();
     test_foc();
     if (g_fail) {

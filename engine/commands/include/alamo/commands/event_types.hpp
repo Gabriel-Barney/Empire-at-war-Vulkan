@@ -103,6 +103,13 @@ enum FleetOp : uint8_t {
     kFleetMoveNew = 6, kFleetMoveNewFlag = 7, kFleetSlot = 8
 };
 
+// SetGUIIndex (id 56) payload field "index" (Bits 12): Pathfinder_Slot_Index, the GameConstants default 999 (0x2c91c0;
+// vanilla sets no other), marks the unit as its fleet's lead (legacy docs/re/UI.md §7.4). kNoGuiIndex is the port's "-1":
+// how retail packs -1 into the 12-bit field is not traced [port: any value other than 999 clears the lead in the port
+// and in retail's execute, so the packing does not change behaviour; tier 3, save format only].
+inline constexpr uint32_t kPathfinderGuiIndex = 999;
+inline constexpr uint32_t kNoGuiIndex = 0xFFF;
+
 // [port: Gabriel 2026-11-13] Fleet cohesion: PortExtension subtype with one data byte (0 loose, 1 tight) setting the
 // issuing player's cohesion in the running tactical battle (sim::TacticalBattle::set_fleet_cohesion; GameSession's port
 // hook applies it). Shared by the game host and the UI hotkey. Not in retail.

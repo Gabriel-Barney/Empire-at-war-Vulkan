@@ -238,6 +238,7 @@ bool GalacticSim::start(const GalacticSetup& setup, std::vector<std::string>* di
     fleets_.clear();
     company_survivors_.clear();  // mcx4 t22
     paid_costs_.clear();         // #191
+    pathfinders_.clear();        // #515
     fleet_by_slot_.clear();
     planet_by_slot_.clear();
     stealthed_.clear();  // OI galactic
@@ -2071,6 +2072,8 @@ RejectReason GalacticSim::execute(uint8_t player_id, const commands::EventData& 
         set_object_marker(store_->id(h), static_cast<int32_t>(ev.u("marker")));
         return RejectReason::None;
     }
+    case EventType::SetGUIIndex:  // #515 (COMMANDS kind 56, execute 0x5b12a0): the fleet-lead flag
+        return set_gui_index(player, store_->find(static_cast<objects::ObjectId>(ev.u("object"))), ev.u("index"));
     case EventType::PortExtension: {  // [port: Gabriel] fleet and ship names (src/object_names.cpp)
         if (ev.u("subtype") != commands::kRenameSubtype) return RejectReason::Unhandled;
         commands::ObjectId id = commands::kNoObject;
@@ -2276,6 +2279,40 @@ void GalacticSim::set_object_marker(objects::ObjectId object, int32_t marker) {
     } else if (marker >= 0) {
         structure_slots_.insert(it, StructureSlot{object, -1, marker});
     }
+}
+
+bool GalacticSim::pathfinder(ObjectHandle unit) const {
+    if (pathfinders_.empty() || !store_->alive(unit)) return false;
+    return std::binary_search(pathfinders_.begin(), pathfinders_.end(), static_cast<int32_t>(store_->id(unit)));
+}
+
+void GalacticSim::set_pathfinder(objects::ObjectId object, bool on) {
+    const auto id = static_cast<int32_t>(object);
+    const auto it = std::lower_bound(pathfinders_.begin(), pathfinders_.end(), id);
+    const bool found = it != pathfinders_.end() && *it == id;
+    if (on && !found) pathfinders_.insert(it, id);
+    else if (!on && found) pathfinders_.erase(it);
+}
+
+RejectReason GalacticSim::set_gui_index(int32_t player, ObjectHandle unit, uint32_t index) {
+    if (!store_->alive(unit)) return RejectReason::InvalidUnit;
+    if (store_->owner(unit) != player) return RejectReason::NotOwner;  // [port] retail's execute checks no owner
+    std::erase_if(pathfinders_, [this](int32_t id) { return !store_->alive(store_->find(static_cast<objects::ObjectId>(id))); });
+    set_pathfinder(store_->id(unit), index == commands::kPathfinderGuiIndex);
+    return RejectReason::None;
+}
+
+void GalacticSim::keep_one_lead(uint32_t fleet, const std::vector<ObjectHandle>& moved) {
+    if (pathfinders_.empty() || fleet >= fleets_.size()) return;
+    bool has = false;
+    for (const ObjectHandle m : fleets_[fleet].contents) has = has || pathfinder(m);
+    if (has) leave_leads(moved);
+}
+
+void GalacticSim::leave_leads(const std::vector<ObjectHandle>& moved) {
+    if (pathfinders_.empty()) return;
+    for (const ObjectHandle m : moved)
+        if (store_->alive(m)) set_pathfinder(store_->id(m), false);
 }
 
 void GalacticSim::keep_built_objects(PlanetIndex planet, int32_t keep) {
@@ -2497,6 +2534,15 @@ void GalacticSim::hash_state(StateHasher& h) const {
             h.i32(e.slot);
             h.i32(e.marker);
         }
+    }
+    // #515 fleet-lead flags of live objects only (as the save), absent until a lead is set
+    uint32_t live_leads = 0;
+    for (const int32_t id : pathfinders_) live_leads += store_->alive(store_->find(static_cast<objects::ObjectId>(id))) ? 1u : 0u;
+    if (live_leads != 0) {
+        h.u32(0x314C4650u);  // section marker "PFL1"
+        h.u32(live_leads);
+        for (const int32_t id : pathfinders_)
+            if (store_->alive(store_->find(static_cast<objects::ObjectId>(id)))) h.i32(id);
     }
 }
 

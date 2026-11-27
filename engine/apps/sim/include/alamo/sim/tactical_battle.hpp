@@ -1603,8 +1603,8 @@ public:
 
     // --- battle host (BT pass): setup / transition results (legacy docs/re/TACTICAL_GAPS.md §4) ---
     // Land force split (§4.2, constructor): the defender's surface units all start; the attacker's start force is its lead
-    // unit (0x29c0c0 rules (b) Preferred_Pathfinder_Types non-heroes then heroes, (c) first non-hero, else first hero;
-    // [port] rule (a) has no fleet-lead flag / forced type for ground units), the rest of its invading units go to the
+    // unit (0x29c0c0 rules (a) the first fleet lead (#515), (b) Preferred_Pathfinder_Types non-heroes then heroes, (c) first
+    // non-hero, else first hero; [port] a linked battle's forced type is the ConflictManager's), the rest of its invading units go to the
     // reserve, unless the units pass the raid test 0x432e20 (all start). No population cap at land start.
     // Space rule 1 (§4.6): a TACTICAL_SUPER_WEAPON (space behaviour set) participant always starts.
     bool land_raid() const { return bt_raid_; }

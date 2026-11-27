@@ -158,6 +158,11 @@ struct GalacticFleetSlot {
     // [port: Gabriel, 2026-11-13] the unit's player-given name (galactic GalacticSim::object_name; "" = none): shown as the
     // pad's tooltip; a named unit gets a pad of its own (never merged into a type stack).
     std::u32string name{};
+    // #515 (legacy docs/re/UI.md §7.4): the unit is its fleet's lead (galactic GalacticSim::pathfinder): the pane's first lead
+    // shows on the header pad q{n}_0000, not in a stack. no_lead: its type may not lead (table-2 property 0x2c, the
+    // TACTICAL_SUPER_WEAPON flag [M]): a drop on the header pad is refused.
+    bool lead = false;
+    bool no_lead = false;
 };
 // One fleet in orbit at the selected planet, as the organiser sees it (legacy docs/re/UI.md §7.2). The HUD, not the host, decides which
 // of the three panes q1 / q2 / q3 it fills, from `slot`, `enemy` and the planet's GalacticPlanetInfo::orbit_local; the
@@ -426,6 +431,7 @@ struct GalacticDrag {
     uint32_t fleet = 0;          // source fleet object (0: land unit)
     uint32_t planet = 0;         // map button: the fleet's planet (drops on it do nothing); 0 = organiser / land pads
     uint32_t unit = 0;           // dragged unit (0: the whole fleet)
+    bool no_lead = false;        // #515: the dragged unit may not be a fleet lead (GalacticFleetSlot::no_lead)
     std::string icon;
     Vec2f cursor_px{};
     int32_t over_component = -1; // HUD pad under the cursor
@@ -725,6 +731,8 @@ private:
     std::vector<int32_t> build_pad_, create_, queue_, land_;
     std::vector<std::vector<int32_t>> fleet_;  // [fleet][slot] unit pads q{n}_0001 .. q{n}_0406 (legacy docs/re/UI.md §7.2)
     std::vector<int32_t> pathfinder_;          // [fleet] the header pad q{n}_0000 (legacy docs/re/UI.md §7.4), -1 if absent
+    std::vector<uint32_t> pane_leads_[3];      // #515: every lead unit of the pane's own fleets (cleared by a header-pad drop)
+    bool lead_drop(int32_t over_component, std::vector<commands::EventData>* out) const;  // #515: a drop on a header pad
     struct PadSlot {
         int32_t component = -1;
         GalacticBuildOption option;
@@ -737,6 +745,8 @@ private:
         bool foreign = false;          // organiser pad of a non-local fleet: no drag, no click, no drop target (legacy docs/re/UI.md §7.2)
         uint32_t fleet = 0, unit = 0;  // unit 0 = fleet header; a stack: its first unit (a drag takes that one unit)
         bool empty = false;            // an empty organiser pad shown while dragging (legacy docs/re/UI.md §7.3): fleet 0 = a pane without a fleet
+        bool lead_pad = false;         // #515: the pane's header pad q{n}_0000 (its fleet lead, or empty)
+        bool no_lead = false;          // #515: the unit may not lead (GalacticFleetSlot::no_lead)
         std::string icon;
         std::u32string name;           // [port] the fleet's (header) or the unit's (stack of one) name, "" = none
         uint8_t map_tag = 0;           // a planet-map build pad's tag (GalacticMapPad::tag)
