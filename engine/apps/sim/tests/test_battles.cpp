@@ -3057,6 +3057,72 @@ void test_campaign_station_production(bool corrupted, bool cancel = false) {
     CHECK(done_at >= 2 + want && done_at <= 2 + want + 3);
 }
 
+// #663 (#544 t04; the rest of the check 0x497140 [H]) in the campaign station battle. The Empire's star base row lists
+// S10_Free_Upgrade (no price: 0x496d80 <= 0) and S10_Instant_Upgrade (time 0: 0x496f00 <= 0): both refused. Then the star
+// base passes to the Underworld (player 1): while the two are enemies, the Empire's order there is refused; once they are
+// allies (the galactic table, 0x39a2c0) the Empire may build at it from the builder owner's (Underworld) row:
+// S10_Tech_Upgrade is accepted, S10_Base_Upgrade (the Empire row only) is refused.
+void test_production_check_rest() {
+    auto d = make_data(false, false, false, false, true);
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    SimConfig cfg;
+    cfg.seed = 2026;
+    cfg.players = 4;
+    SimHost host(d->types, js, cfg);
+    galactic::GalacticSim* gs = host.start_galactic(d->rules, make_setup(*d, false));
+    CHECK(gs != nullptr);
+    if (!gs) return;
+    gs->add_credits(0, 1000.0f, false);
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 600;
+    CampaignBattles battles(host, d->crules, *d->catalog,
+                            [](const std::string& name, terrain::MapData& m) {
+                                if (name != "S10_Space_B") return false;
+                                m = space_map();
+                                return true;
+                            },
+                            opt);
+    CHECK(battles.attach(nullptr));
+    const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
+    if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
+    const uint32_t base1 = type_of(*d, "S10_Star_Base_1"), up = type_of(*d, "S10_Base_Upgrade"), tech = type_of(*d, "S10_Tech_Upgrade"),
+                   free_t = type_of(*d, "S10_Free_Upgrade"), instant = type_of(*d, "S10_Instant_Upgrade");
+    bool done = false;
+    for (uint64_t t = 0; t < 3000 && !done; ++t) {
+        host.tick_once();
+        TacticalBattle* b = battles.battle();
+        TacticalMode* tm = host.tactical();
+        if (!b || !tm || b->frame() < 2) continue;
+        objects::ObjectHandle sh{};
+        for (const objects::ObjectHandle h : tm->primary().owned_by(0))
+            if (tm->primary().alive(h) && tm->primary().type(h) == base1) sh = h;
+        CHECK(tm->primary().alive(sh));
+        const objects::ObjectId station = tm->primary().id(sh);
+        auto order = [&](uint32_t type) {
+            commands::EventData ev(commands::EventType::Production);
+            ev.set("type_index", type).set("location", static_cast<uint32_t>(station));
+            return host.execute_direct(0, commands::CommandSource::Player, ev);
+        };
+        const commands::RejectReason r_free = order(free_t), r_instant = order(instant);
+        CHECK(b->script_change_owner(*tm, sh, 1));
+        const commands::RejectReason r_enemy = order(tech);
+        gs->set_relation(0, 1, galactic::Relation::Ally);
+        gs->set_relation(1, 0, galactic::Relation::Ally);
+        const commands::RejectReason r_own_row = order(up), r_ally = order(tech);
+        std::printf("  check: no price %d, time 0 %d; enemy's builder %d; ally's builder: its row %d, the Empire row %d "
+                    "(0 = accepted)\n",
+                    static_cast<int>(r_free), static_cast<int>(r_instant), static_cast<int>(r_enemy), static_cast<int>(r_ally),
+                    static_cast<int>(r_own_row));
+        CHECK(r_free == commands::RejectReason::NotAllowed && r_instant == commands::RejectReason::NotAllowed);
+        CHECK(r_enemy == commands::RejectReason::NotAllowed);
+        CHECK(r_ally == commands::RejectReason::None && r_own_row == commands::RejectReason::NotAllowed);
+        CHECK(b->production()->queue(0).size() == 1);
+        done = true;
+    }
+    CHECK(done);
+}
+
 // #661 (#544 t02; #459's hook, 0x498170 -> 0x4b7090 / 0x4bb690 [H]): the campaign station production again. The finished
 // S10_Base_Upgrade (a DUMMY_UPGRADE) is added to the battle planet's persistent upgrade objects {type, owner 0}. The station
 // upgrade is Skirmish_Automatic (none in a campaign battle), so the record leaves by the other path of the same hook: the
@@ -4407,6 +4473,7 @@ int main(int argc, char** argv) {
     test_campaign_station_production(false);  // #660
     test_campaign_station_production(true);
     test_campaign_station_production(false, true);
+    test_production_check_rest();  // #663
     test_campaign_upgrade_persist(false);  // #661
     test_campaign_upgrade_persist(true);
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI

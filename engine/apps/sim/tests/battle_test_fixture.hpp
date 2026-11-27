@@ -603,7 +603,8 @@ inline const char* const kBmItems = R"(<BlackMarketItems>
 // Tactical_Buildable_Objects_Multiplayer, and upgrades to S10_Star_Base_2. s78n t20 step 5: S10_Trooper (a land unit of
 // both sides) lists S10_Land_Upgrade (DUMMY_UPGRADE, no ability) in its Empire row, for the land production signal test.
 // #660: the star base's Tactical_Buildable_Objects_Campaign Empire row lists S10_Base_Upgrade only (campaign price 40), its
-// Underworld row S10_Tech_Upgrade (so that type is in a campaign battle's tables but not in the Empire's row); the
+// Underworld row S10_Tech_Upgrade (so that type is in a campaign battle's tables but not in the Empire's row); #663: the
+// Empire row also lists S10_Free_Upgrade (no price) and S10_Instant_Upgrade (build time 0), which the check refuses; the
 // Empire faction's Corruption_Tactical_Production_Time_Multipliers is 1.0, 2.0 (kFactions).
 inline std::string prod_types() {
     std::string t = kTypes;
@@ -614,7 +615,7 @@ inline std::string prod_types() {
     const size_t p = t.find(at);
     if (p != std::string::npos)
         t.insert(p + at.size(), "<SpaceBehavior>DUMMY_STAR_BASE</SpaceBehavior><Tactical_Buildable_Objects_Multiplayer> Empire, S10_Base_Upgrade, S10_Tech_Upgrade, S10_No_Queue_Upgrade </Tactical_Buildable_Objects_Multiplayer>"
-                                "<Tactical_Buildable_Objects_Campaign> Empire, S10_Base_Upgrade, Underworld, S10_Tech_Upgrade </Tactical_Buildable_Objects_Campaign>"
+                                "<Tactical_Buildable_Objects_Campaign> Empire, S10_Base_Upgrade, S10_Free_Upgrade, S10_Instant_Upgrade, Underworld, S10_Tech_Upgrade </Tactical_Buildable_Objects_Campaign>"
                                 "<Next_Level_Base>S10_Star_Base_2</Next_Level_Base>");
     const size_t end = t.find("</S10>");
     if (end != std::string::npos)
@@ -641,6 +642,13 @@ inline std::string prod_types() {
                       "<Tactical_Build_Increments_Tech_Level>Yes</Tactical_Build_Increments_Tech_Level>"
                       "<Tactical_Destruction_Decrements_Tech_Level>Yes</Tactical_Destruction_Decrements_Tech_Level>"
                       "<Build_Limit_Lifetime_For_All_Allies>1</Build_Limit_Lifetime_For_All_Allies></UpgradeObject>\n"
+                      // #663: one without a price and one with build time 0 (the campaign list's Empire row)
+                      " <UpgradeObject Name=\"S10_Free_Upgrade\"><Behavior>DUMMY_UPGRADE</Behavior><Affiliation>Empire</Affiliation>"
+                      "<Tactical_Build_Time_Seconds>1</Tactical_Build_Time_Seconds>"
+                      "<Tactical_Production_Queue>Tactical_Upgrades</Tactical_Production_Queue></UpgradeObject>\n"
+                      " <UpgradeObject Name=\"S10_Instant_Upgrade\"><Behavior>DUMMY_UPGRADE</Behavior><Affiliation>Empire</Affiliation>"
+                      "<Tactical_Build_Cost_Campaign>10</Tactical_Build_Cost_Campaign><Tactical_Build_Time_Seconds>0</Tactical_Build_Time_Seconds>"
+                      "<Tactical_Production_Queue>Tactical_Upgrades</Tactical_Production_Queue></UpgradeObject>\n"
                       // and one without a Tactical_Production_Queue (default -1): never built in a battle
                       " <UpgradeObject Name=\"S10_No_Queue_Upgrade\"><Behavior>DUMMY_UPGRADE</Behavior><Affiliation>Empire</Affiliation>"
                       "<Tactical_Build_Cost_Multiplayer>10</Tactical_Build_Cost_Multiplayer><Tactical_Build_Time_Seconds>1</Tactical_Build_Time_Seconds>"
