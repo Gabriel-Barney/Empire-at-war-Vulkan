@@ -97,6 +97,15 @@ struct MovementConstants {
     // mcx4 t11 (BKR1_RE_ANSWERS Q5 [H], MOVEMENT §1.6): ApproximationForwardDistance (GC +0x14d8), the longest straight
     // step of the path approximation 0x505fe0 - the spacing of the moving-vs-stopped sweep's points (foot_path_contact).
     float approximation_forward_distance = 2.0f;
+    // #713 (MCX4_T11_T12_RE_ANSWERS B4 [H]): ApproximationSmoothCosAngle (GC +0x14dc), the path approximation 0x505fe0's
+    // smoothing: its points are thinned where the path bends by less than acos(value) (foot_path_contact `thin_cos`), and
+    // its simulated per-step turn is at least acos(value) x (180 / pi) / 2 degrees. [port] the port's approximation is the
+    // path polyline itself (no turn is simulated), so the turn floor has nothing to bound; the thinning runs only with
+    // approximation_thinning set, which stays off until a golden refresh takes it (FoC: 0.9962).
+    float approximation_smooth_cos_angle = 0.9962f;
+    bool approximation_thinning = false;  // [port] off: the sweep keeps every approximation point (the goldens' path)
+    // foot_path_contact's `thin_cos`: the value with the thinning on, else 2 (no thinning)
+    float thin_cos() const { return approximation_thinning ? approximation_smooth_cos_angle : 2.0f; }
     // mcx4 t11 (BKR2_RE_ANSWERS Q8 [H], MOVEMENT §4.2 step 2 item 7 test 3): ShouldInfantryTeamsSplitAcrossFormations
     // (GC +0x149d); set, a seed with a parent team recruits nobody (its team splits across formations).
     bool should_infantry_teams_split_across_formations = true;

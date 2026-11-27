@@ -2,6 +2,7 @@
 #include "alamo/core/sim_crc.hpp"
 
 #include <algorithm>
+#include <vector>
 
 #include "alamo/tactical/movement/heap.hpp"
 #include "alamo/tactical/movement/land_path.hpp"
@@ -162,7 +163,7 @@ double foot_swept_contact(V2 m, V2 d, float r0, float r1) {
 }
 
 float foot_path_contact(V2 pos, std::span<const V2> path, uint32_t next, V2 ha, const FootRect& b, float max_dist,
-                        float turn_yaw, float step) {
+                        float turn_yaw, float step, float thin_cos) {
     const auto radius = [&](V2 e, V2 t) {
         const V2 u = normalize_retail(b.c - e);
         return foot_rho(ha.x, ha.y, std::fabs(dot(u, t))) + foot_rho(b.hx, b.hy, std::fabs(dot(u, b.a)));
@@ -173,6 +174,47 @@ float foot_path_contact(V2 pos, std::span<const V2> path, uint32_t next, V2 ha, 
     }
     // mcx4 t11 (BKR1_RE_ANSWERS Q5): the straight steps are clamped below at 0.1 (a mod's 0 or negative spacing)
     if (!(step >= 0.1f)) step = 0.1f;
+    if (thin_cos <= 1.0f) {  // #713: the approximation's points up to max_dist, thinned, then swept piece by piece
+        std::vector<V2> pts{pos};
+        float len_acc = 0.0f;
+        V2 s0 = pos;
+        for (size_t i = next; i < path.size() && len_acc < max_dist; ++i) {
+            const V2 d = path[i] - s0;
+            const float len = length(d);
+            if (!(len > 0.0f)) continue;
+            const uint32_t n = static_cast<uint32_t>(len / step) + 1u;
+            for (uint32_t k = 1; k <= n && len_acc < max_dist; ++k) {
+                const V2 p1 = k == n ? path[i] : s0 + d * (static_cast<float>(k) * step / len);
+                const float piece = distance(pts.back(), p1);
+                if (!(piece > 0.0f)) continue;  // a step ending on the segment's end point (no direction to thin by)
+                len_acc += piece;
+                pts.push_back(p1);
+            }
+            s0 = path[i];
+        }
+        std::vector<V2> kept{pts.front()};
+        for (size_t k = 0; k + 1 < pts.size();) {
+            const V2 d0 = normalize_retail(pts[k + 1] - pts[k]);
+            size_t j = k + 1;
+            while (j + 1 < pts.size() && dot(normalize_retail(pts[j + 1] - pts[j]), d0) >= thin_cos) ++j;
+            kept.push_back(pts[j]);
+            k = j;
+        }
+        float acc = 0.0f;
+        for (size_t k = 0; k + 1 < kept.size() && acc < max_dist; ++k) {
+            const V2 p0 = kept[k], p1 = kept[k + 1];
+            const float piece = distance(p0, p1);
+            if (!(piece > 0.0f)) continue;
+            const V2 t = normalize_retail(p1 - p0);
+            const double hit = foot_swept_contact(p0 - b.c, p1 - p0, radius(p0, t), radius(p1, t));
+            if (hit >= 0.0) {
+                const float at = acc + static_cast<float>(hit) * piece;
+                return at < max_dist ? at : -1.0f;
+            }
+            acc += piece;
+        }
+        return -1.0f;
+    }
     float acc = 0.0f;
     V2 s = pos;
     for (size_t i = next; i < path.size() && acc < max_dist; ++i) {

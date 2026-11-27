@@ -1300,7 +1300,7 @@
 {"GameConstants", "TurnInPlaceSlowdownCapital", 0x8, LedgerState::Consumed, "", 1, 1},
 {"GameConstants", "FormationMinimumSideError", 0x8, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "FormationMaximumSideError", 0x8, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
-{"GameConstants", "ApproximationSmoothCosAngle", 0x8, LedgerState::Stored, "docs/re/xml_reference_index.md", 1, 1},
+{"GameConstants", "ApproximationSmoothCosAngle", 0x8, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "ApproximationForwardDistance", 0x8, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "MinimumStoppedVsStoppedOverlapCoefficient", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "MovingVsMovingLookAheadTime", 0x8, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
