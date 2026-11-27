@@ -405,10 +405,12 @@ void ModernGalacticHud::build_map(const GalacticHudFrame& f) {
     map_size_ = size;
     stats_.map = true;
     if (f.planets.empty()) return;
+    // #575: the Classic radar's fixed +-380 x +-460 extent. [port] Modern's square panel takes it unevenly (y 17 % tighter
+    // than x), as the Classic radar's square rectangle does in retail; a Modern-only presentation, tier 3 (no retail screen).
     map_fit_ = galactic_radar_fit(f.planets);
     const float r = std::max(2.0f, 0.025f * side);
     for (const GalacticPlanetInfo& p : f.planets) {
-        if (!p.visible) continue;
+        if (!p.visible || !map_fit_.shows(p.position.x, p.position.y)) continue;
         const Vec2f at = map_fit_.to_canvas(center, size, p.position.x, p.position.y);
         if (p.selected) add_rect(dl_, kControlLayer, at.x - r - 1.5f, at.y - r - 1.5f, at.x + r + 1.5f, at.y + r + 1.5f, colours_.text);
         add_rect(dl_, kControlLayer, at.x - r, at.y - r, at.x + r, at.y + r, Rgba8{p.owner_color.r, p.owner_color.g, p.owner_color.b, 255});

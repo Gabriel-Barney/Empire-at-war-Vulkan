@@ -1504,8 +1504,7 @@ void GalacticHud::build_special_abilities(const GalacticHudFrame& f) {
 // The galactic minimap over radar_galactic: one g_radar_blip per visible planet in its owner colour (Selected_Texture for
 // the selected planet) and the camera's footprint on the galaxy plane as a g_radar_view outline (i_radar_view is in no
 // atlas: 1-unit lines in the same layer). #575: the mapping is retail's fixed +-380 x +-460 extent (galactic_radar_fit,
-// 0x3d1260 [H]; +X right, +Y up). [port] a planet outside that extent gets no blip (retail's blip draw is not traced; the
-// vanilla galaxies lie inside it; presentation only, tier 3).
+// 0x3d1260 [H]; +X right, +Y up). A planet outside that extent gets no blip (GalacticRadarFit::shows, [port] there).
 void GalacticHud::build_radar(const GalacticHudFrame& f) {
     // ui4 t04 (GALACTIC_PLANET_MAP §8): while the planet map is open the blips are laid out on radar_galactic_adv_map.
     const int32_t radar = map_open_ && radar_adv_ >= 0 ? radar_adv_ : radar_;
@@ -1537,7 +1536,7 @@ void GalacticHud::build_radar(const GalacticHudFrame& f) {
     const uint32_t blip_layer = bc ? static_cast<uint32_t>(bc->base_layer) : 3u;
     for (const GalacticPlanetInfo& p : f.planets) {
         if (!p.visible) continue;
-        if (std::fabs(p.position.x) > fit.half_x || std::fabs(p.position.y) > fit.half_y) continue;  // #575: off the extent
+        if (!fit.shows(p.position.x, p.position.y)) continue;  // #575: off the extent
         const Vec2f at = to_radar(p.position.x, p.position.y);
         const std::string* t = nullptr;
         if (bc) t = p.selected && !bc->selected_texture.empty() ? &bc->selected_texture[0] : pick(bc->icon_texture, 0);
@@ -1874,8 +1873,9 @@ bool galactic_radar_view(const GalacticRadarFit& fit, const View& view, Vec2f at
 }
 
 // ui4 t07 (HUD_GAPS §10.1, 0x3d1260): a left click on the galactic radar moves the camera to that point; it never selects a
-// planet. #575: the point is retail's fixed-extent mapping, the inverse of the blips' (z: retail moves the camera to height
-// 10; the host keeps its own height).
+// planet. #575: the point is retail's fixed-extent mapping, the inverse of the blips'. [port] retail hands 0x448c20 the
+// point with z = 10 (0x41200000); whether that is the camera's height or the look point's is not traced, and the host's
+// RadarCameraJump keeps its camera height. Camera feel, tier 1: a known gap until 0x448c20 is read.
 bool galactic_radar_click(const GalacticRadarFit& fit, Vec2f at, Vec2f size, Vec2f c, int32_t component, const std::string& name,
                           Button button, HudAction& out) {
     if (button != Button::Left || !fit.mapped() || size.x <= 0.0f || size.y <= 0.0f) return false;
