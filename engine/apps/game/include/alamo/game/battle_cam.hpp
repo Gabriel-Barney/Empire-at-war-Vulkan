@@ -41,6 +41,7 @@ struct BattleCamShot {
     int32_t length = 0;              // #568: frames (0x4ad3a0); 0 = no length (it runs until input or the next key up)
     bool interesting = false;        // #568: an interesting-object shot; starting one sets +0x360, so the chain reaches the next
     bool bombing_run = false;        // #563 (+0x32c): the shot ends with the local bombing run (bombing_run_ended)
+    bool engine_loop = true;         // the shot moves the cinematic engine-loop SFX (+0x318) to its object (#563: not the run)
 };
 
 // 0x4a6790 [H]: view n (0..7) steps 45 degrees clockwise round the object: yaw 0, 315, 270 ... 45.
@@ -81,8 +82,9 @@ struct BombingRunView {
 // clockwise. Look: one linear world key at the target's position, frame n - 30. Length (int)(FPS x (600 / FPS +
 // (int)(dist / speed))) [M: 0x4ad3a0 takes seconds, so the 600 meant as frames is 600 frames and the travel time is
 // FPS x frames: a retail seconds / frames mix-up, kept]. Smoothing 0, no handheld noise, the raw look; it ends with the
-// run (bombing_run_ended). [port] A bomber with no speed fails (retail divides by it).
-bool bombing_run_shot(const BombingRunView& v, int32_t fps, BattleCamShot& out);
+// run (bombing_run_ended); +0x318 (the engine-loop SFX) is left as it was. One unsynced rand(0, 1) is drawn first (both
+// outcomes take the same branch). [port] A bomber with no speed fails (retail divides by it).
+bool bombing_run_shot(const BombingRunView& v, UnsyncedRandom& rng, BattleCamShot& out);
 
 // What the host reads each time a key or button reaches the controller.
 struct BattleCamGates {
@@ -142,7 +144,8 @@ public:
     bool terrain_clamp() const { return terrain_clamp_; }
     // 0x2cbc40: the framed clash ended. The chain (0x2cda20), else stop.
     void clash_ended(const BattleCamPicks& p);
-    // #563 0x4aaf00 (+0x32c): the framed bombing run is no longer in progress. The chain, else stop.
+    // #563 0x4aaf00 (+0x32c): the framed bombing run is no longer in progress. The chain, else stop. A run shot whose
+    // length expired (frozen while the key or Tab is held) no longer ends with the run: the expiry clears +0x32c.
     void bombing_run_ended(const BattleCamPicks& p);
     // #568 0x4aaf00, once per shot frame: `clock` = frames since the shot started. A shot with a length expires at it:
     // outside the battle cam it ends; while the Movie Mode key or Tab is held the clock freezes on its last value;

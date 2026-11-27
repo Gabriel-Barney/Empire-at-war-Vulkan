@@ -434,6 +434,12 @@ The TSW firing shot is state 3 too. `0x2ccf30` sets the baseline at Fire, and ev
 
 All of them are presentation: no sim state, no synced draw, so tiers 2 and 3 are untouched. Camera feel is tier 1, so
 each of these is a known gap rather than an accepted difference:
+- The bombing run (#563):
+  - "in progress" stands in for 0x494480's pending-list test;
+  - the arrival range has no range modifiers;
+  - a bomber with no speed fails the pick;
+  - the first live bomber with a live marker is framed, where retail takes the record's first and fails if it is dying;
+  - a lead bomber shot down mid-run stops the cam (the framed object is gone), where retail runs on until the record ends.
 - The not-ported picks and templates: the glory and hardpoint templates (#571, #572) fail and
   fall through. The 3/4 hardpoint draw is made, but no hardpoint is picked, and its index draws are not made, so for an object with
   hardpoints the later draws differ from retail's (#571).

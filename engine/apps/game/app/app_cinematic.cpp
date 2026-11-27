@@ -290,7 +290,7 @@ BattleCamPicks App::battle_cam_picks() {
         v.target_at = {c.marker_at.x, c.marker_at.y, c.marker_at.z};
         v.speed = c.speed;
         v.range = c.range;
-        return bombing_run_shot(v, static_cast<int32_t>(galactic::econ::kFramesPerSecond), out);
+        return bombing_run_shot(v, cine_.rng, out);
     };
     return p;
 }
@@ -431,7 +431,8 @@ void App::battle_cam_sync() {
         cine_.shake.reset();  // 0x4a7a90: every shot start clears the trackers
         if (const BattleCamShot& s = cine_.cam.shot(); s.handheld)
             (void)cine_.shake.start(handheld_shake(s.handheld_frames), 0, s.handheld_frames);
-        engine_loop_to(static_cast<objects::ObjectId>(cine_.cam.shot().target));  // +0x318: off on the old, on on the new
+        if (cine_.cam.shot().engine_loop)  // +0x318: off on the old, on on the new (#563: the bombing run leaves it)
+            engine_loop_to(static_cast<objects::ObjectId>(cine_.cam.shot().target));
     }
 }
 

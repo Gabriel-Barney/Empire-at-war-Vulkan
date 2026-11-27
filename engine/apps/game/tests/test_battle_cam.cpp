@@ -103,9 +103,10 @@ struct World {
     std::vector<bool> interesting_first;
     uint32_t last_view_target = 0xFFFFFFFFu;
     std::optional<BombingRunView> run;  // #563: the local bombing run in progress, if any
+    UnsyncedRandom run_rng{7};
     BattleCamPicks picks() {
         BattleCamPicks p;
-        p.bombing_run = [this](BattleCamShot& out) { return run && bombing_run_shot(*run, 30, out); };
+        p.bombing_run = [this](BattleCamShot& out) { return run && bombing_run_shot(*run, run_rng, out); };
         p.view = [this](uint32_t target, uint32_t& id, V3& half_extents) {
             ++view_calls;
             last_view_target = target;
@@ -866,7 +867,11 @@ void test_bombing_run() {
     v.speed = 10.0f;
     v.range = 200.0f;
     BattleCamShot s;
-    CHECK(bombing_run_shot(v, 30, s));
+    UnsyncedRandom rng{7}, ref{7};
+    CHECK(bombing_run_shot(v, rng, s));
+    (void)ref.range(0, 1);  // one rand(0, 1) per built shot
+    CHECK(rng.range(0, 1000) == ref.range(0, 1000));
+    CHECK(!s.engine_loop);  // +0x318 stays
     // n = (1000 - 200) / 10 = 80: chase keys at 0 and 50 on the bomber, the orbit of the marker at 80.
     CHECK(s.target == 40 && s.second == 41 && s.bombing_run && s.smoothing && *s.smoothing == 0.0f && !s.handheld && !s.interesting);
     CHECK(s.eye.size() == 3 && s.look.size() == 1);
@@ -885,10 +890,10 @@ void test_bombing_run() {
     CHECK(s.length == 3600);
     // A bomber already in range: n = -10, the keys stay in frame order (0x499c60 inserts by frame).
     v.target_at = {100.0f, 0.0f, 100.0f};
-    CHECK(bombing_run_shot(v, 30, s) && s.eye.size() == 3 && s.eye[0].frame == -40 && s.eye[1].frame == -10 &&
+    CHECK(bombing_run_shot(v, rng, s) && s.eye.size() == 3 && s.eye[0].frame == -40 && s.eye[1].frame == -10 &&
           s.eye[1].segment == ShotKey::Segment::Orbit && s.eye[2].frame == 0);
     v.speed = 0.0f;  // [port] no speed: no shot
-    CHECK(!bombing_run_shot(v, 30, s));
+    CHECK(!bombing_run_shot(v, rng, s));
     v.speed = 10.0f;
     v.target_at = {1000.0f, 0.0f, 100.0f};
 
@@ -916,6 +921,18 @@ void test_bombing_run() {
     CHECK(cam.movie_key_up(g, w.picks()) && cam.shot().clash == 1);
     cam.bombing_run_ended(w.picks());
     CHECK(cam.active() && cam.shot().clash == 1);
+    // A run shot whose length expired while the key was held: the expiry cleared +0x32c, so the run's end does nothing.
+    cam.stop();
+    w.clashes.clear();
+    w.run = v;
+    CHECK(cam.movie_key_up(g, w.picks()) && cam.shot().bombing_run);
+    CHECK(cam.key_down(Key::MovieMode, g, w.picks()));
+    const int32_t len = cam.shot().length;
+    (void)cam.tick(len, false, w.picks());  // expired, frozen: the hold keeps the shot
+    CHECK(cam.active() && !cam.shot().bombing_run);
+    w.run.reset();
+    cam.bombing_run_ended(w.picks());
+    CHECK(cam.active() && !cam.shot().bombing_run);
 }
 
 void test_toggle_and_smoothing() {
