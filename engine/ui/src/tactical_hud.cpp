@@ -257,6 +257,7 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
     reinforce_list_open_ = false;
     garrison_respawn_ = table.find("garrison_respawn_counter");
     sell_ = table.find("tactical_sell");
+    flytext_ = table.find("generic_flytext");
     r_pop_icon_ = table.find("r_pop_icon");
     r_pop_text_ = table.find("r_pop_text");
     for (int i = 0; i < 6; ++i) order_button_[i] = find_fmt(table, "c_button%02d", i);
@@ -799,6 +800,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         build_buttons(frame);
         build_garrison_respawn(frame);
         build_sell(frame);
+        build_fly_texts(frame);
         // C2 (FIXPASS_GALACTIC §4.2): the name's line is centred on the bone (250, 745 vs bone 252, 744). Drawn here because the
         // generic button text hangs a Max_Text_Width block below its anchor, half a line low (QA D12 on the galactic strip).
         if (planet_text_ >= 0 && !frame.planet_name.empty()) {
@@ -1407,6 +1409,38 @@ void TacticalHud::build_sell(const TacticalHudFrame& f) {
     hit(sell_, layer, center, size);
     sell_drawn_ = f.sell.object;
     stats_.sell_button = true;
+}
+
+FlyTextLook fly_text_look(int32_t age) {
+    FlyTextLook l;
+    if (age < 0 || age > kFlyTextFrames) return l;
+    l.alive = true;
+    const int32_t fade = std::max(age - 30, 0);
+    l.alpha = static_cast<uint8_t>(static_cast<int32_t>((1.0f - static_cast<float>(fade) / 30.0f) * 255.0f));
+    l.rise = static_cast<float>(age) / 60.0f * 70.0f;
+    return l;
+}
+
+// #664 generic_flytext: each record's text in the component's font and colour (EmpireAtWar-Medium 7, yellow, embossed),
+// centred on its projected point plus the rise, at its alpha.
+void TacticalHud::build_fly_texts(const TacticalHudFrame& f) {
+    if (flytext_ < 0 || f.fly_texts.empty() || !fonts_) return;
+    const CommandBarComponent& c = (*table_)[static_cast<size_t>(flytext_)];
+    HudTextStyle st;
+    st.font = font_of(flytext_, 7.0f);
+    if (st.font < 0) return;
+    st.outline = c.text_outline;
+    st.emboss = c.text_emboss;
+    st.align = TextAlign::Center;
+    const auto layer = static_cast<uint32_t>(std::clamp(c.base_layer, 0, static_cast<int32_t>(kHudLayers) - 1));
+    for (const HudFlyText& t : f.fly_texts) {
+        st.color = c.has_text_color ? c.text_color : Rgba8{255, 255, 0, 255};
+        st.color.a = static_cast<uint8_t>(st.color.a * t.alpha / 255);
+        st.emboss_color.a = static_cast<uint8_t>(st.emboss_color.a * t.alpha / 255);
+        const Vec2f at = canvas_.pixel_to_canvas(t.anchor_px.x, t.anchor_px.y);
+        add_text(dl_, layer, HudList::Text, *fonts_, canvas_, t.text, {at.x, at.y + t.rise * canvas_.units_per_pixel_y}, st);
+        ++stats_.fly_texts;
+    }
 }
 
 void TacticalHud::apply_command_buttons(const HudCommandButtons& s) {

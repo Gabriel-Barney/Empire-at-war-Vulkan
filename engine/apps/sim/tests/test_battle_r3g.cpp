@@ -974,6 +974,7 @@ void test_tactical_bounty() {
     std::vector<std::pair<int32_t, float>> paid;  // (player, credits) per Add_Credits
     std::vector<std::pair<int32_t, float>> first, second;
     uint32_t bounties = 0;
+    std::vector<alamo::sim::TacticalBattle::BountyPaid> feed;  // #664 the presentation feed after the first kill
     int stage = 0;  // 0 pick and kill 1; 1 kill 2; 2 read; 3 done
     objects::ObjectId trooper_of[2] = {objects::kNoObjectId, objects::kNoObjectId};
     objects::ObjectId other_of[2] = {objects::kNoObjectId, objects::kNoObjectId};
@@ -1001,6 +1002,7 @@ void test_tactical_bounty() {
             return true;
         }
         if (stage == 1) {
+            feed.assign(b.bounties_paid().begin(), b.bounties_paid().end());
             first = paid;
             paid.clear();
             CHECK(alamo::sim::TacticalBattleTestAccess::crush(b, other_of[0], trooper_of[1]));  // the Empire kills an Underworld trooper
@@ -1019,6 +1021,8 @@ void test_tactical_bounty() {
     CHECK(stage == 3);
     CHECK(first.size() == 1 && first[0].first == 1 && first[0].second == 18.0f);
     CHECK(second.empty() && bounties == 1);
+    // #664: the paid kill is in the feed once, for the paid player, with the amount and the victim's type.
+    CHECK(feed.size() == 1 && feed[0].player == 1 && feed[0].amount == 18 && feed[0].type == static_cast<int32_t>(trooper));
 }
 
 // ---- #542: a non-fighting player's corruption upgrade pays its kill bounty (0x2a1eb0 / 0x392600 [H]) ----

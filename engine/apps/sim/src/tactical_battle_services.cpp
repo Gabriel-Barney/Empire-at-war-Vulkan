@@ -164,6 +164,8 @@ void TacticalBattle::build_service_graph() {
         strike_starts_mark_ = 0;
         bombard_flashes_.erase(bombard_flashes_.begin(), bombard_flashes_.begin() + static_cast<std::ptrdiff_t>(bombard_flashes_mark_));
         bombard_flashes_mark_ = 0;
+        bounties_paid_.erase(bounties_paid_.begin(), bounties_paid_.begin() + static_cast<std::ptrdiff_t>(bounties_paid_mark_));
+        bounties_paid_mark_ = 0;
         summon_spawns_.erase(summon_spawns_.begin(), summon_spawns_.begin() + static_cast<std::ptrdiff_t>(summon_spawns_mark_));
         summon_spawns_mark_ = 0;
     });
@@ -406,6 +408,7 @@ void TacticalBattle::tick(TacticalMode& mode, SimRng& rng, const ParallelFor& pf
     ability_toggles_mark_ = ability_toggles_.size();
     strike_starts_mark_ = strike_starts_.size();
     bombard_flashes_mark_ = bombard_flashes_.size();
+    bounties_paid_mark_ = bounties_paid_.size();
     summon_spawns_mark_ = summon_spawns_.size();
     retreat_cancels_mark_ = retreat_cancels_.size();
 }
