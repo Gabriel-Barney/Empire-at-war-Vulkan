@@ -589,10 +589,10 @@ if(_alamo_sim)
     add_test(NAME alamo_headless_skirmish_ai_foc_land_campaign_ai_lane_inline
              COMMAND alamo_headless --skirmish-ai foc-land-campaign --ticks 600 --quiet --ai-lane --workers 4)
     set_tests_properties(alamo_headless_skirmish_ai_foc_ai_lane_thread PROPERTIES TIMEOUT 900
-                         PASS_REGULAR_EXPRESSION "AI lane: [0-9]+ battle\(s\).* [1-9][0-9]* job\(s\) on the lane thread, 0 inline"
+                         PASS_REGULAR_EXPRESSION "AI lane: [0-9]+ battle\\(s\\).* [1-9][0-9]* job\\(s\\) on the lane thread, 0 inline"
                          FAIL_REGULAR_EXPRESSION "read the live battle")
     set_tests_properties(alamo_headless_skirmish_ai_foc_land_campaign_ai_lane_inline PROPERTIES TIMEOUT 900
-                         PASS_REGULAR_EXPRESSION "AI lane: [0-9]+ battle\(s\).* 0 job\(s\) on the lane thread, [1-9][0-9]* inline"
+                         PASS_REGULAR_EXPRESSION "AI lane: [0-9]+ battle\\(s\\).* 0 job\\(s\\) on the lane thread, [1-9][0-9]* inline"
                          FAIL_REGULAR_EXPRESSION "read the live battle")
     if(TARGET alamo_anim)
       # A battle with the animation on (anim worlds of the galaxy and the battle mode).
