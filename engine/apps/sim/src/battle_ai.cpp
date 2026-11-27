@@ -7,7 +7,11 @@
 #include <cassert>
 #include <bit>
 #include <cmath>
+#include <condition_variable>
 #include <map>
+#include <exception>
+#include <mutex>
+#include <thread>
 
 #include "alamo/ai/ai_types.hpp"
 #include "alamo/ai/ai_goals.hpp"  // goal_quota_players
@@ -119,6 +123,70 @@ void BattleAi::count_mismatch() {
     ++lane_mismatch_;
     g_lane_mismatches.fetch_add(1);
 }
+
+// #636: the AI lane's thread. One per BattleAi, one job at a time, inside ScopedPriority(Ai): what it fans out is AI work
+// (helpers run critical work between its chunks) and it is never a job-system worker (lua_vm.hpp "Threading").
+class BattleAi::LaneThread {
+public:
+    explicit LaneThread(jobs::JobSystem& js) : js_(js), thread_([this] { loop(); }) {}
+    ~LaneThread() {
+        {
+            std::lock_guard<std::mutex> lock(mu_);
+            stop_ = true;
+        }
+        wake_.notify_all();
+        thread_.join();
+    }
+    LaneThread(const LaneThread&) = delete;
+    LaneThread& operator=(const LaneThread&) = delete;
+    void run(std::function<void()> job) {
+        {
+            std::lock_guard<std::mutex> lock(mu_);
+            job_ = std::move(job);
+            busy_ = true;
+        }
+        wake_.notify_all();
+    }
+    void wait() {
+        std::unique_lock<std::mutex> lock(mu_);
+        done_.wait(lock, [this] { return !busy_; });
+        if (std::exception_ptr err = std::exchange(err_, nullptr)) std::rethrow_exception(err);
+    }
+
+private:
+    void loop() {
+        const jobs::ScopedPriority priority(js_, jobs::Priority::Ai);
+        for (;;) {
+            std::function<void()> job;
+            {
+                std::unique_lock<std::mutex> lock(mu_);
+                wake_.wait(lock, [this] { return stop_ || job_; });
+                if (!job_) return;  // stopped
+                job = std::move(job_);
+                job_ = nullptr;
+            }
+            std::exception_ptr err;
+            try {
+                job();
+            } catch (...) {
+                err = std::current_exception();  // rethrown by wait() on the joining thread
+            }
+            {
+                std::lock_guard<std::mutex> lock(mu_);
+                err_ = err;
+                busy_ = false;
+            }
+            done_.notify_all();
+        }
+    }
+    jobs::JobSystem& js_;
+    std::mutex mu_;
+    std::condition_variable wake_, done_;
+    std::function<void()> job_;
+    std::exception_ptr err_;
+    bool busy_ = false, stop_ = false;
+    std::thread thread_;  // last: started once the rest is constructed
+};
 
 std::string default_tactical_ai_type(int32_t player, const galactic::GalacticSim& g) {
     if (player < 0 || static_cast<size_t>(player) >= g.players().size()) return {};
@@ -493,7 +561,8 @@ enum HostOp : uint8_t {
     kHostDivert = 64, kHostBuild, kHostLockPad, kHostBombard, kHostBombingRun, kHostBombingDisabled, kHostBombardDisabled,
     kHostRemoveBombard, kHostForceWeather, kHostSwBegin, kHostSwFire, kHostSwLob, kHostTswFire, kHostTeleport, kHostFirstLock,
     kHostHyperspaceOut, kHostSetEnvironment, kHostReleaseClash, kHostFogRevealAll, kHostFogTempReveal, kHostFogDisableRendering,
-    kHostSetCinematicEnvironment, kHostGarrisonSpawn, kHostOpportunityFire  // the last two: #634
+    kHostSetCinematicEnvironment, kHostGarrisonSpawn, kHostOpportunityFire,  // the last two: #634
+    kHostFaceImmediate  // #636
 };
 }
 
@@ -663,6 +732,20 @@ void BattleAi::wrap_lane_hooks() {
         if (!lane_view()) return f(u);
         queue(kHostFirstLock, owner_of(vid(u)), {vid(u)});
     };
+    // #636: Face_Immediate writes the movement and combat facing: queued like Teleport (applied at the due tick)
+    k.face_immediate = [this, vid, queue, owner_of, f = k.face_immediate](objects::ObjectHandle u, Vec3 facing) {
+        if (!lane_view()) return f(u, facing);
+        queue(kHostFaceImmediate, owner_of(vid(u)), {vid(u)}, facing);
+    };
+    // #636: Are_On_Opposite_Sides_Of_Shield from the capture's shields
+    r.opposite_sides_of_shield = [this, f = r.opposite_sides_of_shield](Vec3 a, Vec3 b, int32_t player) {
+        if (!lane_view()) return f(a, b, player);
+        return view_opposite_sides_of_shield(a, b, -1, true);
+    };
+    r.opposite_sides_of_shield4 = [this, f = r.opposite_sides_of_shield4](Vec3 a, Vec3 b, int32_t player, bool friendly) {
+        if (!lane_view()) return f(a, b, player, friendly);
+        return view_opposite_sides_of_shield(a, b, player, friendly);
+    };
     k.hyperspace_out_link = [this, vid, queue, owner_of, f = k.hyperspace_out_link](objects::ObjectHandle u, int32_t delay, bool keep) {
         if (!lane_view()) return f(u, delay, keep);
         const objects::ObjectId id = vid(u);
@@ -690,6 +773,12 @@ void BattleAi::wrap_lane_hooks() {
         if (!force) return false;  // [port] not captured: the bindings ask with force = 1 only (Find_Nearest)
         const auto bit = static_cast<uint32_t>(pk - view_.fog_players.begin());
         return it != v.end() && it->first == id && ((it->second >> bit) & 1u) != 0;
+    };
+    // #636: the bindings take the lane_write path before they ask for an object's fog view (never reached on the lane)
+    fog_hooks_.object = [this, f = fog_hooks_.object](objects::ObjectHandle o, tactical::fog::FogObject& out) {
+        if (!lane_view()) return f ? f(o, out) : false;
+        lane_live_read("fog_object");
+        return false;
     };
     fog_hooks_.lane_write = [this, vid](uint8_t op, int32_t player, objects::ObjectHandle o, float value) {
         if (!lane_view()) return;  // (the binding acts on the fog itself without a lane_write; never reached)
@@ -834,6 +923,7 @@ void BattleAi::apply_host_write(const lua::LaneWrite& w) {
         case kHostSwLob: if (k.fire_lobbing_at) k.fire_lobbing_at(h, w.p); break;
         case kHostTswFire: if (k.tsw_fire) k.tsw_fire(h); break;
         case kHostTeleport: if (k.teleport) k.teleport(h, w.p, w.q); break;
+        case kHostFaceImmediate: if (k.face_immediate) k.face_immediate(h, w.p); break;
         case kHostFirstLock: if (k.movement_first_lock) k.movement_first_lock(h); break;
         case kHostHyperspaceOut: if (k.hyperspace_out_link) k.hyperspace_out_link(h, w.value, w.on != 0); break;
         case kHostSetEnvironment: if (k.set_new_environment) k.set_new_environment(w.value); break;
@@ -861,7 +951,10 @@ void BattleAi::apply_host_write(const lua::LaneWrite& w) {
 }
 
 BattleAi::~BattleAi() {
-    lane_join();  // #636: never destroy the world under a running job
+    try {
+        lane_join();  // #636: never destroy the world under a running job
+    } catch (...) {  // a job's exception: the destructor does not throw
+    }
     b_->remove_order_replaced_listener(order_listener_);
     if (b_->movement_) b_->movement_->set_threat_fn({});  // the battle outlives its AI
     b_->set_script_movement_lock(this, {});
@@ -952,17 +1045,19 @@ void BattleAi::update() {
         lane_job_.seq0 = lane_seq_;  // #632: the job's own sequence base (lane_seq_ moves at collect)
         lane_job_.open = true;
         lane_job_.batch.clear();
-        // #636: on the job system at AI priority while the critical lane runs on (inline with 0 workers: a critical
-        // waiter never runs AI work); joined at collect, lane_sync, the end of the battle and the destructor
+        // #636: on the AI lane's own thread (AI priority) while the critical lane runs on; inline with 0 workers (a
+        // critical waiter never runs AI work) and in a battle whose Evaluate_In_Galactic_Context evaluates (a campaign
+        // battle with a conflict planet: the equations read the live galaxy, which the battle's charges, Add_Credits and
+        // the AI's own credit releases write between AI slots). Joined at collect, lane_sync, the end of the battle and
+        // the destructor.
         jobs::JobSystem& js = host_->jobs();
-        if (js.serial()) {
+        const lua::TacticalGalacticContext* galaxy = world_->player_world().tactical_galactic();
+        if (js.serial() || (galaxy && galaxy->target >= 0 && galaxy->source.resolver)) {
             lane_job_body();
         } else {
-            auto counter = std::make_shared<jobs::JobCounter>();
-            js.spawn(*counter, [this] { lane_job_body(); }, jobs::Priority::Ai);
-            lane_wait_ = [&js, counter] {
-                if (!counter->done()) js.wait(*counter);
-            };
+            if (!lane_thread_) lane_thread_ = std::make_unique<LaneThread>(js);
+            lane_thread_->run([this] { lane_job_body(); });
+            lane_wait_ = [t = lane_thread_.get()] { t->wait(); };
         }
     } else {
         world_->update(static_cast<int64_t>(host_->frame()), b_->frame_);
@@ -1186,11 +1281,31 @@ void BattleAi::apply_lane_write(const cmd::Command& c) {
     if (n >= 0 && n != w.value) count_mismatch();
 }
 
+bool BattleAi::view_opposite_sides_of_shield(Vec3 a, Vec3 b, int32_t player, bool friendly) const {
+    for (const LaneView::SideShield& s : view_.side_shields) {
+        if (player >= 0 && (player >= 256 || !view_hostile(static_cast<uint8_t>(player), s.owner)) != friendly) continue;
+        auto inside = [&s](Vec3 p) {
+            const float dx = p.x - s.x, dy = p.y - s.y, dz = p.z - s.z;
+            return dx * dx + dy * dy + dz * dz < s.r2;
+        };
+        if (inside(a) != inside(b)) return true;
+    }
+    return false;
+}
+
 void BattleAi::lane_job_body() {
     world_->claim_scripts();  // #636: this thread owns the Lua VMs while it thinks
-    set_thinking(true);  // from here to the end of think() no host answer reads the battle
-    world_->think();
-    set_thinking(false);
+    struct Thinking {  // from here to the end of think() no host answer reads the battle (also when think() throws)
+        BattleAi& a;
+        explicit Thinking(BattleAi& ai) : a(ai) { a.set_thinking(true); }
+        ~Thinking() { a.set_thinking(false); }
+        Thinking(const Thinking&) = delete;
+        Thinking& operator=(const Thinking&) = delete;
+    };
+    {
+        const Thinking thinking(*this);
+        world_->think();
+    }
     lane_job_.locks = world_->object_bridge().script_lock_facts();  // slice 4e: published at collect
     queue_global_writes();
     StateHasher h;
@@ -1204,10 +1319,17 @@ void BattleAi::lane_join() {
     if (lane_wait_) {
         const std::function<void()> wait = std::move(lane_wait_);
         lane_wait_ = nullptr;
-        wait();
-        world_->claim_scripts();
+        try {
+            wait();  // rethrows what the job threw
+        } catch (...) {
+            world_->claim_scripts();
+            throw;
+        }
     }
-    if (world_->ai_lane()) publish_counts();
+    if (world_->ai_lane()) {
+        world_->claim_scripts();  // every join: the next one on the sim thread owns them again after a sync elsewhere
+        publish_counts();
+    }
 }
 
 void BattleAi::publish_counts() {
@@ -1222,10 +1344,7 @@ BattleAi::WorldCounts BattleAi::world_counts() const {
     return {world_->orders_issued(), world_->orders_rejected(), world_->decision_log().size(), world_->lua_errors()};
 }
 
-void BattleAi::lane_sync() {
-    lane_join();
-    world_->claim_scripts();  // the calling thread (a save, a load or the battle's end may come from another one)
-}
+void BattleAi::lane_sync() { lane_join(); }
 
 void BattleAi::lane_collect() {
     lane_join();  // #636
@@ -1408,6 +1527,7 @@ void BattleAi::visit_saved(A& a) const {
 }
 
 void BattleAi::write(ByteWriter& w) const {
+    assert(!lane_wait_ && "#636: lane_sync() before a save");
     w.u32(world_->ai_lane() ? kBattleAiLaneSaveVersion : kBattleAiSaveVersion);
     put_section(w, [this](ByteWriter& sub) { write_system(*world_, sub); });
     save_io::Out o(w);
@@ -2213,6 +2333,21 @@ void BattleAi::capture_lane_rest() {
                 if (!(r > 0.0f)) continue;
                 const Vec3 c = st.position(h);
                 view_.shields.push_back({c.x, c.y, c.z, r * r});
+            }
+    }
+    // #636: Are_On_Opposite_Sides_Of_Shield's (the same filter as TacticalBattle::opposite_sides_of_shield)
+    view_.side_shields.clear();
+    if (b_->l1_mode_ && !b_->space_) {
+        static const objects::BehaviorTypeId kBaseShield = objects::behavior_type_id("BASE_SHIELD");
+        const objects::ObjectStore& st = b_->l1_mode_->primary();
+        if (kBaseShield != objects::kNoBehavior)
+            for (const objects::ObjectHandle h : st.all_objects()) {
+                if (!st.alive(h) || !st.has_behavior(h, kBaseShield)) continue;
+                const float r = b_->catalog_->types().get(st.type(h), objects::tags::Base_Shield_Radius);
+                if (!(r > 0.0f)) continue;
+                if (b_->combat_->has_unit(st.id(h)) && !b_->combat_->base_shield_active(st.id(h))) continue;
+                const Vec3 c = st.position(h);
+                view_.side_shields.push_back({c.x, c.y, c.z, r * r, st.owner(h)});
             }
     }
     // The land passability grid (copied when it changed since the last capture).

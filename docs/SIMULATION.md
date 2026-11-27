@@ -213,9 +213,10 @@ shows as a tick-time spike, not as a different outcome.
 
 Off by default (`TacticalAiConfig::ai_lane`, process default `sim::ai_lane_defaults()`; headless `--ai-lane`
 `[--ai-lane-k K]`). Off is the pre-lane behaviour. With it on the AI acts on tick N and its commands apply at N + k_ai, so
-it is a tier-2 change ("Flag-gated tier-2 changes"). `think()` runs as one job at the job system's AI priority while the
-critical lane runs on (inline with 0 workers: a critical waiter never runs AI work, so a pool job would deadlock); the
-results are those of the inline lane (#636). The job is joined at its collect (the next AI slot, or the due tick when
+it is a tier-2 change ("Flag-gated tier-2 changes"). `think()` runs on the AI lane's own thread (one per `BattleAi`, at the
+job system's AI priority, so what it fans out is AI work) while the critical lane runs on. It runs inline with 0 workers
+and in a battle whose `Evaluate_In_Galactic_Context` evaluates (a campaign battle with a conflict planet: its equations
+read the live galaxy, which the battle writes between AI slots). The results are those of the inline lane (#636). The job is joined at its collect (the next AI slot, or the due tick when
 k_ai = 1), by `BattleAi::lane_sync()` before a save, at a scheduled save's in-flight check, at a load and at the end of
 the battle, and in the destructor. The world's Lua VMs follow the job (`TacticalAiWorld::claim_scripts`): the job's
 thread claims every one (plan pools and pristine VMs included) before `think()`, the joining thread takes them back. A
@@ -252,13 +253,13 @@ Two ticks (67 ms) is far below retail's AI cadences (goal cycle sleeps, the 90-f
 | Presentation reading the AI bridge (Hide_Sub_Object) | The copy published at collect (`BattleAi::hidden_sub_objects`; #634). |
 | "In lane code" | A per-thread fact (#634): the thread running `think()` (and the lane start scripts) holds the AI's lane context, which is the thinking flag, the view (while valid), the facts' snapshot mode and the refused-order record; the AI's fan-outs (goal candidates, slot-10 solves) run with the caller's context (`ai_lane_context_pf`), and the critical lane reads live at the same time. |
 | Story / mission Lua and the AI | Story stays on the critical lane with the live tables; it reaches the AI through the snapshot, and AI GlobalValue sets reach story k_ai ticks later. |
-| Galactic state during a battle | Read-only copy; HIJACK_UNIT fails with the lane on. |
+| Galactic state during a battle | Read-only copy; HIJACK_UNIT fails with the lane on. `Evaluate_In_Galactic_Context` reads the live galaxy, so a battle where it evaluates keeps `think()` on the sim thread (#636). |
 
 Lane code must never read the live battle: `BattleAi::lane_live_read` counts every such read, and a lane write stamped
 outside an open job counts too (debug builds assert on both). `alamo_headless` exits 3 when the count is not 0, so every
 `--ai-lane` test checks it. The AI VMs' remaining battle hooks answer from the capture (the finished flag, the map hints,
-the ship names, the entry facings) or are batch writes (Set_Garrison_Spawn, Prevent_Opportunity_Fire, Release_Credits_For_Tactical);
-#634. After a lane run `alamo_headless` prints the lane's mismatches (applies whose result differed from the prediction)
+the ship names, the entry facings, `Are_On_Opposite_Sides_Of_Shield`'s shields) or are batch writes (Set_Garrison_Spawn,
+Prevent_Opportunity_Fire, Release_Credits_For_Tactical, Face_Immediate); #634, #636. After a lane run `alamo_headless` prints the lane's mismatches (applies whose result differed from the prediction)
 and the Spawn_Unit calls it refused.
 
 ### AI lane save and checksum rules
@@ -300,7 +301,7 @@ Lua 5.0.2's collector itself is unchanged; only when it runs is scheduled (`engi
   its bytes reach `fill_percent` (67 %) of its automatic threshold; after a scheduled collection the threshold is
   `threshold_percent` (150 %) of Lua's own.
 - Due VMs of one host are collected in parallel through its `ParallelFor`; `__gc` finalizers run afterwards on the VMs'
-  owner thread (the sim thread; the AI lane's job thread for the tactical AI with the lane on, #636) in list order.
+  owner thread (the sim thread; the AI lane's thread for the tactical AI with the lane on, #636) in list order.
   A VM is never collected during a call.
 - Collection timing is invisible to shipped scripts (none uses weak tables, `__gc`, `newproxy` or `gcinfo`).
 

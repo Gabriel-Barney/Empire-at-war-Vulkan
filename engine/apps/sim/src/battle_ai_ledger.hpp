@@ -45,6 +45,9 @@
     SAVED(lane_locks_, hashed) \
     SAVED(lane_job_, unhashed) \
     SAVED(lane_digest_, hashed) \
+    DERIVED(lane_thread_, "#636: the AI lane's thread, created at the first threaded job") \
+    DERIVED(lane_wait_, "#636: the running job's join; a save syncs first (write() asserts it) and read() joins") \
+    DERIVED(lane_counts_, "#636: the world_counts() copy, published again at each join") \
     SAVED(lane_seq_, hashed) \
     SAVED(lane_pushes_, hashed) \
     SAVED(lane_danger_, unhashed) \

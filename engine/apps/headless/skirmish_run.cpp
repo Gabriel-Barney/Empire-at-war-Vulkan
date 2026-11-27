@@ -1073,6 +1073,15 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
             }
             std::printf("wrote %s\n", trace_out.c_str());
         }
+        if (sim::BattleAi* a = battles.tactical_ai()) {  // #636: a battle running at the tick limit: its last job too
+            a->lane_sync();
+            sim::BattleAi::WorldCounts c = a->world_counts();
+            orders = c.orders;
+            rejected = c.rejected;
+            decisions = c.decisions;
+            error_list = std::move(c.lua_errors);
+            lua_errors = error_list.size();
+        }
         out.crc = host.crc_log();
         out.ticks = t;
         char buf[512];
