@@ -792,11 +792,12 @@ void BattleAi::capture_l1() {
     const tactical::fog::FogOfWar* fog = b_->fog();
     v.fog_live = fog && fog->started() && fog->fow_active();
     v.fog_grids.resize(v.fog_live ? v.fog_players.size() : 0);  // copied into the kept buffers
-    for (size_t k = 0; fog && k < v.fog_grids.size(); ++k) {  // (non-empty only with fog: the analyzer can't see that)
-        const tactical::fog::FogGrid* g = fog->grid(v.fog_players[k]);
-        if (g) v.fog_grids[k] = *g;
-        else v.fog_grids[k] = tactical::fog::FogGrid{};
-    }
+    if (fog)  // #21 (C6011): fog_grids is empty without fog, which the analyzer can't see
+        for (size_t k = 0; k < v.fog_grids.size(); ++k) {
+            const tactical::fog::FogGrid* g = fog->grid(v.fog_players[k]);
+            if (g) v.fog_grids[k] = *g;
+            else v.fog_grids[k] = tactical::fog::FogGrid{};
+        }
     // TacticalBattle::tsw_fire's planet gate (0x42a720)
     v.tsw_planet_ok = false;
     const auto planet = b_->req_.info.planet;

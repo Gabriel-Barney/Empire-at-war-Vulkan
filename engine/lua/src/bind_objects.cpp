@@ -1193,7 +1193,8 @@ int m_block_is_finished(Call& c) {
     if (c.self->reserved == detail::kBlockAbility) {  // S7 t15 A1: AbilityBlockStatus (count 1) of one unit
         const objects::ObjectStore* st = store(c);
         const ObjectHandle h = st ? st->find(c.self->id) : ObjectHandle{};
-        if (!st || !h || !st->alive(h) || st->dying(h)) return push_bool(c, true);  // signals 0xb / 0x10: death / removal [M]
+        // signals 0xb / 0x10: death / removal [M]. #21 (C6011): h is set only with st.
+        if (!st || !h || !st->alive(h) || st->dying(h)) return push_bool(c, true);
         return push_bool(c, !b || b->ability_signals(c.self->id) > static_cast<uint32_t>(c.self->value));
     }
     if (c.self->reserved > kBlockForever) return push_bool(c, detail::galactic_block_finished(c));
