@@ -286,7 +286,8 @@ struct UnitView {
     bool arrived = false;    // reached its last ordered destination
     bool failed = false;     // the last order could not be pathed
     bool pushed = false;     // walking a collision-owned path on top of its order path (A1_READINGS §40.3)
-    // the top record's kind - 0 none, 1 a push (0x6859a0), 2 a Path Around detour, 3 a StoppedVsStopped move;
+    // the top record's kind - 0 none, 1 a push (0x6859a0), 2 a Path Around detour, 3 a StoppedVsStopped move, 4 a form-up
+    // lead-in (#715, MovementSystem::kFormupRecord; not collision-owned);
     // push_flee: it is a crush-flee path (kind 7); form_id: the unit's formation of its last land order (0 none)
     uint8_t push_kind = 0;
     bool push_flee = false;

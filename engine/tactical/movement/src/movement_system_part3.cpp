@@ -308,7 +308,7 @@ void MovementSystem::hash_units(StateHasher& h) const {
                 bh.u32(u.atk_form);
                 bh.i32(u.atk_target);
             }
-            if (u.pushed) {  // hashed only while a collision-owned record is on top of the stack
+            if (u.pushed) {  // hashed only while a top record (collision-owned, or #715's form-up lead-in) is on the stack
                 if (u.push_flee) bh.u8(0x07);  // s78n t14 part B: a crush-flee path (kind 7)
                 bh.u32(u.push_next);
                 bh.u32(u.push_turn_done ? 1u : 0u);  // the record's turn-done byte (in the place of push_turn_first)

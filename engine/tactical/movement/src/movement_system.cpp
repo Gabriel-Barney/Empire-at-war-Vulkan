@@ -1128,9 +1128,12 @@ void MovementSystem::move_land(const MoveOrder& order, const std::vector<uint32_
             }
             set_lanes(idx, lf, fpath, atk_keep, mem, 0.0f, lf.fresh ? kNoFacing : order.facing_deg);  // the facing
             // #715 (MOVEMENT §3.2.1 item 2 "several members, type 1" [H]; the formation path's start afterwards [M]):
-            // with ShouldSkipLandFormup clear each member first walks a lead-in path (kind 2; a straight line, the
-            // flag-0x20 form) to its form-up point, its slot in the layout at the path's start. [port] the lane underneath
-            // resumes when the lead-in ends (the stack pop), as a popped detour does.
+            // with ShouldSkipLandFormup clear each member first walks a lead-in path to its form-up point, its slot in the
+            // layout at the path's start (0x414d90). [port] retail's record is path kind 2 from the pathfinder 0x5a2830 (a
+            // straight line only for block flag 0x20); the port pushes a straight line as top record kFormupRecord, and the
+            // lane underneath resumes when the lead-in ends (the stack pop), as a popped detour does. [port] the F +0x9c
+            // term (set by 0x417520 for a flag-0x20 block, which gets a lead-in even with the flag set) is not modelled:
+            // flag-0x20 orders skip this formation path.
             if (!k.should_skip_land_formup && length_sq(fwd0) > 0.0f)
                 for (const Slot& s : lf.slots) {
                     Unit& x = units_[idx[s.member]];

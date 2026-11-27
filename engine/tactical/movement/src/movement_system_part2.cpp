@@ -157,6 +157,12 @@ void MovementSystem::push_formup(Unit& u, V2 point, uint32_t frame) {
     u.around.clear();
     u.path_change = frame;
     u.approx_countdown = 0;
+    if (u.d.team_container) {  // as push_top: a squad container starts the record at once (FIGHTER_FLYING §7.2 caller 4)
+        u.relay.push_back(u.push_path[1] - u.push_path[0]);
+        u.coast = false;
+        if (u.m.state == LocoState::WalkEndMove) u.m.state = LocoState::WalkMoving;
+        else if (u.m.state != LocoState::WalkMoving) u.m.state = LocoState::WalkStopped;
+    }
 }
 
 bool MovementSystem::pop_top(Unit& u, bool walked, uint32_t frame) {
