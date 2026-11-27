@@ -31,7 +31,8 @@
 // ConflictManager layout (version kConflictSaveVersion): u32 planet rows (checked); both queues; the state machine
 // (state, active kind, tick, timer start, force, retreating, pause held, choice); the auto-resolve in flight (input
 // combatants - piece names are rebuilt from the type index -, sides, cargo, and the parallel object lists); the last
-// auto-resolve result; the active BattleRequest; the per-planet random maps; the conflict log. Not saved: the config
+// auto-resolve result; the active BattleRequest (v7: with each force's flagship contents); the per-planet random maps;
+// the conflict log. Not saved: the config
 // and the host callbacks (decide, start_battle, pause, pick_map, on_survival_roll, on_space_decide), re-attached by the host.
 #include <cstddef>
 #include <cstdint>

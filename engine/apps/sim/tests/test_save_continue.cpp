@@ -462,6 +462,7 @@ struct RunResult {
     bool rain_seen = false, tech_seen = false;                // #420: rain at a checkpoint / the bought tech level
     bool ability_active_seen = false, ability_recharge_seen = false, bombard_delay_seen = false;
     bool hangar_live_seen = false, hangar_wait_seen = false;  // #419: a launched unit alive / a launch pending
+    uint32_t loads_inside = 0, loads_released = 0;  // #758: battle loads with the flagship record inside / released
     uint32_t battle_checkpoints = 0, reloads = 0, battle_reloads = 0, refused = 0;
     uint32_t ledger_checks = 0;
     bool ledger_ok = true, load_ok = true;
@@ -580,6 +581,10 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         r.record_story(tick, *s->host);  // #420: the loaded story state
         if (TacticalBattle* lb = s->battle()) {
             ++r.battle_reloads;
+            for (const TacticalBattle::ContainedUnit& c : lb->contained()) {  // #758
+                r.loads_inside += c.state == TacticalBattle::ContainedState::Inside ? 1u : 0u;
+                r.loads_released += c.state == TacticalBattle::ContainedState::Released ? 1u : 0u;
+            }
             check_ledger(*lb, r, f.name);
             r.record(tick, *lb, *s->host->tactical());
         }
@@ -635,6 +640,10 @@ std::string test_fixture(const Data& d, const Fixture& f, uint32_t workers) {
     CHECK(a.ledger_ok && b.ledger_ok);  // state_io walks the ledger's SAVED members
     CHECK(b.load_ok);
     CHECK(a.last_tick == b.last_tick);
+    if (f.flagship_kill_frame > 0) {  // #758: saved and loaded with the hero inside its lead and after its release
+        std::printf("  %s: %u loads with the hero inside, %u after its release\n", f.name, b.loads_inside, b.loads_released);
+        CHECK(b.loads_inside >= 1 && b.loads_released >= 1);
+    }
     const std::string diff = first_difference(a.checkpoints, b.checkpoints);
     if (!diff.empty()) std::printf("  %s: checkpoint CRCs differ after a load: %s\n", f.name, diff.c_str());
     CHECK(diff.empty());
