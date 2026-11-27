@@ -323,7 +323,7 @@ XConstCache& RendererCore::post_cache_entry(const PostSpec& s, bool& hit) {
         }
         if (!victim || e->last_use < victim->last_use) victim = e.get();
     }
-    if (post_cache_.size() < 32) {
+    if (post_cache_.size() < 32 || !victim) {  // !victim: the cache is empty (then also under 32)
         post_cache_.push_back(std::make_unique<PostCacheEntry>());
         victim = post_cache_.back().get();
     }

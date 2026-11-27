@@ -42,7 +42,7 @@ std::vector<JamBlob> jam_blobs(const InterpolatedFrame& frame) {
         const auto it = std::lower_bound(frame.objects.begin(), frame.objects.end(), j.id,
                                          [](const SnapshotObject& o, objects::ObjectId v) { return o.id < v; });
         const SnapshotObject* o = it != frame.objects.end() && it->id == j.id ? &*it : nullptr;
-        if (!jam_blob_visible(j, o)) continue;
+        if (!o || !jam_blob_visible(j, o)) continue;  // jam_blob_visible refuses a null jammer too; the test keeps it visible
         JamBlob b;
         b.jammer = j.id;
         b.center = o->position;
