@@ -310,6 +310,7 @@ public:
     // --- end story t07 / t08 ---
 #ifdef ALAMO_SIM_HAVE_TACTICAL_AI
     const BattleAi* tactical_ai() const { return ai_.get(); }  // A1: the running battle's AI (null: none)
+    BattleAi* tactical_ai() { return ai_.get(); }  // #636: lane_sync() before reading its world
     const std::vector<std::string>& ai_log() const { return ai_log_; }  // A1: one AI summary per battle
 #endif
 

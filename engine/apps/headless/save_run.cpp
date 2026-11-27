@@ -122,7 +122,8 @@ struct Session {
     std::function<void()> after_tick;  // harness step between ticks (skirmish: the land invasion)
     galactic::GalacticSim* gs = nullptr;
     bool tactical_top() const { return host->modes().depth() > 1; }
-    // OPT3 t04 (--save-when scheduled): AI background jobs in flight (galactic and battle path finders).
+    // OPT3 t04 (--save-when scheduled): AI background jobs in flight (galactic and battle path finders; #636: a running
+    // AI lane job counts as one, and the battle AI's world is not read while it runs).
     size_t ai_jobs_in_flight() const {
         size_t n = 0;
 #ifdef ALAMO_SAVE_RUN_GALACTIC
@@ -130,9 +131,17 @@ struct Session {
 #endif
 #if defined(ALAMO_SIM_HAVE_BATTLES) && defined(ALAMO_SIM_HAVE_AI_TACTICAL)
         const sim::CampaignBattles* b = battles ? battles.get() : skirmish.battles.get();
-        if (b && b->tactical_ai()) n += b->tactical_ai()->world().background_jobs_in_flight();
+        if (const sim::BattleAi* a = b ? b->tactical_ai() : nullptr)
+            n += a->world().background_jobs_in_flight();  // after sync_ai_lane: no lane job runs
 #endif
         return n;
+    }
+    // #636: a scheduled save's in-flight check joins the AI lane's job first (else one is in flight at almost every tick).
+    void sync_ai_lane() {
+#if defined(ALAMO_SIM_HAVE_BATTLES) && defined(ALAMO_SIM_HAVE_AI_TACTICAL)
+        sim::CampaignBattles* b = battles ? battles.get() : skirmish.battles.get();
+        if (sim::BattleAi* a = b ? b->tactical_ai() : nullptr) a->lane_sync();
+#endif
     }
     // A conflict queued / being decided on the galaxy, no battle running (--save-when pending).
     bool conflict_pending() const {
@@ -906,6 +915,7 @@ bool run_to_save(Session& s, uint64_t at, const std::string& when, SaveFile& sav
             why = "no conflict pending";
             return false;
         }
+        if (when == "scheduled") s.sync_ai_lane();  // #636
         if (when == "scheduled" && s.ai_jobs_in_flight() == 0) {  // a save with AI work in flight
             why = "no AI background job in flight";
             return false;

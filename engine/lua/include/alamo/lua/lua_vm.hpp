@@ -2,8 +2,9 @@
 // GameObject scripts, evaluators, free stores; legacy docs/re/SUBSYSTEMS.md "lua_script").
 //
 // Threading: a LuaVm is owned by ONE thread (the sim thread that created it, or the last one to
-// call claim_ownership() between frames). Every entry point checks it and aborts on a foreign
-// thread; no job-system worker may touch a VM. Lua itself is not thread-safe and scripts draw from
+// call claim_ownership(): between frames, or - the tactical AI's VMs with the AI lane on, #636 - its
+// lane thread for each think(), mid-tick, and the sim thread again at the join). Every entry point checks
+// it and aborts on a foreign thread; no job-system worker may touch a VM. Lua itself is not thread-safe and scripts draw from
 // the synchronized RNG, so script execution is part of the sim's single-threaded semantic order.
 // One exception: collect_detached() runs a collection on a worker while the owner waits
 // for it (gc_schedule.hpp); it runs no Lua code.

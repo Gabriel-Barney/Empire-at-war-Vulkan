@@ -355,6 +355,11 @@ if(_alamo_sim)
     add_test(NAME alamo_headless_skirmish_ai_foc
              COMMAND alamo_headless --skirmish-ai foc --workers 4 --quiet)
     set_tests_properties(alamo_headless_skirmish_ai_synthetic alamo_headless_skirmish_ai_foc PROPERTIES TIMEOUT 1200)
+    # #636: the synthetic battles with the AI lane on: think() on the job system's AI priority at 1 / 4 / 16 / max workers,
+    # inline at 0, per-tick CRCs compared. Synthetic, so the ASan nightly runs the threaded lane.
+    alamo_add_worker_count_check(alamo_headless_skirmish_ai_synthetic_ai_lane
+        COMMAND alamo_headless --skirmish-ai synthetic --quiet --ai-lane
+        TIMEOUT 600 PROPERTIES RESOURCE_LOCK alamo_a1_skirmish_ai)  # the synthetic data folder, as the other synthetic runs
     # skai: the skirmish host on _MP_SPACE_GEONOSIS with an idle human Empire (the retail Geonosis trace's setup): stations
     # from the team markers, both slots' default squadrons, MP_Default_Credits, the per-frame station income; skipped without ALAMO_FOC_DATA.
     add_test(NAME alamo_headless_skirmish_ai_geonosis

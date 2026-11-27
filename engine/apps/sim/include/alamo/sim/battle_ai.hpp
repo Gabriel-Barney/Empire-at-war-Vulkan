@@ -151,12 +151,15 @@ public:
     // before (execute_order), signals included. The other AI writes stay immediate until t05. Lane off: nothing queued.
     void apply_lane_batch(uint64_t frame);
     // with the lane on, update() runs the world as TacticalAiWorld::publish() (critical lane) + think() (the AI
-    // lane; inline until t03 moves it to the AI thread). Each think() is a job whose outputs - the orders it queued and
+    // lane; #636: an AI-priority job). Each think() is a job whose outputs - the orders it queued and
     // the digest of the AI world after it - become visible only when the job is collected: at the next update(), or at
     // the start of the tick its orders are due (k_ai = 1), whichever comes first; the battle.ai CRC hashes the digest of
-    // the last collected job, so the CRC never reads the world while a job may run. lane_sync() waits until the running
-    // job has finished (saves; inline until t03), without collecting it: the save keeps it as the pending job.
-    void lane_sync() {}
+    // the last collected job, so the CRC never reads the world while a job may run. #636: the job (think() and what it
+    // queues) runs on the AI lane's own thread at AI priority (inline with 0 workers) while the critical lane runs the
+    // next tick. lane_sync() waits until the running job has finished and takes the world's Lua VMs back to the calling
+    // thread, without collecting it (saves: the save keeps it as the pending job; also loads, the battle's end, the
+    // destructor). Every join takes the VMs back, so the next join on the sim thread owns them again.
+    void lane_sync();
     size_t lane_pending() const { return lane_batch_.size(); }
     // #633: Lua Prevent_AI_Usage on object `id` (CampaignBattles' object-script hook). Lane off: TacticalAiWorld's answer
     // at once. Lane on: the owner's answer published at collect (no AI player / not initialised / done), and on done
@@ -175,6 +178,7 @@ public:
     // ref5 t06 (host tests): captures the lane view now and runs `f` as lane code, so the host answers `f` asks for come from
     // the view (what think() sees). Lane on only (TacticalAiSetup::ai_lane); otherwise `f` runs live.
     void run_as_lane(const std::function<void()>& f) {
+        lane_join();  // #636: never capture under a running job
         if (world_->ai_lane()) capture_lane_view();
         set_thinking(world_->ai_lane());
         f();
@@ -184,6 +188,14 @@ public:
     const ai::tactical::TacticalAiWorld& world() const { return *world_; }
     bool controls(int32_t player) const;
     std::string summary() const;
+    // #636: what a host reads of the world between ticks - live with the lane off; with it on, as of the last join
+    // (a host that reads the world itself calls lane_sync() first).
+    struct WorldCounts {
+        uint64_t orders = 0, rejected = 0;
+        size_t decisions = 0;
+        std::vector<std::string> lua_errors;
+    };
+    WorldCounts world_counts() const;
     // The CRC "battle.ai": the world's digest (the last collected job's with the AI lane), then the saved fields in their
     // save order (visit_saved; one list for write() and hash(), the statistics left out).
     void hash(StateHasher& h) const;
@@ -432,8 +444,12 @@ private:
         // The active BASE_SHIELDs l1_base_shield_covers counts (combat's shield on; centre, radius squared), store order.
         struct Shield {
             float x = 0.0f, y = 0.0f, z = 0.0f, r2 = 0.0f;
+            int32_t owner = -1;  // side_shields only
         };
         std::vector<Shield> shields;
+        // #636: Are_On_Opposite_Sides_Of_Shield's shields (TacticalBattle::opposite_sides_of_shield with shield damage:
+        // alive, BASE_SHIELD, a radius, on), with the owner for its player test.
+        std::vector<Shield> side_shields;
         // The land passability grid's effective values (MovementSystem::grid), copied again only when its version moved;
         // per battle unit the movement mask is Unit::mask. Empty in space.
         bool grid_valid = false;
@@ -528,6 +544,7 @@ private:
     const LaneView::Unit* view_unit(objects::ObjectId id) const;
     std::vector<objects::ObjectId> view_team_units(uint8_t player, uint32_t wire) const;
     bool view_hostile(uint8_t player, int32_t owner) const;
+    bool view_opposite_sides_of_shield(Vec3 a, Vec3 b, int32_t player, bool friendly) const;  // #636
     // answer from the view only inside lane code (think(), the lane start scripts); the critical lane (fill at
     // publish, the batch's apply, a load's relink) reads the battle, which the capture left unchanged.
     bool lane_view() const { return view_.valid && lane_thinking(); }
@@ -548,6 +565,15 @@ private:
     LaneJob lane_job_;
     uint64_t lane_digest_ = 0;  // digest of the last collected job (hashed and saved)
     void lane_collect();
+    // #636: the AI lane's own thread (created at the first threaded job) and the running job's join (empty: none
+    // running, or it ran inline); lane_join waits for it.
+    class LaneThread;
+    std::unique_ptr<LaneThread> lane_thread_;
+    std::function<void()> lane_wait_;
+    WorldCounts lane_counts_;  // #636: world_counts() with the lane on, published at each join
+    void publish_counts();
+    void lane_join();
+    void lane_job_body();  // the AI lane's job: think() and what it publishes at collect
     // #633 (docs/SIMULATION.md "AI lane"): what the critical lane pushes into the AI (order replaced, a fog refog,
     // Prevent_AI_Usage) is queued in order and delivered at the next AI slot, before the job starts; movement's threat
     // mode and Prevent_AI_Usage's answer read copies published as of the last collected job. Saved and hashed.

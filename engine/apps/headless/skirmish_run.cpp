@@ -942,6 +942,14 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
         unsigned long auto_pushes = 0, auto_pops = 0, guard_repaths = 0, guard_rechecks = 0, guard_unseen = 0, guard_drops = 0;
         unsigned long step10 = 0;
         std::vector<std::string> error_list;
+        auto take_counts = [&](const sim::BattleAi& a) {  // #636: BattleAi::world_counts (the lane's copy with it on)
+            sim::BattleAi::WorldCounts c = a.world_counts();
+            orders = c.orders;
+            rejected = c.rejected;
+            decisions = c.decisions;
+            error_list = std::move(c.lua_errors);
+            lua_errors = error_list.size();
+        };
         std::string state_text;  // skai: --ai-log state lines
         std::string script_state;  // q6: --object-scripts, the battle's last state line (units per player)
         // q6: --ai-log diagnostics, damage taken by the slot players' DUMMY_LAND_BASE_LEVEL_COMPONENT objects since the last
@@ -965,13 +973,7 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
             }
             if (!invaded && !gs->fleets_at(1, 1).empty())  // battle host: arrived at B - invade (a land conflict)
                 invaded = gs->invade(1, 1, {}) == commands::RejectReason::None;
-            if (const sim::BattleAi* a = battles.tactical_ai()) {
-                orders = a->world().orders_issued();
-                rejected = a->world().orders_rejected();
-                decisions = a->world().decision_log().size();
-                error_list = a->world().lua_errors();
-                lua_errors = error_list.size();
-            }
+            if (const sim::BattleAi* a = battles.tactical_ai()) take_counts(*a);  // #636: the lane's copy (its job may still run)
             if (const sim::TacticalBattle* tb = battles.battle()) {
                 const sim::BattleStats& bs = tb->stats();
                 if (opt.report_fielded)
@@ -1034,7 +1036,10 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
                     }
                 if (!ai_log.empty() && (bs.frames == 1 || bs.frames % 600 == 0)) {
                     state_text += battle_state_text(t + 1, host, *gs, *tb);
-                    if (const sim::BattleAi* a = battles.tactical_ai()) state_text += ai_state_text(host, a->world());
+                    if (sim::BattleAi* a = battles.tactical_ai()) {
+                        a->lane_sync();  // #636: the world itself (a diagnostic dump)
+                        state_text += ai_state_text(host, a->world());
+                    }
                     if (!base_damage.empty()) {
                         state_text += "  base damage:";
                         for (const auto& [k, v] : base_damage)
@@ -1068,6 +1073,10 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
                 return false;
             }
             std::printf("wrote %s\n", trace_out.c_str());
+        }
+        if (sim::BattleAi* a = battles.tactical_ai()) {  // #636: a battle running at the tick limit: its last job too
+            a->lane_sync();
+            take_counts(*a);
         }
         out.crc = host.crc_log();
         out.ticks = t;
@@ -1157,7 +1166,8 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
         if (first_run)
             for (const std::string& l : battles.ai_log()) log_text += l + "\n";
         // skai: a battle still running at the tick limit has no ai_log yet; --ai-log then takes the live AI's decisions and stats.
-        if (const sim::BattleAi* a = battles.tactical_ai(); a && !ai_log.empty() && log_text.empty()) {
+        if (sim::BattleAi* a = battles.tactical_ai(); a && !ai_log.empty() && log_text.empty()) {
+            a->lane_sync();  // #636
             log_text = "(battle running at tick " + std::to_string(t) + ") " + a->summary() + "\n";
             for (const ai::tactical::TacticalAiDecision& dec : a->world().decision_log())
                 log_text += "  " + std::to_string(dec.frame) + " p" + std::to_string(dec.player) + " " + dec.text + "\n";
