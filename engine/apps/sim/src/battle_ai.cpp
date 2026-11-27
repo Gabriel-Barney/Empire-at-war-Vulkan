@@ -996,7 +996,7 @@ void BattleAi::capture_lane_view() {
         }
         view_.retreat_ok.assign(np, 0);
         for (int32_t p = 0; p < players; ++p) view_.retreat_ok[static_cast<size_t>(p)] = b_->retreat_block(p) == 0 ? 1 : 0;
-        view_.production = b_->ai_production_enabled();
+        view_.production = b_->production_enabled();
     }
     if (world_->ai_lane()) capture_l1();  // slice 4e (part 2)
     ALAMO_PROFILE_STEP(steps, "tac.cap.units");
@@ -1467,13 +1467,11 @@ void BattleAi::fill(at::PerceptionWorld& w, std::vector<at::TacticalAiObject>& o
                 const objects::TypeIndex ft = types.resolve_name(types.get(ti, objects::tags::Tactical_Buildable_Constructed));
                 if (ft != objects::kNone && ft < types.size()) pt.constructed_type = static_cast<int32_t>(ft);
             }
-            // Pad base price 0x3743f0 (skirmish _Multiplayer; else _Campaign, _Multiplayer below 1; no planet factor: the
-            // Score / Commit price 0x3744e0 multiplies it by PerceptionPlayerInfo::pad_price_factor, b0147, and the escrow
-            // draw-down uses it as is); other types: the same tags as their tactical price [M] (only TacticalBuild of build plans reads it).
-            // Skirmish production of non-UC types (station buy bar): Tactical_Build_Cost_Multiplayer.
-            pt.tactical_cost = (!pt.under_construction && b_->cfg_.skirmish)
-                                   ? static_cast<float>(std::max(0, types.get(ti, objects::tags::Tactical_Build_Cost_Multiplayer)))
-                                   : b_->build_cost(ti);  // int fields (TacticalBattle::build_cost: _Campaign, else _Multiplayer)
+            // The base price 0x3743f0 (TacticalBattle::tactical_price: skirmish _Multiplayer; else _Campaign, _Multiplayer
+            // below 1; no planet factor) for pads and for production (#662: 0x727d30 prices through 0x496d80 in every mode
+            // [H]). The pad Score / Commit price 0x3744e0 multiplies it by PerceptionPlayerInfo::pad_price_factor (b0147);
+            // the escrow draw-down uses it as is. Only TacticalBuild of build plans reads it.
+            pt.tactical_cost = static_cast<float>(b_->tactical_price(ti));
             pt.generic_hero = types.get(ti, objects::tags::Is_Generic_Hero);
             pt.special_weapon = types.get(ti, objects::tags::Is_Special_Weapon_In_Space) ||
                                 types.has_behavior(ti, objects::BehaviorSet::Union, kLobbing);
@@ -2055,7 +2053,7 @@ void BattleAi::capture_lane_rest() {
     // (the builders and can_build fact tables; can_build only where some builder lists the type).
     {
         std::vector<std::pair<int32_t, int32_t>> keys;
-        if (b_->ai_production_enabled()) {
+        if (b_->production_enabled()) {
             const objects::GameObjectTypes& types = b_->catalog_->types();
             std::vector<int32_t> cand;
             for (const uint32_t t : b_->types_used_)
@@ -2812,7 +2810,7 @@ int32_t BattleAi::replaced_builder_in(const FactEnv& env, int32_t id) const {
 std::vector<int32_t> BattleAi::tactical_builders(int32_t player, int32_t type) {
     std::vector<int32_t> out;
     lane_live_read("tactical_builders");
-    if (!b_->ai_production_enabled() || type < 0) return out;
+    if (!b_->production_enabled() || type < 0) return out;
     const objects::ObjectStore& st = mode_->primary();
     for (const objects::ObjectHandle h : st.owned_by(player)) {
         if (!st.active(h)) continue;
@@ -2823,16 +2821,16 @@ std::vector<int32_t> BattleAi::tactical_builders(int32_t player, int32_t type) {
     return out;
 }
 
-// True only in skirmish space battles with production: not Cinematic_Object_Only, a price, and some builder passes the
-// Production checks now (list / faction row, prerequisites, Build_Limit_Current_For_All_Allies). Credits are the
-// PotentialPlan's own check.
+// Every battle (#662: 0x727d30 checks through 0x497140 with no skirmish test [H]): not Cinematic_Object_Only, a price
+// (tactical_price: the campaign price in a campaign battle), and some builder passes the Production checks now (list /
+// faction row, prerequisites, Build_Limit_Current_For_All_Allies). Credits are the PotentialPlan's own check.
 bool BattleAi::can_build_now(int32_t player, int32_t type) {
     lane_live_read("can_build_now");
-    if (!b_->ai_production_enabled() || type < 0) return false;
+    if (!b_->production_enabled() || type < 0) return false;
     const objects::GameObjectTypes& types = b_->catalog_->types();
     const auto t = static_cast<objects::TypeIndex>(type);
     if (t >= types.size() || types.get(t, objects::tags::Cinematic_Object_Only)) return false;
-    if (types.get(t, objects::tags::Tactical_Build_Cost_Multiplayer) <= 0) return false;
+    if (b_->tactical_price(t) <= 0) return false;
     const objects::ObjectStore& st = mode_->primary();
     for (const int32_t id : tactical_builders(player, type))
         if (b_->hg_build_check(st, player, static_cast<objects::ObjectId>(id), t) == 0) return true;

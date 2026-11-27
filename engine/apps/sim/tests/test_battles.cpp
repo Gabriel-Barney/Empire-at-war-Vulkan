@@ -3015,7 +3015,7 @@ void test_campaign_station_production(bool corrupted, bool cancel = false) {
         TacticalMode* tm = host.tactical();
         if (!b || !tm) continue;
         if (!bought && b->frame() == 2) {
-            CHECK(b->production_enabled() && !b->ai_production_enabled());
+            CHECK(b->production_enabled());
             for (const objects::ObjectHandle h : tm->primary().owned_by(0))
                 if (tm->primary().alive(h) && tm->primary().type(h) == base1) station = tm->primary().id(h);
             CHECK(station != objects::kNoObjectId);
@@ -3056,6 +3056,62 @@ void test_campaign_station_production(bool corrupted, bool cancel = false) {
     CHECK(after == before - 40.0f);
     CHECK(done_at >= 2 + want && done_at <= 2 + want + 3);
 }
+
+#ifdef ALAMO_SIM_HAVE_TACTICAL_AI
+// #662 (#544 t03; 0x727d30 prices through 0x496d80 and checks through 0x497140 with no skirmish test [H]): in the campaign
+// station battle a BattleAi (no AI player: its facts only) finds the Empire's star base a builder of S10_Base_Upgrade, the
+// _Campaign row's type, and can build it now; S10_Tech_Upgrade (the Underworld row only) it cannot. The type's perceived
+// price is Tactical_Build_Cost_Campaign 40. The AI's Produce_Force still buys in a skirmish only (AI_GALACTIC_3 §1.11).
+void test_campaign_ai_build_facts() {
+    auto d = make_data(false, false, false, false, true);
+    jobs::JobSystem js(jobs::JobSystemConfig{0});
+    SimConfig cfg;
+    cfg.seed = 2026;
+    cfg.players = 4;
+    SimHost host(d->types, js, cfg);
+    galactic::GalacticSim* gs = host.start_galactic(d->rules, make_setup(*d, false));
+    CHECK(gs != nullptr);
+    if (!gs) return;
+    CampaignBattleOptions opt;
+    opt.conflict.human_choice = galactic::BattleChoice::Fight;
+    opt.battle.max_frames = 600;
+    CampaignBattles battles(host, d->crules, *d->catalog,
+                            [](const std::string& name, terrain::MapData& m) {
+                                if (name != "S10_Space_B") return false;
+                                m = space_map();
+                                return true;
+                            },
+                            opt);
+    CHECK(battles.attach(nullptr));
+    const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
+    if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
+    const uint32_t up = type_of(*d, "S10_Base_Upgrade"), tech = type_of(*d, "S10_Tech_Upgrade");
+    bool asked = false;
+    for (uint64_t t = 0; t < 3000 && !asked; ++t) {
+        host.tick_once();
+        TacticalBattle* b = battles.battle();
+        TacticalMode* tm = host.tactical();
+        if (!b || !tm || b->frame() < 2) continue;
+        ai::AiDefinitions defs;
+        ai::EquationSet eqs;
+        TacticalAiSetup ts;
+        ts.defs = &defs;
+        ts.equations = &eqs;
+        ts.files = d->files.get();
+        ts.ai_type = [](int32_t, const galactic::GalacticSim&) { return std::string(); };  // no AI player: facts only
+        BattleAi bai(*b, *tm, host, ts);
+        const size_t builders = bai.facts().tactical_builders(0, static_cast<int32_t>(up)).size();
+        const bool can = bai.facts().can_build_now(0, static_cast<int32_t>(up));
+        const bool can_tech = bai.facts().can_build_now(0, static_cast<int32_t>(tech));
+        std::printf("  campaign AI facts: S10_Base_Upgrade builders %zu, can build %d (price %d); S10_Tech_Upgrade can build %d\n",
+                    builders, can ? 1 : 0, b->tactical_price(static_cast<objects::TypeIndex>(up)), can_tech ? 1 : 0);
+        CHECK(builders == 1 && can && !can_tech);
+        CHECK(b->tactical_price(static_cast<objects::TypeIndex>(up)) == 40);
+        asked = true;
+    }
+    CHECK(asked);
+}
+#endif
 
 // #222 (legacy docs/re/BKG1_RE_ANSWERS.md §7.3 [H]): the S10 space skirmish battle. At frame 2 the Empire orders
 // S10_Base_Upgrade (Tactical_Build_Cost_Multiplayer 100, 30 frames) at its star base and cancels it at frame 17, mid-build.
@@ -4272,6 +4328,9 @@ int main(int argc, char** argv) {
     test_campaign_station_production(false);  // #660
     test_campaign_station_production(true);
     test_campaign_station_production(false, true);
+#ifdef ALAMO_SIM_HAVE_TACTICAL_AI
+    test_campaign_ai_build_facts();  // #662
+#endif
     std::printf("#222: tactical production cancel refunds (AI: progress x cost; human: the charged cost)\n");
     test_production_cancel_refund(true);
     test_production_cancel_refund(false);

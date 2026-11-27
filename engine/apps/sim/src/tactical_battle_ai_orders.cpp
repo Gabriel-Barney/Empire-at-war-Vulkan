@@ -387,7 +387,8 @@ cmd::RejectReason TacticalBattle::ai_order(TacticalMode& mode, uint8_t player, c
             // --- end A2 tactical ---
         }
         case T::Retreat: return request_retreat(player) ? R::None : R::NotAllowed;
-        case T::Production:  // skirmish station production (Produce_Force of non-UC types): the battle's Production handler
+        // station production (Produce_Force of non-UC types; the AI buys in a skirmish only, #662): the battle's Production handler
+        case T::Production:
             return hg_production_command(mode, player, ev, true);  // b0147: not charged (the plan's escrow pays)
         case T::TacticalBuild: {
             // --- A2 tactical: TacticalBuildEvent 0x42edf0 for an AI player (L1_S4_REMAINING §3.6): refusals in order,

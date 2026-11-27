@@ -237,7 +237,7 @@ private:
     float population_used(int32_t player) override;
     // --- A2 tactical: build pads (L1_S4_REMAINING §3.6 on TacticalBattle's pads) ---
     bool can_build_now(int32_t player, int32_t type);
-    std::vector<int32_t> tactical_builders(int32_t player, int32_t type);  // skirmish station production
+    std::vector<int32_t> tactical_builders(int32_t player, int32_t type);  // station production (every battle, #662)
     // --- end A2 tactical ---
     // TacticalBattle::movement_locked (0x39ad40) for the ambush member list.
     bool movement_locked(int32_t object_id);

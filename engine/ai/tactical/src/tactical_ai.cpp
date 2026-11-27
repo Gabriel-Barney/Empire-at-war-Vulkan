@@ -1796,7 +1796,9 @@ void TacticalAiWorld::Impl::claim_force(TfRec& t) {
                     if (!def.magic_plan) {
                         // AI_GALACTIC_3 §1.11 [H branch]: only a skirmish build plan (AllowFreeStoreUnits = false) buys:
                         // Production {T, builder} for each builder of the free store's list in order until one starts;
-                        // none -> FAILED (Production_Failed). Campaign battles never buy through the AI.
+                        // none -> FAILED (Production_Failed). Campaign battles never buy through the AI ([H branch]; #662:
+                        // the TacticalBuild score still prices and checks the campaign lists there, so a campaign build
+                        // plan can be accepted and then fails here).
                         const bool uc = k.type >= 0 && static_cast<size_t>(k.type) < w.types.size() &&
                                         w.types[static_cast<size_t>(k.type)].under_construction;
                         if (cfg.campaign || def.allow_free_store_units || uc || k.type < 0) {
