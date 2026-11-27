@@ -238,7 +238,7 @@ Two ticks (67 ms) is far below retail's AI cadences (goal cycle sleeps, the 90-f
 |---|---|
 | Object store reads (AI world and AI Lua bindings) | The snapshot store. |
 | Host queries and perception hooks | Answer from the capture (`BattleFacts`: `FactTable` families per player / object / (player, type), `FactQuery` families with a snapshot function). Live mode only on the critical lane. |
-| Orders, ability and host writes, GlobalValue sets, releases | Commands in the batch; their same-call answer is a prediction from the capture (`BattleAi::predict_order`, dry runs). A predicted rejection is not queued. |
+| Orders, ability and host writes, GlobalValue sets, releases | Commands in the batch; their same-call answer is a prediction from the capture (`BattleAi::predict_order`, dry runs). A predicted rejection is not queued. The job stamps them itself (`BattleAi::lane_command`): issue tick = the job's frame N, scheduled N + k_ai, sequence = the batch's base plus its place in the batch; the shared sequence counter moves on only when the job is collected (#632). |
 | Objects a command will create | Provisional handles that resolve when the batch applies. |
 | Random draws on the AI side | An AI-owned `GameRandom` seeded by `ai_lane_seeds(session seed)`, hashed and saved with the AI world. Host draws inside AI-issued orders stay on the synced stream, made at apply time. |
 | Pushes into the AI (`order_replaced`, fog refog) | Queued with (tick, sequence) into the next snapshot's event list. |
@@ -246,7 +246,8 @@ Two ticks (67 ms) is far below retail's AI cadences (goal cycle sleeps, the 90-f
 | Story / mission Lua and the AI | Story stays on the critical lane with the live tables; it reaches the AI through the snapshot, and AI GlobalValue sets reach story k_ai ticks later. |
 | Galactic state during a battle | Read-only copy; HIJACK_UNIT fails with the lane on. |
 
-Lane code must never read the live battle: `BattleAi::lane_live_read` counts every such read (debug builds assert) and
+Lane code must never read the live battle: `BattleAi::lane_live_read` counts every such read, and a lane write stamped
+outside an open job counts the same way (debug builds assert), and
 `alamo_headless` exits 3 when the count is not 0, so every `--ai-lane` test checks it.
 
 ### AI lane save and checksum rules

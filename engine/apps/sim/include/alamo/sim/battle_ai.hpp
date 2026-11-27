@@ -507,7 +507,11 @@ private:
     bool lane_view() const { return view_.valid && lane_thinking_; }
     struct LaneJob {
         bool pending = false;
-        uint64_t frame = 0;   // global frame of the update
+        uint64_t frame = 0;   // global frame of the update (every lane write's issue tick; scheduled = frame + k_ai)
+        // #632: the job stamps its own writes: sequence seq0 + (writes so far), seq0 = lane_seq_ at launch; lane_seq_
+        // moves on by the batch when the job is collected. Not saved: a loaded job has seq0 = the loaded lane_seq_.
+        uint32_t seq0 = 0;
+        bool open = false;  // writes may be stamped (the job's think() and its global writes, the start scripts)
         uint64_t digest = 0;  // StateHasher digest of the world after think()
         std::vector<commands::Command> batch;  // the orders it queued (execute() appends while it runs)
         std::vector<lua::ScriptLockFact> locks;  // slice 4e: the AI bridge's movement-lock facts after think()
@@ -518,7 +522,10 @@ private:
     LaneJob lane_job_;
     uint64_t lane_digest_ = 0;  // digest of the last collected job (hashed and saved)
     void lane_collect();
-    uint32_t lane_seq_ = 0;
+    // #632: a lane write's command header (player, AI source, the job's sequence and frames), appended to the job's batch
+    // by the caller. Outside an open job it counts a live read (lane code must not stamp from the live battle).
+    commands::Command lane_command(uint16_t player);
+    uint32_t lane_seq_ = 0;  // the next sequence of a collected batch (sim thread: saved, hashed, moved at collect)
     uint32_t lane_mismatch_ = 0;  // not saved, not hashed: orders refused, writes counting other than predicted
     static bool lane_batched(const commands::EventData& ev);
     void count_executed(const commands::EventData& ev, commands::RejectReason r);  // executed_ (diagnostic)
