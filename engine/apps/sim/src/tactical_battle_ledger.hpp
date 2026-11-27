@@ -89,7 +89,7 @@
     REBUILT(anim_, "set by the host that starts the battle, the same on a rebuild") \
     REBUILT(dummy_type_, "made by setup() from the battle inputs, the same on a rebuild") \
     SAVED(parts_, state) \
-    REBUILT(contained_, "#754: the constructor fills it from the request's flagship_contents (the save of both: #758)") \
+    REBUILT(contained_, "#754: the constructor fills it from the request's flagship_contents; #755's release states: #758") \
     SAVED(units_, state) \
     SAVED(containers_, state) \
     SAVED(particles_, state) \

@@ -20,6 +20,11 @@ struct TacticalBattleTestAccess {
     static tactical::abilities::SpecialWeaponSystem& special_weapons(TacticalBattle& b) { return b.l1_sw_; }
     // #88: the battle's movement system, mutable (a test puts fighters in Dead_Stop, whose retail writer is untraced).
     static tactical::movement::MovementSystem& movement(TacticalBattle& b) { return *b.movement_; }
+    // #755: Die on a battle unit between ticks, its events consumed as a script kill's (consume_kill_events)
+    static void kill(TacticalBattle& b, TacticalMode& mode, objects::ObjectId id) {
+        b.combat_->kill_unit(id, tactical::combat::kNoObject, tactical::combat::kKindNormal, b.frame_);
+        if (b.bt_rng_) b.consume_kill_events(mode, *b.bt_rng_);
+    }
     // #491: the land formation records, mutable (a test puts a block flag no port writer sets, 0x40).
     static std::vector<LandFormationRecord>& land_formations(TacticalBattle& b) { return b.lformations_; }
     // #44 t01: a unit's DEPLOY_TROOPERS attachment (the walker and the bone index; kNoObjectId / -1 when free). False for

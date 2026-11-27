@@ -720,6 +720,7 @@ void TacticalBattle::consume_events(TacticalMode& mode, SimRng& rng) {
     // d. deaths: destroy, death clone object, one Death_Explosions entry (synced pick, #358).
     for (const tc::DeathEvent& d : combat_->deaths()) process_death(mode, d, rng);
     consumed_.deaths = static_cast<uint32_t>(combat_->deaths().size());
+    release_contents(mode, rng);  // #755: the contents of the hosts that died (here or since the last pass)
     // e. damaged smoke (render attachment).
     for (const tc::SmokeEvent& e : combat_->smoke_events()) {
         const objects::ObjectHandle h = store.find(e.id);
@@ -835,7 +836,41 @@ void TacticalBattle::consume_kill_events(TacticalMode& mode, SimRng& rng) {
     const std::vector<tc::SurvivorEvent> survivors = take_unconsumed(combat_->survivor_events(), consumed_.survivors);
     for (const tc::HardpointEvent& e : hardpoints) consume_hardpoint_event(mode, e);
     for (const tc::DeathEvent& d : deaths) process_death(mode, d, rng);
+    // #755: a host killed here releases its contents at the next consume_events (callers of this one may hold a Unit*)
     for (const tc::SurvivorEvent& s : survivors) oi_survivor(mode, s);
+}
+
+void TacticalBattle::contents_host_died(objects::ObjectId host_galactic, Vec3 at, Vec3 face) {
+    if (host_galactic == objects::kNoObjectId) return;
+    for (ContainedUnit& c : contained_)
+        if (c.state == ContainedState::Inside && c.flagship == host_galactic) {
+            c.state = ContainedState::Pending;
+            c.at = at;
+            c.face = face;
+        }
+}
+
+void TacticalBattle::release_contents(TacticalMode& mode, SimRng& rng) {
+    // #755 (0x37a060 [H]): each Pending record, in record order, is created at its host's position and facing. [port] as
+    // a new participant of the owner's side, deployed with every member at that point (drop_pos_ / drop_face_); retail's
+    // contents keep their own object, so their order in the object list is not modelled.
+    for (size_t i = 0; i < contained_.size(); ++i) {
+        if (contained_[i].state != ContainedState::Pending) continue;
+        const ContainedUnit c = contained_[i];
+        contained_[i].state = ContainedState::Released;
+        const objects::ObjectHandle g = galaxy_->store().find(c.galactic);
+        const size_t before = parts_.size();
+        add_participant(g, c.owner, owner_side(c.owner), false, false, false);
+        if (parts_.size() == before) continue;  // the galactic unit is gone
+        const auto pi = static_cast<uint32_t>(before);
+        contained_[i].participant = pi;
+        const size_t n = spawn_types(parts_[pi]).size();
+        drop_pos_.assign(n, c.at);
+        drop_face_.assign(n, c.face);
+        deploy(mode, pi, rng);
+        drop_pos_.clear();
+        drop_face_.clear();
+    }
 }
 
 void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, SimRng& rng, bool silent) {
@@ -851,6 +886,7 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
         const Vec3 at = store.position(u->h);
         const Vec3 face = store.facing(u->h);
         const int32_t owner = store.owner(u->h);
+        if (!contained_.empty() && u->participant < parts_.size()) contents_host_died(parts_[u->participant].galactic_id, at, face);
         int32_t killer = -1;  // the killer's player (-1 when the killer is unknown or gone)
         if (const Unit* k = d.killer != tc::kNoObject ? unit_by_id(d.killer) : nullptr; k && store.alive(k->h))
             killer = store.owner(k->h);

@@ -690,11 +690,19 @@ public:
     // [port] a contained unit has no battle object while it is inside - nothing can see, select, target or move it - so
     // it is a record: the galactic unit, its flagship's galactic id, the owner. contained_host(i) is the flagship's
     // battle unit (kNoObjectId when it is not, or no longer, in the battle).
+    // #755 (0x37a060, FIGHTER_FLYING §7.4 [H]): the host's death releases its contents at the host's position and
+    // orientation, active again. [port] the release is the participant's deploy there (the space reinforcement drop's
+    // path without its arrival steps), after the deaths of the next consume_events pass (the host's own): the record turns
+    // Pending at the death and Released at the deploy; the released unit is then an ordinary battle participant.
+    enum class ContainedState : uint8_t { Inside, Pending, Released };
     struct ContainedUnit {
         objects::ObjectId galactic = objects::kNoObjectId;
         objects::ObjectId flagship = objects::kNoObjectId;  // galactic id
         int32_t owner = -1;
         uint32_t type = 0;
+        ContainedState state = ContainedState::Inside;
+        Vec3 at{}, face{};          // the host's position and facing at its death (Pending / Released)
+        uint32_t participant = 0;   // Released: the participant the deploy created
     };
     const std::vector<ContainedUnit>& contained() const { return contained_; }
     objects::ObjectId contained_host(size_t i) const;
@@ -2618,6 +2626,10 @@ private:
     // consume_events' order: hardpoints (Die step 5), deaths, survivors (Die step 7), each list from consumed_ on. A list
     // that consume_events has still to read (kUnread, from the combat tick on) is left to it, so no event is consumed twice.
     void consume_kill_events(TacticalMode& mode, SimRng& rng);
+    // #755: the host of contents died (process_death): its records turn Pending at its transform; release_contents
+    // deploys the Pending records (consume_events, after its deaths, when no caller holds a Unit reference).
+    void contents_host_died(objects::ObjectId host_galactic, Vec3 at, Vec3 face);
+    void release_contents(TacticalMode& mode, SimRng& rng);
     // #402: true when a combat list has events past consumed_ (and is not left to consume_events).
     bool has_unconsumed_kill_events() const;
     // #402: how far each combat list has been consumed (list sizes; u32 like the combat save's counts). kUnread from the
