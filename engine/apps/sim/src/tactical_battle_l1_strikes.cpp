@@ -406,6 +406,32 @@ objects::TypeIndex TacticalBattle::bombing_run_bomber_type(int32_t player) const
     return objects::kNone;
 }
 
+bool TacticalBattle::bombing_run_in_progress(int32_t player) const {
+    for (const L1BombingRun& r : l1_runs_)
+        if (r.player == player && r.in_progress) return true;
+    return false;
+}
+
+bool TacticalBattle::bombing_run_camera(int32_t player, BombingRunCamera& out) const {
+    if (!l1_mode_) return false;
+    const objects::ObjectStore& st = l1_mode_->primary();
+    for (const L1BombingRun& r : l1_runs_) {
+        if (r.player != player || !r.in_progress) continue;
+        for (const L1Bomber& bm : r.bombers) {
+            const objects::ObjectHandle h = st.find(bm.id), m = st.find(bm.marker);
+            if (!st.alive(h) || !st.alive(m)) continue;
+            out.bomber = bm.id;
+            out.marker = bm.marker;
+            out.bomber_at = bm.pos;
+            out.marker_at = st.position(m);
+            out.speed = bm.speed;
+            out.range = bm.range;
+            return true;
+        }
+    }
+    return false;
+}
+
 // ---- start ----
 
 bool TacticalBattle::start_bombardment(TacticalMode& mode, int32_t player, Vec3 target, SimRng& rng) {

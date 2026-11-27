@@ -1403,6 +1403,18 @@ public:
     // The player's bomber type (Land_Bomber_Type of the first Ship_Class 1 bomber in orbit; objects::kNone = no record):
     // the HUD plays its SFXEvent_Bomb_Run_Select_Target / _Incoming (HUD_GAPS §9.4, §9.6).
     objects::TypeIndex bombing_run_bomber_type(int32_t player) const;
+    // #563 (the battle cam's bombing-run shot 0x49f370; presentation only, the sim never reads it): `player`'s run in
+    // progress (record +0x28) and its first live bomber (+0x30) with that bomber's marker (+0x48 [M]): positions, the
+    // bomber's speed per frame and its attack range (behaviour 9 vf+0x140 = 0x566ca0: Targeting_Max_Attack_Distance
+    // [H]; [port] without the range modifiers, as the run's own fire test). False: no run in progress, or no live bomber
+    // with a live marker.
+    struct BombingRunCamera {
+        objects::ObjectId bomber = objects::kNoObjectId, marker = objects::kNoObjectId;
+        Vec3 bomber_at{}, marker_at{};
+        float speed = 0.0f, range = 0.0f;
+    };
+    bool bombing_run_in_progress(int32_t player) const;
+    bool bombing_run_camera(int32_t player, BombingRunCamera& out) const;
     const L1Constants& l1_constants() const { return l1_k_; }
     // --- end L1 systems ---
 

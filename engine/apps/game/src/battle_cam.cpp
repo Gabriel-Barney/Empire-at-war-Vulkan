@@ -104,6 +104,49 @@ BattleCamShot hero_clash_shot(uint32_t hero, uint64_t clash, const Vec3& half_ex
     return s;
 }
 
+bool bombing_run_shot(const BombingRunView& v, UnsyncedRandom& rng, BattleCamShot& out) {
+    if (!(v.speed > 0.0f)) return false;
+    constexpr int32_t fps = kCinematicFps;
+    const Vec3 d = v.target_at - v.bomber_at;
+    const float dist = std::sqrt(tactical::dot(d, d));
+    const auto n = static_cast<int32_t>((dist - v.range) / v.speed);
+    (void)rng.range(0, 1);  // 0x1ffb40(0x140a2ab18, 0, 1): both outcomes build the same keys
+    BattleCamShot s;
+    s.target = v.bomber;
+    s.second = v.target;
+    s.bombing_run = true;
+    s.engine_loop = false;
+    s.smoothing = 0.0f;
+    ShotKey chase;
+    chase.segment = ShotKey::Segment::Linear;
+    chase.attached = true;
+    chase.where = Vec3{15.0f, 60.0f, 30.0f};
+    chase.frame = 0;
+    s.eye.push_back(chase);
+    chase.frame = n - 30;
+    s.eye.push_back(chase);
+    ShotKey orbit;
+    orbit.frame = n;
+    orbit.segment = ShotKey::Segment::Orbit;
+    orbit.attached = true;
+    orbit.on_second = true;
+    orbit.where = Vec3{300.0f, 300.0f, 250.0f};
+    orbit.period = 600;
+    orbit.reverse = true;
+    s.eye.push_back(orbit);
+    // 0x499c60 inserts by frame: a run already in range (n < 30) puts the second chase key first.
+    std::stable_sort(s.eye.begin(), s.eye.end(), [](const ShotKey& a, const ShotKey& b) { return a.frame < b.frame; });
+    ShotKey look;
+    look.frame = n - 30;
+    look.segment = ShotKey::Segment::Linear;
+    look.where = v.target_at;
+    s.look.push_back(look);
+    const auto travel = static_cast<float>(static_cast<int32_t>(dist / v.speed));
+    s.length = static_cast<int32_t>(static_cast<float>(fps) * (600.0f / static_cast<float>(fps) + travel));
+    out = std::move(s);
+    return true;
+}
+
 void BattleCam::start(State s, BattleCamShot shot) {
     state_ = s;
     shot_ = std::move(shot);
@@ -197,6 +240,7 @@ void BattleCam::toggle(const BattleCamGates& g, const BattleCamPicks& p) {
     BattleCamShot s;
     if (!g.in_game_cinematics) return;
     if (p.clash && p.clash(0, s)) start(State::Movie, std::move(s));
+    else if (p.bombing_run && p.bombing_run(s)) start(State::Movie, std::move(s));  // #563 0x49f370
     else if (p.interesting && p.interesting(true, s)) start(State::Movie, std::move(s));  // #568 0x2cd930(ctrl, 1)
 }
 
@@ -245,9 +289,18 @@ void BattleCam::clash_ended(const BattleCamPicks& p) {
     if (!chain(p)) stop();
 }
 
+void BattleCam::bombing_run_ended(const BattleCamPicks& p) {
+    if (state_ != State::Movie || !shot_.bombing_run) return;
+    if (!chain(p)) stop();
+}
+
 bool BattleCam::chain(const BattleCamPicks& p) {
     BattleCamShot s;
     if (p.clash && p.clash(shot_.clash, s)) {
+        start(State::Movie, std::move(s));
+        return true;
+    }
+    if (p.bombing_run && p.bombing_run(s)) {  // #563 0x49f370
         start(State::Movie, std::move(s));
         return true;
     }
@@ -264,6 +317,7 @@ int32_t BattleCam::tick(int32_t clock, bool tab_held, const BattleCamPicks& p) {
         stop();
         return 0;
     }
+    shot_.bombing_run = false;  // #563 0x4aaf00: the expiry clears +0x32c, the run no longer ends the shot
     if (held_ || tab_held) return last_clock_;  // frozen on the last frame
     if (!chain(p)) stop();
     return 0;
