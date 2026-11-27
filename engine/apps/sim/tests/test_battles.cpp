@@ -4434,7 +4434,7 @@ struct FlagshipRun {
     int32_t released_frame = -1;  // the frame its hero object first exists
     float release_offset = -1.0f;  // that object's distance from the lead's death position
     bool facing_ok = false;      // its facing is the lead's
-    bool targetable = false;     // it is a live combat unit of the Underworld
+    bool targetable = false;     // it is a live combat unit at full combat health (a damage target)
     bool killed = false;         // Die on it removed it again
     uint32_t record_state = 0;   // the record's state at the end (2 Released)
 };
@@ -4534,7 +4534,9 @@ FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false) {
                         const Vec3 p = st.position(o), f = st.facing(o);
                         out.release_offset = std::sqrt((p.x - dead_at.x) * (p.x - dead_at.x) + (p.y - dead_at.y) * (p.y - dead_at.y));
                         out.facing_ok = std::fabs(f.x - dead_face.x) < 1.0e-3f && std::fabs(f.y - dead_face.y) < 1.0e-3f;
-                        out.targetable = b->combat().has_unit(st.id(o)) && b->combat().alive(st.id(o));
+                        const objects::ObjectId oid = st.id(o);
+                        out.targetable = b->combat().has_unit(oid) && b->combat().alive(oid) && b->combat().health(oid) > 0.0f &&
+                                         b->combat().health(oid) == b->combat().max_health(oid);
                         hero_obj = st.id(o);
                         TacticalBattleTestAccess::kill(*b, *tm, hero_obj);
                         break;

@@ -69,14 +69,14 @@ TacticalBattle::TacticalBattle(const BattleCatalog& catalog, const galactic::Gal
         if (std::find(types_used_.begin(), types_used_.end(), t) == types_used_.end()) types_used_.push_back(t);
     };
     // #755: the contained units' types too (their release deploys them as participants), after the participants'.
-    std::vector<Participant> spawners = parts_;
+    std::vector<Participant> spawn_sources = parts_;
     for (const ContainedUnit& c : contained_) {
         Participant p;
         p.galactic = gs.find(c.galactic);
         p.type = c.type;
-        spawners.push_back(p);
+        spawn_sources.push_back(p);
     }
-    for (const Participant& p : spawners) {
+    for (const Participant& p : spawn_sources) {
         const std::vector<uint32_t> st = spawn_types(p);
         for (uint32_t t : st) use(t);
         if (!rules_->type(p.type).members.empty()) use(p.type);

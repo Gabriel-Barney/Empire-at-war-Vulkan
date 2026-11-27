@@ -693,8 +693,11 @@ public:
     // #755 (0x37a060, FIGHTER_FLYING §7.4 [H]): the host's death releases its contents at the host's position and
     // orientation, active again. [port] the release is the participant's deploy there (the space reinforcement drop's
     // path without its arrival steps), after the deaths of the next consume_events pass (the host's own): the record turns
-    // Pending at the death and Released at the deploy; the released unit is then an ordinary battle participant.
+    // Pending at the death and Released at the deploy; the released unit is then an ordinary battle participant. Only a
+    // death (Die) releases: a silent removal (Remove_From_World) and a retreat (#756) keep the record Inside. [port] a
+    // host killed outside consume_events (a script kill: consume_kill_events) on a battle's last frame releases nothing.
     enum class ContainedState : uint8_t { Inside, Pending, Released };
+    static constexpr uint32_t kNoParticipant = 0xFFFFFFFFu;
     struct ContainedUnit {
         objects::ObjectId galactic = objects::kNoObjectId;
         objects::ObjectId flagship = objects::kNoObjectId;  // galactic id
@@ -702,7 +705,7 @@ public:
         uint32_t type = 0;
         ContainedState state = ContainedState::Inside;
         Vec3 at{}, face{};          // the host's position and facing at its death (Pending / Released)
-        uint32_t participant = 0;   // Released: the participant the deploy created
+        uint32_t participant = kNoParticipant;  // Released: the participant the deploy created (none: the unit was gone)
     };
     const std::vector<ContainedUnit>& contained() const { return contained_; }
     objects::ObjectId contained_host(size_t i) const;

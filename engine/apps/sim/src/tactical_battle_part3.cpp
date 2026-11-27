@@ -886,7 +886,8 @@ void TacticalBattle::process_death(TacticalMode& mode, const tc::DeathEvent& d, 
         const Vec3 at = store.position(u->h);
         const Vec3 face = store.facing(u->h);
         const int32_t owner = store.owner(u->h);
-        if (!contained_.empty() && u->participant < parts_.size()) contents_host_died(parts_[u->participant].galactic_id, at, face);
+        if (!silent && !contained_.empty() && u->participant < parts_.size())  // #755: Die only (0x37a060)
+            contents_host_died(parts_[u->participant].galactic_id, at, face);
         int32_t killer = -1;  // the killer's player (-1 when the killer is unknown or gone)
         if (const Unit* k = d.killer != tc::kNoObject ? unit_by_id(d.killer) : nullptr; k && store.alive(k->h))
             killer = store.owner(k->h);
