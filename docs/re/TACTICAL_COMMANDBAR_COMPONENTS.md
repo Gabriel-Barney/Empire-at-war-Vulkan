@@ -50,7 +50,7 @@ the 3 is read as pixels [M]. [port] none while the health bar is hidden, and not
 Icon_Texture_Name) when no slot is active: whether retail keeps the last texture then is not traced. The weather shift is not ported (no lt_weather_icon). "Allied" is the host's diplomacy predicate (#536).
 
 ### Overhead status record (0x2ddac0 build, 0x2e7fd0 + 0x31de70 update; tactical only) [H]
-0x302620 runs 0x31de70 when HUD +0x211c > 1 (2 land, 3 space) and +0x26a5. Units: the hovered object (+0x2030) and the local
+0x302620 runs 0x31de70 when HUD +0x211c > 1 (2 space, 3 land: 0x28b080 maps mode type 1 (land) to 3 and type 2 (space) to 2 [H], lane-c 2026-11-26) and +0x26a5. Units: the hovered object (+0x2030) and the local
 player's selection (0x2ad080). Per unit a 0x58 record at HUD +0x2018: [0] health bar, [1] shield bar, [2] st_control_group,
 [3] st_ability_icon, [4] st_garrison_icon, [5] lt_weather_icon, [6] array of garrison_slot_icon (count = type +0x2360
 Num_Garrison_Slots, created hidden), [7] bribed_icon, [8] remote_bomb_icon, [9] surface_mod_icon. All hidden when 0x35f470
@@ -126,13 +126,66 @@ Port (#477):
   drag offset is not ported.
 - **Click.** A left click on it sends TacticalSell {object} (command 34), [M] as retail's click path.
 
-### skirmish_upgrade (0x232): tactical "sidebar" column [H]
-0x317480 rebuilds two lists (HUD +0x1130 / +0x1148, the top / bottom sets of the XML Size): every live object owned by the
-local player or an ally whose type has Show_In_Sidebar_When_Complete (+0xca), icon = Icon_Name (+0x1820, "missing.tga" if
-empty), ordered unless Show_In_Sidebar_Tray (+0xcb); upgrade chains via Previous/Next_Upgrade_Level (+0xa60 / +0xa70) share one
-slot (0x2deba0); in-progress production (player +0x3a0 queues 2..3) with Show_In_Sidebar_While_Building (+0xc9) shows the icon
-with fill = progress and "%d%%". Plus: space with weather -> the weather icon slot first; land skirmish (0x2ded90, player kind
-3 via 0x282750) -> i_interdictor_block slot [M meaning]. Large family.
+### skirmish_upgrade (0x232): tactical "sidebar" column [H] (#478, #548)
+**Lists `0x317480`.** The HUD update `0x30c3b0` runs it every second frame (the +0x2120 toggle), in tactical modes only.
+Each slot is a clone of 0x232.
+- **Mark:** every slot of list 0 (+0x1130) and list 1 (+0x1148) is marked stale.
+- **Completed:** the object manager's DUMMY_UPGRADE list (+0x378: obj +0x397 != -1, the slot of behaviour 0x65), in insertion order. It keeps:
+  - live objects only (obj +0x3a0 & 2 clear);
+  - objects whose owner is the local player or allied to it (`0x2823e0`, diplomacy 0);
+  - types with Show_In_Sidebar_When_Complete (+0xca).
+
+  Each goes into list 0 through `0x2deba0`, at the front when Show_In_Sidebar_Tray (+0xcb) is false. The slot gets:
+  - Icon_Name, or missing.tga when empty;
+  - fill 1.0 and no text.
+
+  A Tray = False slot also places a `p_icon_corrupt.alo` model.
+- **In progress:** queues 2 (Tactical_Units) and 3 (Tactical_Upgrades) of the local player and its allies, the head item
+  only. The item needs DUMMY_UPGRADE in its generic set (`0x370320(t, 0x65, -1)`) and Show_In_Sidebar_While_Building (+0xc9).
+  - **No Previous level:** a list-1 slot.
+  - **Otherwise:** the list-0 slot of the Previous level, with user[2] = the item.
+
+  The slot gets the item's icon, the fill p and the text `"%d%%"` of (int)(p × 100).
+- **Interdictor `0x2ded90`:** space (+0x211c == 2), not a skirmish (`!0x28afb0()`), and `0x282750(local) == 3`, the
+  interdicted retreat refusal. The slot shows Icon_Alternate_Texture_Name[0] (i_interdictor_block) and has
+  user[2] = 1. Its tooltip (`0x2e32f0`) is TEXT_ENCYCLOPEDIA_RETREAT_UNAVAILABLE. This corrects the old "land skirmish".
+- **Weather:** land (+0x211c == 3), when `0x468860(weather)` names a texture. That record is the current type's above
+  intensity 0.5, else the clear record. [M] The texture is the WeatherModifiers Icon_Name. This corrects the old "space".
+- **Sweep:** every slot still stale is removed.
+- **Chain sharing `0x2deba0(type, list, at_front)`:**
+  - a slot of `type` is kept;
+  - a slot of a lower level of its chain (Previous walk) takes `type` in place;
+  - a slot of a higher level (Next walk) means `type` is not shown;
+  - otherwise a new slot is made.
+
+  So there is one slot per chain, showing the highest completed level.
+
+**Placement `0x301190`** runs every frame in tactical modes.
+- **The data:**
+  - Offset (−19, 309) on top of x = good_hero_frame's x (HUD +0x10e8, through component 0x27d);
+  - Default_Offset (50, −38), replaced by Default_Offset_Widescreen at an aspect of 1.75 or more when that is set;
+  - Size.x = −5, the gap;
+  - Size.y = 0.8, the icon scale [M];
+  - Icons_Per_Column from GameConstants (+0x124c, 13).
+- **The top set:** the specials, then the run of Tray = False slots of list 0. They go down one column with no wrap.
+- **The gap:** y += Size.x.
+- **The tray:** the rest of list 0, then list 1. It wraps every Icons_Per_Column rows to x + 50, and each new column starts
+  back at Offset.y.
+- **Frame piece (Blank_Texture_Name index):**
+  - a lone tray slot: whole;
+  - first: top, last: bottom, the rest: middle;
+  - list 1 alone: top for every slot (a retail quirk);
+  - the weather slot: whole, or top over an interdictor (bottom);
+  - Tray = False slots: none.
+
+**Port** (`engine/ui/upgrade_sidebar.hpp`, `TacticalHud::build_sidebar`, `TacticalBattle::sidebar_feed`):
+- **The rules:** the list rules and the placement above, with tests (`test_upgrade_sidebar.cpp`, `test_hud_stage2.cpp`).
+- **The lists** rebuild every frame instead of every second frame.
+- **The specials** stay at the front. Retail reuses list0[0] / [1] for them, so it can repaint an older slot (a quirk not kept).
+- **The anchor:** good_hero_frame's x is taken as the canvas's right edge, where the port pins the local hero bar [L].
+  The 1024 × 768 GUI units map one to one to canvas units [M].
+- **Not drawn:** the interdictor tooltip and the `p_icon_corrupt.alo` models. The sidebar has no hit boxes.
+- **"Object order"** is the port's insertion order of the battle's objects [M].
 
 ### Corruption / FoC
 - **cs_ability_button / cs_ability_text: tactical ability palette [H build, L trigger].** Action 11 (0x2ad280, 0x398470(obj): an

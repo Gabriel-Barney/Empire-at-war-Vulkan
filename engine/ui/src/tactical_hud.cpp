@@ -258,6 +258,8 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
     garrison_respawn_ = table.find("garrison_respawn_counter");
     sell_ = table.find("tactical_sell");
     flytext_ = table.find("generic_flytext");
+    sidebar_ = table.find("skirmish_upgrade");
+    sidebar_list_.clear();
     r_pop_icon_ = table.find("r_pop_icon");
     r_pop_text_ = table.find("r_pop_text");
     for (int i = 0; i < 6; ++i) order_button_[i] = find_fmt(table, "c_button%02d", i);
@@ -279,7 +281,7 @@ void TacticalHud::init(const ComponentTable& table, const TextureAtlas& atlas, F
         for (int32_t i : *v) mark(i);
     for (int32_t i : buy_component_) mark(i);
     for (int32_t i : {radar_, radar_blip_, credits_, pause_text_, resume_, obj_back_, obj_header_, obj_text_, obj_icon_, movie_,
-                      garrison_respawn_, sell_})
+                      garrison_respawn_, sell_, sidebar_})
         mark(i);
     for (uint32_t i = 0; i < table.size(); ++i) {
         const std::string& n = table[i].name;
@@ -811,6 +813,7 @@ void TacticalHud::build(const TacticalHudFrame& frame, std::span<const HudUnit> 
         build_garrison_respawn(frame);
         build_sell(frame);
         build_fly_texts(frame);
+        build_sidebar(frame);
         // C2 (FIXPASS_GALACTIC §4.2): the name's line is centred on the bone (250, 745 vs bone 252, 744). Drawn here because the
         // generic button text hangs a Max_Text_Width block below its anchor, half a line low (QA D12 on the galactic strip).
         if (planet_text_ >= 0 && !frame.planet_name.empty()) {
@@ -1444,6 +1447,52 @@ FlyTextLook fly_text_look(int32_t age) {
 
 // #664 generic_flytext: each record's text in the component's font and colour (EmpireAtWar-Medium 7, yellow, embossed),
 // centred on its projected point plus the rise, at its alpha.
+// #478 / #548 skirmish_upgrade (0x232; docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "skirmish_upgrade (0x232)"): the lists
+// (UpgradeSidebar::update, 0x317480) and each slot drawn where 0x301190 puts it: the component's icon slot with the
+// slot's icon (the interdictor: Icon_Alternate_Texture_Name[0]), its Blank_Texture_Name piece (none for a Tray = False
+// slot), the build fill and the "%d%%" text. [port] Anchor: good_hero_frame's x (HUD +0x10e8) is taken as the canvas's
+// right edge, where the port pins the local hero bar [L]; the 1024 x 768 GUI units map 1:1 to canvas units [M]. No hit
+// boxes: the interdictor slot's tooltip (TEXT_ENCYCLOPEDIA_RETREAT_UNAVAILABLE) and the p_icon_corrupt.alo models of the
+// Tray = False slots are not drawn (#548).
+void TacticalHud::build_sidebar(const TacticalHudFrame& f) {
+    if (sidebar_ < 0) return;
+    if (!f.sidebar) {
+        sidebar_list_.clear();
+        return;
+    }
+    sidebar_list_.update(*f.sidebar);
+    const auto ci = static_cast<uint32_t>(sidebar_);
+    const CommandBarComponent& c = (*table_)[ci];
+    UpgradeSidebar::Layout l;
+    l.offset = c.offset;
+    // 0x301190: Default_Offset_Widescreen replaces Default_Offset at an aspect of 1.75 or more when it is set.
+    l.step = c.has_default_offset_widescreen && canvas_.height > 0.0f && canvas_.width / canvas_.height >= 1.75f
+                 ? c.default_offset_widescreen
+                 : c.default_offset;
+    if (c.has_size) l.gap = c.size.x;
+    l.icons_per_column = std::max(f.icons_per_column, 1);
+    l.anchor_x = 0.5f * canvas_.width;
+    ButtonRuntime& r = buttons_.state(ci);
+    const ButtonRuntime keep = r;
+    for (const UpgradeSidebar::Placed& p : sidebar_list_.place(l)) {
+        const UpgradeSidebar::Slot& s = *p.slot;
+        r = keep;
+        r.hidden = false;
+        r.icon_override = s.kind == UpgradeSidebar::Kind::Interdictor
+                              ? (c.icon_alternate_texture.empty() ? std::string() : c.icon_alternate_texture.front())
+                              : s.icon;
+        r.no_blank = p.segment < 0;
+        r.alt = std::max(p.segment, 0);
+        r.icon_scale = c.has_size && c.size.y > 0.0f ? c.size.y : 1.0f;
+        r.build_fill = std::clamp(s.fill, 0.0f, 1.0f) * 100.0f;
+        r.text = s.text;
+        buttons_.draw(dl_, *atlas_, fonts_, canvas_, ci, p.at, {}, f.faction_alt, f.time, 0);
+        ++stats_.sidebar_slots;
+    }
+    r = keep;
+    r.hidden = true;  // the component itself is only drawn as these slots
+}
+
 void TacticalHud::build_fly_texts(const TacticalHudFrame& f) {
     if (flytext_ < 0 || f.fly_texts.empty() || !fonts_) return;
     const CommandBarComponent& c = (*table_)[static_cast<size_t>(flytext_)];

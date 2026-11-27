@@ -151,7 +151,7 @@ Vec2f HudButtons::draw(HudDrawList& dl, const TextureAtlas& atlas, FontCache* fo
     const float blink = blink_alpha(c, r.blink_start, now);
     const Rgba8 base = mul(c.has_color ? c.color : Rgba8{}, with_alpha(r.tint, blink));
 
-    const std::string* blank = pick(c.blank_texture, alt);
+    const std::string* blank = r.no_blank ? nullptr : pick(c.blank_texture, alt);
     std::string icon_name = r.icon_override;
     if (icon_name.empty()) {
         if (const std::string* i = pick(c.icon_texture, 0)) icon_name = *i;
@@ -206,7 +206,8 @@ Vec2f HudButtons::draw(HudDrawList& dl, const TextureAtlas& atlas, FontCache* fo
     const std::string* frame_tex = af >= 0 ? &c.icon_alternate_texture[static_cast<size_t>(af)] : nullptr;
     const bool upper_frame = frame_tex && raw_flag(c, "ANIMATE_UPPER_EFFECT");
     if (frame_tex && !upper_frame && r.icon_override.empty()) icon_name = *frame_tex;
-    if (!icon_name.empty() && !replaces) add_atlas_quad(dl, layer, HudList::Alpha, atlas, icon_name, icon_at, {}, c.scale, icon_col);
+    if (!icon_name.empty() && !replaces)
+        add_atlas_quad(dl, layer, HudList::Alpha, atlas, icon_name, icon_at, {}, c.scale * r.icon_scale, icon_col);
     if (frame_tex && upper_frame) add_atlas_quad(dl, layer, HudList::Alpha, atlas, *frame_tex, icon_at, {}, c.scale, base);
     if (state_tex)
         add_atlas_quad(dl, layer, state_opaque && !replaces ? HudList::Additive : HudList::Alpha, atlas, *state_tex,
@@ -342,6 +343,9 @@ HudConstants hud_constants_from(const data::XmlNode& root) {
     parse_rgba8(last("Lose_Message_Color"), c.lose_message_color);
     if (const std::string_view t = last("CB_Flash_Count"); !t.empty())
         c.cb_flash_count = static_cast<int32_t>(data::parse_float_or(t, static_cast<float>(c.cb_flash_count)));
+    // ledger: consumes GameConstants.Icons_Per_Column
+    if (const std::string_view t = last("Icons_Per_Column"); !t.empty())
+        c.icons_per_column = static_cast<int32_t>(data::parse_float_or(t, static_cast<float>(c.icons_per_column)));
     // mcx4 t14 (MCX4_T14_RE_ANSWERS font families): the default fonts
     const auto face = [&last](std::string_view tag, std::string& v) {
         if (const std::string_view t = last(tag); !t.empty()) v = std::string(t);

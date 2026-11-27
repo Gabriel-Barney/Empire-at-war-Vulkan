@@ -43,6 +43,7 @@ add_library(alamo_ui_hud STATIC
   src/hud_markers.cpp
   src/hotkeys.cpp
   src/tactical_hud.cpp
+  src/upgrade_sidebar.cpp  # #478 the skirmish_upgrade sidebar lists and placement
   src/modern_hud_view.cpp  # [port: Gabriel] what the Modern HUD views share (#520)
   src/modern_tactical_hud.cpp  # [port: Gabriel] the Modern HUD style (#520 / #584)
   src/modern_galactic_hud.cpp  # [port: Gabriel] the Modern galactic view (#593)
@@ -112,6 +113,11 @@ add_executable(alamo_ui_hud_modern_organiser_tests tests/test_hud_modern_organis
 target_link_libraries(alamo_ui_hud_modern_organiser_tests PRIVATE alamo_ui_hud alamo_data alamo_test_support)
 add_test(NAME alamo_ui_hud_modern_organiser_tests COMMAND alamo_ui_hud_modern_organiser_tests)
 set_tests_properties(alamo_ui_hud_modern_organiser_tests PROPERTIES TIMEOUT 120)
+# #478 / #548: the skirmish_upgrade sidebar's lists (0x317480) and placement (0x301190).
+add_executable(alamo_ui_upgrade_sidebar_tests tests/test_upgrade_sidebar.cpp)
+target_link_libraries(alamo_ui_upgrade_sidebar_tests PRIVATE alamo_ui_hud alamo_test_support)
+add_test(NAME alamo_ui_upgrade_sidebar_tests COMMAND alamo_ui_upgrade_sidebar_tests)
+set_tests_properties(alamo_ui_upgrade_sidebar_tests PROPERTIES TIMEOUT 120)
 add_executable(alamo_ui_hud_ui3_tests tests/test_hud_ui3.cpp)
 target_link_libraries(alamo_ui_hud_ui3_tests PRIVATE alamo_ui_hud alamo_data alamo_test_support)
 add_test(NAME alamo_ui_hud_ui3_tests COMMAND alamo_ui_hud_ui3_tests)

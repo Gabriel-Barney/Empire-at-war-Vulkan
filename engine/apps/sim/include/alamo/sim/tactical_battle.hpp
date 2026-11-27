@@ -797,6 +797,22 @@ public:
         int32_t type = -1;
     };
     std::span<const BountyPaid> bounties_paid() const { return bounties_paid_; }
+    // #478 (presentation read; the skirmish_upgrade sidebar 0x317480 [H], docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md):
+    // for `player` (the local player):
+    // - completed: the live DUMMY_UPGRADE objects of the player and its allies (0x2823e0: relation 0) whose type has
+    //   Show_In_Sidebar_When_Complete, in object order [M: retail's DUMMY_UPGRADE list is in insertion order];
+    // - building: the head order of each production queue (Tactical_Units, Tactical_Upgrades) of the player and its
+    //   allies, in player order, whose type has DUMMY_UPGRADE (generic set) and Show_In_Sidebar_While_Building, with its
+    //   built fraction;
+    // - weather_icon: land, weather intensity over 0.5: the current type's WeatherModifiers Icon_Name (0x468860 [M]);
+    // - interdicted: a space battle outside a skirmish whose retreat refusal for the player is 3 (0x2ded90).
+    struct SidebarFeed {
+        std::vector<objects::TypeIndex> completed;
+        std::vector<std::pair<objects::TypeIndex, float>> building;
+        std::string weather_icon;
+        bool interdicted = false;
+    };
+    void sidebar_feed(int32_t player, SidebarFeed& out) const;
     // mcx4 t13 (presentation; MCX4_T13_RE_ANSWERS "Tractor_Beam_Attack_Ability.SFXEvent_Unit_Summoned",
     // "Radioactive_Contaminate_Ability.SFXEvent_Radioactive", "Buzz_Droids_Ability.Activate_SFX"): objects a Summon /
     // Radioactive_Contaminate / Buzz_Droids ability created since the last tick, request order. `ability` = the unit
