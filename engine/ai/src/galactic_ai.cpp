@@ -242,11 +242,13 @@ bool GalacticAiWorld::Impl::concurrent_equation(uint32_t e) {
     if (e == kUnresolved || e >= eqs.size()) return false;  // evaluate_id fails it in place
     if (eq_concurrent.size() != eqs.size()) eq_concurrent.assign(eqs.size(), 0);
     uint8_t& state = eq_concurrent[e];
-    if (state != 0) return state != 3;  // 1: a Function_ cycle (fails at evaluation, no draw on this path)
+    // 1: on the path being visited, a Function_ cycle (it fails at evaluation, at kMaxDepth, before any Script_ to
+    // its right runs)
+    if (state != 0) return state != 3;
     state = 1;
     bool pure = true;
     for (const ExprNode& n : eqs.equation(e).expr.nodes) {
-        if (n.op == Op::Script || n.op == Op::Random) pure = false;
+        if (n.op == Op::Script) pure = false;  // '#' (Op::Random) is the evaluator's own reseeded LCG: it draws nothing shared
         else if (n.op == Op::Function && n.ref != kUnresolved && !concurrent_equation(n.ref)) pure = false;
         if (!pure) break;
     }
@@ -257,7 +259,7 @@ bool GalacticAiWorld::Impl::concurrent_equation(uint32_t e) {
 bool GalacticAiWorld::Impl::evaluate_concurrent(int32_t self, int32_t opponent, uint32_t e, int32_t target, double& out) const {
     if (e == kUnresolved) return false;
     const GalacticSimTokenResolver::Uncounted uncounted;
-    const EvalResult r = ai::evaluate(eqs, e, eval_context(self, opponent, target), res);  // rng unset: no Random term
+    const EvalResult r = ai::evaluate(eqs, e, eval_context(self, opponent, target), res);  // rng unset: no Script_
     if (!r.ok) return false;
     out = r.value;
     return true;
@@ -2989,9 +2991,17 @@ std::vector<std::string> GalacticAiWorld::lua_errors() const {
 }
 uint64_t GalacticAiWorld::orders_issued() const { return impl_->orders; }
 uint64_t GalacticAiWorld::batched_evaluations() const { return impl_->eval_batched; }
+uint64_t GalacticAiWorld::batched_fan_outs() const {
+    uint64_t n = 0;
+    for (const auto& a : impl_->ai)
+        if (a) n += a->ctx.goals.fan_outs();
+    return n;
+}
 
 const std::map<std::string, uint32_t>& GalacticAiWorld::proposal_stats() const {
     impl_->stats["~ evaluations"] = static_cast<uint32_t>(impl_->eval_count);
+    impl_->stats["~ evaluations batched"] = static_cast<uint32_t>(impl_->eval_batched);  // #635
+    impl_->stats["~ evaluation fan-outs"] = static_cast<uint32_t>(batched_fan_outs());
     impl_->stats["~ token cache hits"] = static_cast<uint32_t>(impl_->res.cache_hits());
     return impl_->stats;
 }

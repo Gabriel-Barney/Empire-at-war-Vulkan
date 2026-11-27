@@ -251,6 +251,9 @@ public:
     uint32_t quota() const { return quota_; }
     int32_t countdown() const { return countdown_; }
     uint32_t evaluations_last_pass() const { return evals_last_; }
+    // #635: batches of the batched values that reached the ParallelFor (kMinFanOut or more prepared values)
+    // [diagnostic: not hashed or saved]
+    uint64_t fan_outs() const { return fan_outs_; }
     uint32_t passes() const { return passes_; }
     const GoalSystemConfig& config() const { return cfg_; }  // aitac t04
     bool accept_pending() const { return pending_ready_ >= 0; }  // batched-accept solves in flight
@@ -331,6 +334,7 @@ private:
     uint32_t quota_ = 0;
     int32_t countdown_ = 0;
     uint32_t evals_pass_ = 0, evals_last_ = 0;
+    uint64_t fan_outs_ = 0;
     uint32_t passes_ = 0, commits_ = 0;
     uint32_t next_serial_ = 1;
     int64_t now_ = 0;

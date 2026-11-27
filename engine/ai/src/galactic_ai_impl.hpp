@@ -434,9 +434,9 @@ struct GalacticAiWorld::Impl final : lua::AiScriptHost, lua::ScriptMarkupHost, A
     }
     // sp4a (S7): evaluate() with the equation id already resolved (kUnresolved fails, uncounted, like an unknown name).
     bool evaluate_id(int32_t self, int32_t opponent, uint32_t e, const std::string& fn, int32_t target, double& out);
-    // #635 (ai_goals.hpp "BATCHED VALUES"): an equation with no Script_ and no Random term (itself or through its
-    // Function_ references) draws nothing and runs no Lua, so goal candidates may evaluate it on any thread. Serial,
-    // memoised per equation.
+    // #635 (ai_goals.hpp "BATCHED VALUES"): an equation with no Script_ term (itself or through its Function_
+    // references) runs no Lua and draws nothing from the synced RNG ('#' reseeds its own LCG per evaluation), so goal
+    // candidates may evaluate it on any thread. Serial, memoised per equation.
     bool concurrent_equation(uint32_t e);
     // evaluate_id of such an equation without its bookkeeping: const, any thread, the leaf cache's hits not counted.
     bool evaluate_concurrent(int32_t self, int32_t opponent, uint32_t e, int32_t target, double& out) const;

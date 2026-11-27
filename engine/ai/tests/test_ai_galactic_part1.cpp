@@ -1349,6 +1349,7 @@ CampaignResult run_synthetic(unsigned threads, int32_t frames, bool script_targe
     out.rejected = world.orders_rejected();
     out.conflicts = conflicts.log().size();
     out.batched = world.batched_evaluations();
+    out.fanouts = world.batched_fan_outs();
     char buf[512];
     std::snprintf(buf, sizeof buf, "frames %d planets E=%d R=%d N=%d credits E=%.0f R=%.0f orders %llu rejected %llu conflicts %llu plans running %zu",
                   frames, out.owned[0], out.owned[1], out.owned[2], static_cast<double>(sim.credits(0)),
@@ -1476,9 +1477,12 @@ void test_synthetic_campaign() {
     CHECK(base.errors.empty());
     CHECK(base.orders > 0 && base.rejected * 4 < base.orders + 1);
     CHECK(base.owned.size() == 3 && base.owned[0] + base.owned[1] > 4);  // the AIs expanded
-    CHECK(base.batched > 0);  // #635: scored candidate sets ran through the batched values
-    std::printf("  batched goal values: %llu\n", static_cast<unsigned long long>(base.batched));
-    for (const unsigned t : {2u, 4u, 15u}) {
+    // #635: scored candidate sets ran through the batched values. Their slices here hold fewer than kMinFanOut
+    // values (2 AIs, 8 planets), so they run in place; test_goal_batched_values covers the fan-out itself.
+    CHECK(base.batched > 0);
+    std::printf("  batched goal values: %llu in %llu fan-outs\n", static_cast<unsigned long long>(base.batched),
+                static_cast<unsigned long long>(base.fanouts));
+    for (const unsigned t : {0u, 2u, 4u, 15u}) {  // #635: 0 = serial_for's shape (thread_pf runs inline)
         const CampaignResult r = run_synthetic(t, frames);
         size_t first = r.crc.size() == base.crc.size() ? r.crc.size() : 0;
         for (size_t i = 0; i < std::min(r.crc.size(), base.crc.size()); ++i)
@@ -1487,7 +1491,7 @@ void test_synthetic_campaign() {
                 break;
             }
         std::printf("  threads %u vs 1: %s\n", t, first == r.crc.size() ? "identical" : ("DIVERGED at frame " + std::to_string(first + 1)).c_str());
-        CHECK(first == r.crc.size() && r.decisions == base.decisions && r.batched == base.batched);
+        CHECK(first == r.crc.size() && r.decisions == base.decisions && r.batched == base.batched && r.fanouts == base.fanouts);
     }
     const std::string text = golden_text(base);
     const std::string path = ai_golden_dir() + "/ai_galactic_synthetic_crc.txt";

@@ -204,8 +204,15 @@ bool GoalSystem::proposal_slice(int64_t now) {
         // Fewer than kMinFanOut prepared values run in place: waking helpers costs about what they take (a space battle's
         // slices hold 2-3 values of about 20 us; a land battle's about 5 of about 120 us).
         constexpr uint32_t kMinFanOut = 4;
-        if (prepared >= kMinFanOut) (*pf)(static_cast<uint32_t>(batch_.size()), 1, values);
-        else if (prepared > 0) values(0, static_cast<uint32_t>(batch_.size()));
+        if (prepared > 0) {
+            ALAMO_PROFILE_SCOPE("ai.goals.batch");  // #635: the batched values (any thread), wall clock only
+            if (prepared >= kMinFanOut) {
+                ++fan_outs_;
+                (*pf)(static_cast<uint32_t>(batch_.size()), 1, values);
+            } else {
+                values(0, static_cast<uint32_t>(batch_.size()));
+            }
+        }
         for (const Candidate& c : batch_) evaluate_candidate(c.source, c.target, &c);
         batch_.clear();
         start_solves();
