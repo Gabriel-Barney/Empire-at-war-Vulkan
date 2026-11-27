@@ -46,6 +46,11 @@ ui::Rgba8 App::faction_rgba(const galactic::GalacticSim& g, int32_t player, bool
     return {to8(c.x), to8(c.y), to8(c.z), 255};
 }
 
+bool App::space_reinforce_overlay_now() const {
+    return ui::space_reinforce_overlay_shown(hud_consts_.space_reinforce_feedback_only_while_dragging,
+                                             ui_.tactical_hud.reinforce_list_open(), reinforce_unit_ != 0);
+}
+
 bool App::simplified_colors_now() const {
     if (!session_ || local_player() < 0) return false;  // 0x33e340 [H]: only with a local player
     if (gameplay_.simplified_colors) return true;

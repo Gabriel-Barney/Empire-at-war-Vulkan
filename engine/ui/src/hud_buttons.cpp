@@ -376,6 +376,9 @@ HudConstants hud_constants_from(const data::XmlNode& root) {
         c.win_lose_font_size = data::parse_float_or(t, c.win_lose_font_size);
     parse_rgba8(last("Win_Message_Color"), c.win_message_color);
     parse_rgba8(last("Lose_Message_Color"), c.lose_message_color);
+    // ledger: consumes GameConstants.SpaceReinforceFeedbackOnlyWhileDragging
+    if (const std::string_view t = last("SpaceReinforceFeedbackOnlyWhileDragging"); !t.empty())
+        c.space_reinforce_feedback_only_while_dragging = data::parse_bool_or(t, c.space_reinforce_feedback_only_while_dragging);
     if (const std::string_view t = last("CB_Flash_Count"); !t.empty())
         c.cb_flash_count = static_cast<int32_t>(data::parse_float_or(t, static_cast<float>(c.cb_flash_count)));
     // ledger: consumes GameConstants.Min_Accuracy_For_Icon

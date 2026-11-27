@@ -172,6 +172,15 @@ struct TooltipConfig {
 // Encyclopedia_Min_Display_Time (s) from a parsed GameConstants root.
 TooltipConfig tooltip_config_from(const data::XmlNode& game_constants_root);
 
+// #727 the space reinforcement grid (fog palette 3, SpaceReinforceFOWSampler) of the space FOW update 0x4d8de0 [H]:
+// - SpaceReinforceFeedbackOnlyWhileDragging off (FoC): shown while the reinforcement list i_main_reinforce (component
+//   0x218) is shown (0x2f9c30: it exists and 0x34ce60 says it is not hidden);
+// - on: shown while a reinforcement is being placed (space mode +0x2cc, set by 0x33d50 and cleared by 0x343e0 [H]; the
+//   port's pick of a drop point [M]).
+inline bool space_reinforce_overlay_shown(bool only_while_dragging, bool reinforce_list_open, bool placing) {
+    return only_while_dragging ? placing : reinforce_list_open;
+}
+
 // HUD values the host copies into the frames (GameConstants; defaults = FoC's values).
 struct HudConstants {
     float health_bar_spacing = 2.0f;               // Health_Bar_Spacing (pixels between stacked bars, legacy docs/re/UI.md §1.2)
@@ -188,6 +197,8 @@ struct HudConstants {
     Rgba8 win_message_color{223, 243, 255, 255};      // Win_Message_Color
     Rgba8 lose_message_color{255, 244, 223, 255};     // Lose_Message_Color
     int32_t cb_flash_count = 4;                       // CB_Flash_Count (b_reinforcement flashes on a pool add)
+    // #727 SpaceReinforceFeedbackOnlyWhileDragging (GC +0x11d4, FoC false; space_reinforce_overlay_shown).
+    bool space_reinforce_feedback_only_while_dragging = false;
     int32_t icons_per_column = 13;                    // Icons_Per_Column (#478: the skirmish_upgrade sidebar's rows)
     // #296 lt_weather_icon thresholds (MCX4_PRES_RE_ANSWERS_3 Q5, GC +0x13bc / +0x13c0 [H]; FoC 0.4 / 0.5)
     float min_accuracy_for_icon = 0.4f;               // Min_Accuracy_For_Icon

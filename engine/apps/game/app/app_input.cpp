@@ -1476,8 +1476,8 @@ void App::battle_input() {
             }
         }
     }
-    // Int-final: the space reinforcement overlay (R5 fog palette 3) while a space drop point is being picked.
-    bview_.set_space_reinforcement_overlay(bview_.space() && reinforce_unit_ != 0);
+    // Int-final / #727: the space reinforcement overlay (R5 fog palette 3, space_reinforce_overlay_now).
+    bview_.set_space_reinforcement_overlay(bview_.space() && space_reinforce_overlay_now());
     // Targeted-ability pick (TargetingController, before the order translator: a frame whose click it used is not an
     // order). The click becomes the ability command through the command stream (legacy docs/re/UI.md §4.1; cmds -> route_commands).
     bool targeted = false;

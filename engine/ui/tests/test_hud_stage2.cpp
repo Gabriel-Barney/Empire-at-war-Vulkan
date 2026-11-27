@@ -863,6 +863,18 @@ void test_buttons() {
         const HudConstants h4 = hud_constants_from(g4.root());
         CHECK2(h4.win_lose_font == "Arial" && near2(h4.win_lose_font_size, 24.0f) && (h4.win_message_color == Rgba8{1, 2, 3, 255}) &&
                (h4.lose_message_color == Rgba8{4, 5, 6, 7}));
+        // #727 SpaceReinforceFeedbackOnlyWhileDragging (0x4d8de0 [H], FoC false): off, the grid follows the reinforcement
+        // list; on, the drop-point pick.
+        // ledger: verifies GameConstants.SpaceReinforceFeedbackOnlyWhileDragging
+        const data::XmlDocument gsr = data::XmlDocument::parse(std::string_view(
+            "<GameConstants><SpaceReinforceFeedbackOnlyWhileDragging>true</SpaceReinforceFeedbackOnlyWhileDragging></GameConstants>"));
+        CHECK2(!h0.space_reinforce_feedback_only_while_dragging && hud_constants_from(gsr.root()).space_reinforce_feedback_only_while_dragging);
+        // (only_while_dragging, reinforce_list_open, placing)
+        constexpr bool kFoc = false, kDragOnly = true, kListOpen = true, kListShut = false, kPlacing = true, kIdle = false;
+        CHECK2(space_reinforce_overlay_shown(kFoc, kListOpen, kIdle) && space_reinforce_overlay_shown(kFoc, kListOpen, kPlacing) &&
+               !space_reinforce_overlay_shown(kFoc, kListShut, kPlacing) && !space_reinforce_overlay_shown(kFoc, kListShut, kIdle));
+        CHECK2(space_reinforce_overlay_shown(kDragOnly, kListShut, kPlacing) && space_reinforce_overlay_shown(kDragOnly, kListOpen, kPlacing) &&
+               !space_reinforce_overlay_shown(kDragOnly, kListOpen, kIdle));
         // ledger: verifies GameConstants.CB_Flash_Count
         const data::XmlDocument g5 = data::XmlDocument::parse(std::string_view("<GameConstants><CB_Flash_Count>7</CB_Flash_Count></GameConstants>"));
         CHECK2(h0.cb_flash_count == 4 && hud_constants_from(g5.root()).cb_flash_count == 7);  // CB_Flash_Count (FoC 4)
