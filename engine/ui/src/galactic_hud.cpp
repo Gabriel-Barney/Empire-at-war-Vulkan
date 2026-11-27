@@ -870,6 +870,7 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         r.text = s.count > 1 ? num32(s.count) : std::u32string();
         r.tooltip_text = s.name;  // [port] a player-given fleet / ship name
         // #767 0x3095c0 [H]: a pad that shows a unit a drop moved (away from its source fleet) scales up, once per unit.
+        if (r.scale_up_start >= 0.0 && f.time - r.scale_up_start > 1.0) r.scale_up_start = -1.0;  // long done
         for (auto it = pops_.begin(); it != pops_.end();) {
             if (it->from_fleet != fleet && std::find(select.begin(), select.end(), it->unit) != select.end()) {
                 r.scale_up_start = f.time;
@@ -908,7 +909,8 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         if (ci >= 0) buttons_.state(static_cast<uint32_t>(ci)).hidden = true;
     };
     for (std::vector<uint32_t>& v : pane_leads_) v.clear();
-    std::erase_if(pops_, [&f](const PadPop& p) { return f.time - p.since > 5.0; });  // #767 [port] unseen moves expire
+    // #767 [port] (tier 1, presentation: docs/SIMULATION.md "Parity tiers") a move not seen on a pad within 5 s expires.
+    std::erase_if(pops_, [&f](const PadPop& p) { return f.time - p.since > 5.0; });
     if (!stats_.organize_shown) {
         for (size_t fl = 0; fl < fleet_.size(); ++fl) {
             for (const int32_t ci : fleet_[fl]) hide(ci);

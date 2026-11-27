@@ -152,11 +152,13 @@ byte or on the colour channels. Base FoC: Yes only on `Text_Allegiance_A` (an Ic
 
 **Port:**
 - `ButtonRuntime::scale_up_start`: `HudButtons::draw` scales the pad by elapsed / `Scale_Duration`, clamped to 1.
-  [port] The offsets are not scaled.
+  [port] (tier 1, presentation) The offsets and the text are not scaled.
 - `GalacticHud` keeps the units an organiser or land-force drop moved (with Ctrl, the stack). The first pad build that
-  shows one away from its source fleet starts its scale-up. [port] The port builds the pads every frame, so "the
-  next fill" is the first one after the sim applied the move; an entry left unseen for 5 s goes; map-pad drags do not
-  pop.
+  shows one away from its source fleet starts its scale-up; a unit joining a stack pops that stack's pad. [port]
+  (tier 1, presentation) The port builds the pads every frame, so "the next fill" is the first one after the sim
+  applied the move; an entry left unseen for 5 s goes; map-pad drags do not pop; any organiser drop that sends a
+  command records its units, where retail's writers per row are [M].
 - `HudButtons::draw` keeps each `Cross_Fade` component's last icon. On a change the old icon fades out and the new one
-  in over `kCrossFadeSeconds` (0.1), on the alpha byte [M: retail picks the alpha or the colour channels]. The port sees
-  the change at the draw, not at the texture set, so the first icon drawn never fades.
+  in over `kCrossFadeSeconds` (0.1), on the alpha byte [M: retail picks the alpha or the colour channels]. [port] (tier 1)
+  The port sees the change at the draw, not at the texture set: the first icon drawn never fades, and a change made
+  while the component is hidden fades at its next show.

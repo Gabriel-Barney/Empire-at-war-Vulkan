@@ -728,7 +728,8 @@ private:
     uint32_t selected_id_ = 0;
     bool ctrl_ = false;  // #763 Ctrl held (update_input; HUD +0x21a9)
     // #767 (0x3095c0 / 0x350df0 [H]): units an organiser drop moved (their GUI record +0x30). The first pad that shows one
-    // away from its source fleet scales up (Scale_Duration) and drops it. [port] An entry left unseen for 5 s goes.
+    // away from its source fleet scales up (Scale_Duration) and drops it. [port] (tier 1) An entry unseen for 5 s goes;
+    // any organiser or land-force drop that sends a command records its units (retail's writers per row are [M]).
     struct PadPop {
         uint32_t unit = 0, from_fleet = 0;
         double since = 0.0;

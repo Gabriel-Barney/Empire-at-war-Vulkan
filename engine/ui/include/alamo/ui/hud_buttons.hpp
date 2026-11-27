@@ -77,8 +77,8 @@ struct ButtonRuntime {
     // buttons) apply these over the engine state; other components just keep the hidden / disabled the script wrote.
     int8_t script_visible = -1, script_enabled = -1;
     // #767 Scale_Duration (0x350df0 "activate scale up" [H]): while >= 0, the time the pad's scale-up started. The pad then
-    // draws at Scale x elapsed / Scale_Duration, growing from nothing to its Scale (0x34ff70); after that it is cleared
-    // by the next start or left as is (a finished scale-up draws at Scale).
+    // draws at Scale x elapsed / Scale_Duration, growing from nothing to its Scale (0x34ff70), and at Scale once that is
+    // over. The owner resets it to -1 when it is done (GalacticHud: on the next pad build after a second).
     double scale_up_start = -1.0;
 };
 

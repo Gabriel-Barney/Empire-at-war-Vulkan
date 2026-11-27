@@ -239,7 +239,7 @@ Vec2f HudButtons::draw(HudDrawList& dl, const TextureAtlas& atlas, FontCache* fo
                 fd.start = -1.0;
             } else {
                 icon_fade = static_cast<float>(t);
-                if (!fd.from.empty())
+                if (!fd.from.empty() && !replaces)
                     add_atlas_quad(dl, layer, HudList::Alpha, atlas, fd.from, icon_at, {}, sc * r.icon_scale,
                                    with_alpha(icon_col, 1.0f - icon_fade));
             }
