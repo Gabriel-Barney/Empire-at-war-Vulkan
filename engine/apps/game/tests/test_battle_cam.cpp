@@ -5,7 +5,8 @@
 // - the hero clash shot (0x4a4ac0): the radius clamps and the keys;
 // - Cinematic View (0x4a6790): yaw and pitch per view, the distance clamp, the offset;
 // - the state machine (0x2cbd00 / 0x2cc080 / 0x2cca80 / 0x2cc3e0 / 0x2cbc40): Movie Mode on key up and its gates, the
-//   next clash, Esc, Cinematic View's steps and key rules, the mouse rules, the smoothing.
+//   next clash, Esc, Cinematic View's steps and key rules, the mouse rules, the smoothing;
+// - #671 the look filter (0x4a96d0 / 0x49ff50) against a written-out reference, and the +0x1bd flag per template.
 #include <cmath>
 #include <cstdio>
 #include <optional>
@@ -966,6 +967,119 @@ void test_toggle_and_smoothing() {
     CHECK(near(cam.smooth_eye({100.0f, 0.0f, 0.0f}, 1), {100.0f, 0.0f, 0.0f}));
 }
 
+// #671: the formula written out with plain arrays (index 0 = newest), as docs/re/BATTLE_CAM.md "The look filter" gives it.
+struct RefFilter {
+    static constexpr int N = kCinematicFps + 1, A = 15, L = 21;  // (int)(30 x 0.5), (int)(30 x 0.7)
+    V3 h[N], s[N], v[N], acc[N];
+    float w[N], c[N];
+    int last = 0;
+    V3 out;
+    explicit RefFilter(V3 p) {
+        for (int i = 0; i < N; ++i) {
+            h[i] = s[i] = p;
+            v[i] = acc[i] = V3{};
+            w[i] = static_cast<float>(i) / static_cast<float>(N) + 1.0f;
+            c[i] = i == 0 ? w[i] : c[i - 1] + w[i];
+        }
+        out = p;
+    }
+    V3 step(int frame, V3 look) {
+        if (frame <= last) return out;
+        last = frame;
+        V3 avg = look;
+        for (int i = 0; i < A - 1; ++i) avg = avg + h[i];
+        avg = avg * (1.0f / static_cast<float>(A));
+        for (int i = N - 1; i > 0; --i) {
+            h[i] = h[i - 1];
+            s[i] = s[i - 1];
+            v[i] = v[i - 1];
+            acc[i] = acc[i - 1];
+        }
+        h[0] = look;
+        s[0] = avg;
+        v[0] = s[0] - s[1];
+        acc[0] = v[0] - v[1];
+        V3 sv{}, sa{};
+        for (int i = 0; i < L; ++i) {
+            sv = sv + v[i] * w[i];
+            sa = sa + acc[i] * w[i];
+        }
+        out = s[L] + sv * ((0.25f + 0.7f) * 30.0f / c[L - 1]) + sa * (1.0f / c[L - 1]);
+        return out;
+    }
+};
+
+void test_look_filter() {
+    // Unseeded: the input.
+    LookFilter f;
+    CHECK(near(f.step(5, {1.0f, 2.0f, 3.0f}, false), V3{1.0f, 2.0f, 3.0f}));
+    // A still look stays put.
+    f.seed({10.0f, 20.0f, 30.0f});
+    for (int t = 0; t < 50; ++t) CHECK(near(f.step(t, {10.0f, 20.0f, 30.0f}, false), V3{10.0f, 20.0f, 30.0f}));
+    // A look path (a ramp, then a turn) against the reference; frame 0 and a repeated frame update nothing.
+    const V3 p0{100.0f, -50.0f, 20.0f};
+    LookFilter g;
+    g.seed(p0);
+    RefFilter r(p0);
+    CHECK(near(g.step(0, {500.0f, 0.0f, 0.0f}, false), p0));  // frame <= +0x1c0 (0): the seed
+    const auto path = [](int t) {
+        const float f = static_cast<float>(t);
+        return t < 60 ? V3{100.0f + 4.0f * f, -50.0f, 20.0f} : V3{340.0f, -50.0f + 3.0f * (f - 60.0f), 20.0f + 0.5f * (f - 60.0f)};
+    };
+    bool ok = true;
+    for (int t = 1; t <= 120; ++t) {
+        const V3 want = r.step(t, path(t));
+        ok = ok && near(g.step(t, path(t), false), want, 0.05f);
+        if (t == 7) ok = ok && near(g.step(7, {0.0f, 0.0f, 0.0f}, false), want, 0.05f);  // the same frame again: held
+        if (t == 55) ok = ok && near(want, path(55) + V3{2.0f, 0.0f, 0.0f}, 0.5f);  // a settled ramp leads by v / 2
+    }
+    CHECK(ok);
+    // `raw` returns the input and still updates the state.
+    LookFilter a, b;
+    a.seed(p0);
+    b.seed(p0);
+    for (int t = 1; t <= 30; ++t) {
+        CHECK(near(a.step(t, path(t), true), path(t)));
+        (void)b.step(t, path(t), false);
+    }
+    CHECK(near(a.step(31, path(31), false), b.step(31, path(31), false)));
+
+    // +0x1bd per template (Global.c's writers): 1 for the attack run, push-in, land flying shot and fly-past; 0 for the
+    // fighter chase and the bombing run; the others leave it unset.
+    UnsyncedRandom rng(11);
+    BattleCamShot s;
+    CHECK(attack_run_shot(with_target(), rng, s) && s.look_filter && *s.look_filter);
+    s = fighter_chase_shot(object({10.0f, 4.0f, 6.0f}), rng);
+    CHECK(s.look_filter && !*s.look_filter);
+    CHECK(push_in_shot(ground({2.0f, 2.0f, 4.0f}), rng, s) && s.look_filter && *s.look_filter);
+    CHECK(land_flying_shot(ground({6.0f, 6.0f, 3.0f}, true, true), rng, s) && s.look_filter && *s.look_filter);
+    bool fly = false;
+    for (int i = 0; i < 20 && !fly; ++i) fly = fly_past_shot(object({40.0f, 80.0f, 20.0f}), true, rng, s);
+    CHECK(fly && s.look_filter && *s.look_filter);
+    CHECK(!orbit_shot(object({10.0f, 4.0f, 6.0f}), rng).look_filter && !static_shot(object({10.0f, 4.0f, 6.0f}), false, rng).look_filter);
+    BombingRunView v;
+    v.bomber = 1;
+    v.target = 2;
+    v.target_at = {1000.0f, 0.0f, 0.0f};
+    v.speed = 10.0f;
+    CHECK(bombing_run_shot(v, rng, s) && s.look_filter && !*s.look_filter);
+
+    // The cam keeps +0x1bd across a chained shot that does not write it; stopping clears it.
+    World w;
+    BattleCamGates gates;
+    BattleCam cam;
+    BattleCamShot on = timed(1, 30), inherit = timed(2, 30);
+    on.look_filter = true;
+    w.interesting = {on, inherit};
+    CHECK(cam.movie_key_up(gates, w.picks()) && cam.shot().target == 1 && cam.look_filter());
+    // Frame 0 seeds the filter with the shot's first look; it follows the filter while +0x1bd is set.
+    CHECK(near(cam.filter_look(p0, 0), p0));
+    CHECK(!near(cam.filter_look(p0 + V3{300.0f, 0.0f, 0.0f}, 1), p0 + V3{300.0f, 0.0f, 0.0f}));
+    CHECK(cam.tick(30, false, w.picks()) == 0 && cam.shot().target == 2 && cam.look_filter());  // inherited
+    cam.stop();
+    CHECK(!cam.look_filter() && near(cam.filter_look({5.0f, 5.0f, 5.0f}, 3), V3{5.0f, 5.0f, 5.0f}));  // the raw look
+}
+
 }  // namespace
 
 int main() {
@@ -988,6 +1102,7 @@ int main() {
     test_interesting_chain();
     test_toggle_and_smoothing();
     test_bombing_run();
+    test_look_filter();
     std::printf(g_fail == 0 ? "game battle cam tests passed\n" : "%d game battle cam check(s) FAILED\n", g_fail);
     return g_fail == 0 ? 0 : 1;
 }

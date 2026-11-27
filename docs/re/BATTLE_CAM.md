@@ -316,10 +316,12 @@ End_Cinematic_Mode zeroes it. The hero clash sets none, so a clash chained after
 - **Land flying `0x4a23d0`** (a flying locomotor; needs a model): n = rand(60, 90), s = ±1. The eye holds on the world
   point M·(s Ex, −Ey, Ez) beside the craft, and the look holds on it (ease out 0.25). Length n, no noise.
 
-The look filter flag +0x1bd that the push-in and the land flying shot set selects the filtered look (`0x4a96d0`):
+The look filter flag +0x1bd that the push-in, the land flying shot, the attack run and the fly-past set selects the filtered look (`0x4a96d0`):
 `0x49cd00` passes `+0x1bd == 0` as the filter's "raw" argument (`0x49d17f`), and the filter is seeded on every
 shot's first look key (`0x499dd0` → `0x49ff50`) [H, lane-c 2026-11-26; this corrects an earlier "only after a glory
-shot"]. A glory shot and the fighter chase set 0 (raw). The filter is not ported yet (#671).
+shot"]. A glory shot, the fighter chase and the bombing run set 0 (raw); the other templates do not write it, so it
+carries on from the previous shot, and End_Cinematic_Mode clears it. The filter is ported (#671, `LookFilter`): see
+"The look filter" below.
 
 - **Structure `0x49f880`** (no locomotor): n = rand(60, 90), then sx and sy (each zero = +1). The eye pulls back from
   (sx Ex, sy Ey, 2 Ez) to (2 sx Ex, 2 sy Ey, 3 Ez) over n, eases 0.25 / 0.25. The look holds on the structure; when it
@@ -347,6 +349,29 @@ turning does not swing the camera.
 **A second object per key** (+0x2c holds another id, resolved per key by `0x49d640`): the attack run's last eye and look
 keys and the structure shot's second look key sit on the target. The port marks them `ShotKey::on_second`, with the
 id in `BattleCamShot::second`; the host resolves both objects each frame (`KeyAnchors`).
+
+### The look filter `0x4a96d0(ctrl, out, frame, look, raw)` [H] (#671)
+`0x49cd00` calls it after the eye smoothing, with frame = the shot frame and raw = (+0x1bd == 0).
+- **The parameters:** T_lag = +0x1d0 = 0.7 s and T_avg = +0x1d4 = 0.5 s (from the constructor). N = +0x1d8 = FPS + 1.
+  A = (int)(FPS · T_avg) and L = (int)(FPS · T_lag), both float products (`0x4a96d0`: (float)FPS × the float fields), so A = 15 and L = 21 at FPS 30.
+- **The seed `0x49ff50(p)`:** `0x499dd0` calls it when a shot's first look key goes in (unless the state is 4), with that
+  key resolved. It sets:
+  - every slot of the history H and the averages S to p, and the velocities V and accelerations Acc to 0;
+  - w[i] = i / N + 1, with C[i] their running sum;
+  - +0x1c0 = 0, +0x1c4 = p and +0x1bc = 1.
+- **Per call:**
+  - With +0x1bc clear, the output is the input.
+  - When frame ≤ +0x1c0, nothing updates. The output is the input if `raw`, else +0x1c4.
+  - Otherwise +0x1c0 = frame, and:
+    - avg = (look + Σ_{i=0}^{A−2} H[i]) / A;
+    - H, S, V and Acc each drop their last entry and take look, avg, S[0] − S[1] and V[0] − V[1] in front;
+    - +0x1c4 = S[L] + (Σ_{i<L} w[i] V[i]) / C[L−1] · (T_avg / 2 + T_lag) · FPS + (Σ_{i<L} w[i] Acc[i]) / C[L−1];
+    - the output is the input if `raw`, else +0x1c4.
+  - The state updates even while `raw` is set.
+- **Who writes +0x1bd:**
+  - 1: the fly-past `0x4a1c90`, the land flying shot `0x4a23d0`, the attack run `0x4a26f0` and the push-in `0x4a4e30`;
+  - 0: the fighter chase `0x4a0140`, the bombing run `0x49f370`, the glory shot `0x4a3b40` and End_Cinematic_Mode;
+  - every other template leaves it as it was.
 
 ### The chain: `0x4aaf00` → `0x2cda20` [H]
 
@@ -448,9 +473,8 @@ each of these is a known gap rather than an accepted difference:
 - The attack run makes no FLEET member draw (`0x3965f0`): tactical targets are never fleets.
 - A target that is no longer drawn: its keys fall back to the framed object (retail's lookup of a gone id is [L]). The
   shot only takes a drawn target, where retail takes any.
-- The look-filter flag +0x1bd (set by the attack run, the push-in, the land flying shot and the fly-past) is not kept.
-  In retail it makes those shots use the filtered look, a lag-compensated moving average of the look (`0x4a96d0`),
-  which the port does not have yet: the port uses the raw look, a tier-1 known gap (camera feel), tracked as #671.
+- The look filter (#671) is seeded with the first look the host evaluates for each shot. Retail seeds it with look key 0
+  resolved as the key goes in (`0x499dd0`), the same frame.
 - The interesting object's fields, read from the port's objects: "in the world, not hidden" (+0x39f, +0x3a0 & 0x40) is
   drawn and not dying or contained; "a model" is drawable; fogged is hidden from the local player by the FOW; the
   ObjBox and the ModelBox are one box; the health is the drawn health; the speed is the movement's current speed; a
