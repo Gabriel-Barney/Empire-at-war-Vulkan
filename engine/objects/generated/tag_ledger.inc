@@ -1227,7 +1227,7 @@
 {"GameConstants", "GUI_Planet_Fade_Duration", 0x8, LedgerState::Stored, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "CB_Flash_Duration", 0x8, LedgerState::RetailUnused, "docs/re/xml_reference_index.md GameConstants.CB_Flash_Duration", 1, 1},
 {"GameConstants", "CB_Flash_Count", 0x6, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
-{"GameConstants", "Icons_Per_Column", 0x6, LedgerState::Stored, "docs/re/xml_reference_index.md", 1, 1},
+{"GameConstants", "Icons_Per_Column", 0x6, LedgerState::Consumed, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "Hint_Text_Color", 0x16, LedgerState::Verified, "docs/re/xml_reference_index.md", 1, 1},
 {"GameConstants", "System_Text_Color", 0x16, LedgerState::Verified, "", 1, 1},
 {"GameConstants", "Task_Text_Color", 0x16, LedgerState::Verified, "", 1, 1},

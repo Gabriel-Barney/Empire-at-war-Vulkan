@@ -1634,6 +1634,67 @@ void test_fly_texts() {
     CHECK2(found);
 }
 
+// #478 skirmish_upgrade: the sidebar's slots drawn where 0x301190 puts them (right edge - 19, 309 down the column): a
+// Tray = False slot with its icon only, a tray slot with its frame piece under the icon (icon at Size.y 0.8), and the
+// in-progress text; no sidebar input, no slot.
+void test_upgrade_sidebar_draw() {
+    const std::string xml =
+        "<CommandBarComponents><CommandBarComponent Name=\"skirmish_upgrade\"><Type>TextButton</Type>"
+        "<Blank_Texture_Name>i_multi_slot_top.tga i_multi_slot_middle.tga i_multi_slot_bottom.tga i_multi_slot_whole.tga</Blank_Texture_Name>"
+        "<Icon_Alternate_Texture_Name>i_interdictor_block.tga</Icon_Alternate_Texture_Name><Scale>1.0</Scale>"
+        "<Font_Name>EmpireAtWar-Medium</Font_Name><Font_Point_Size>6</Font_Point_Size><Text_Offset>0 -14</Text_Offset>"
+        "<Base_Layer>2</Base_Layer><No_Shell>True</No_Shell><Offset>-19 309</Offset><Default_Offset>50 -38</Default_Offset>"
+        "<Size>-5 0.8</Size></CommandBarComponent></CommandBarComponents>";
+    ComponentTable t;
+    const data::XmlDocument doc = data::XmlDocument::parse(std::string_view(xml), "sidebar.xml");
+    CHECK2(doc.ok());
+    t.parse(doc.root());
+    TextureAtlas atlas = stage2_atlas();
+    for (const char* n : {"i_multi_slot_top.tga", "i_multi_slot_middle.tga", "i_multi_slot_bottom.tga", "i_multi_slot_whole.tga"})
+        atlas.add({n, 300, 0, 40, 40, true});
+    atlas.add({"i_up_corrupt.tga", 300, 50, 30, 30, true});
+    atlas.add({"i_up_shield.tga", 340, 50, 30, 30, true});
+    auto box = make_box_rasterizer();
+    FontCache fonts(*box);
+    TacticalHud hud;
+    hud.init(t, atlas, fonts);
+    hud.resize(1024, 768);
+    TacticalHudFrame fr;
+    fr.world.view = top_view2(1024, 768);
+    hud.build(fr, {}, {});
+    CHECK2(hud.stats().sidebar_slots == 0);
+    SidebarInput in;
+    in.completed = {5, 4};
+    in.type = [](int32_t ty) {
+        SidebarType o;
+        o.tray = ty != 5;
+        o.icon = ty == 5 ? "i_up_corrupt.tga" : "i_up_shield.tga";
+        return o;
+    };
+    fr.sidebar = &in;
+    hud.build(fr, {}, {});
+    CHECK2(hud.stats().sidebar_slots == 2);
+    const float x = 0.5f * hud.canvas().width - 19.0f;
+    const auto quads_at = [&](float cx, float cy, std::vector<float>& widths) {
+        widths.clear();
+        for (uint32_t l = 0; l < kHudLayers; ++l)
+            for (const HudQuad& q : hud.draw_list().items(l, HudList::Alpha))
+                if (std::fabs(0.5f * (q.min.x + q.max.x) - cx) < 1.0f && std::fabs(0.5f * (q.min.y + q.max.y) - cy) < 1.0f)
+                    widths.push_back(q.max.x - q.min.x);
+    };
+    std::vector<float> top, tray;
+    quads_at(x, 309.0f, top);          // the corruption slot: its icon, no frame
+    quads_at(x, 309.0f - 43.0f, tray);  // the tray slot after the gap: the whole frame and the icon
+    CHECK2(top.size() == 1 && tray.size() == 2);
+    if (top.size() == 1 && tray.size() == 2) {
+        const float frame = std::max(tray[0], tray[1]), icon = std::min(tray[0], tray[1]);
+        CHECK2(near2(icon / frame, 30.0f * 0.8f / 40.0f) && near2(top[0], icon));
+    }
+    fr.sidebar = nullptr;
+    hud.build(fr, {}, {});
+    CHECK2(hud.stats().sidebar_slots == 0);
+}
+
 // Drag-select box (Playtest 3): drawn from the drag threshold on, over exactly the bounds box_select uses on release.
 void test_drag_box() {
     ComponentTable t;
@@ -2132,6 +2193,7 @@ int run_stage2_tests() {
     test_garrison_respawn_counter();  // #474
     test_tactical_sell_button();  // #477
     test_fly_texts();             // #664
+    test_upgrade_sidebar_draw();  // #478
     test_drag_box();
     return g_fail2;
 }

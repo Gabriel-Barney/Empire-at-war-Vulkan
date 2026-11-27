@@ -1191,4 +1191,44 @@ void TacticalBattle::ga_spawn_upgrades(TacticalMode& mode) {
     corruption_upgrades_.clear();
 }
 
+// #478: the skirmish_upgrade sidebar's inputs (see the header). Presentation only: nothing here is written.
+void TacticalBattle::sidebar_feed(int32_t player, SidebarFeed& out) const {
+    out = {};
+    if (!l1_mode_ || !catalog_ || !galaxy_) return;
+    const objects::GameObjectTypes& types = catalog_->types();
+    const objects::ObjectStore& st = l1_mode_->primary();
+    const auto mine = [&](int32_t owner) { return owner >= 0 && bt_relation(owner, player) == 0; };
+    for (const objects::ObjectHandle h : st.all_objects()) {
+        if (!st.alive(h) || !mine(st.owner(h)) || !st.has_behavior(h, objects::beh::DummyUpgrade)) continue;
+        const objects::TypeIndex t = st.type(h);
+        if (t < types.size() && types.get_bool(t, objects::tags::Show_In_Sidebar_When_Complete)) out.completed.push_back(t);
+    }
+    if (production_) {
+        const auto& ps = galaxy_->players();
+        for (size_t p = 0; p < ps.size(); ++p) {
+            if (!mine(static_cast<int32_t>(p))) continue;
+            bool seen[2] = {false, false};
+            for (const tactical::hangar::BuildOrder& o : production_->queue(static_cast<int32_t>(p))) {
+                if (o.queue > 1 || seen[o.queue]) continue;
+                seen[o.queue] = true;  // the queue's head only (0x497580(q, 0))
+                if (o.type < 0 || static_cast<size_t>(o.type) >= types.size()) continue;
+                const auto t = static_cast<objects::TypeIndex>(o.type);
+                if (types.has_behavior(t, objects::BehaviorSet::Generic, objects::beh::DummyUpgrade) &&
+                    types.get_bool(t, objects::tags::Show_In_Sidebar_While_Building))
+                    out.building.emplace_back(t, o.built_fraction());
+            }
+        }
+    }
+    if (!space_) {
+        const tactical::combat::WeatherSystem& w = l1_weather_;
+        const tactical::combat::WeatherData* d = w.data();
+        // 0x468860: the current type's record above intensity 0.5, else the first (clear) record. [port] Only while the
+        // weather runs.
+        if (w.active() && d)
+            out.weather_icon = d->modifiers[w.intensity() > 0.5f ? static_cast<size_t>(w.type()) : size_t{0}].icon;
+    } else if (!cfg_.skirmish) {
+        out.interdicted = retreat_refusal(player) == 3;
+    }
+}
+
 }  // namespace alamo::sim

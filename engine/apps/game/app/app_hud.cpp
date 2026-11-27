@@ -1081,6 +1081,32 @@ void App::build_tactical_hud() {
 #endif
         }
         hf.garrison_respawn = b->garrison_respawn(local_player());  // #474: the local player's re-delivery fill, -1 = none
+        // #478 skirmish_upgrade: the local player's and its allies' upgrades (TacticalBattle::sidebar_feed).
+        sim::TacticalBattle::SidebarFeed feed;
+        b->sidebar_feed(local_player(), feed);
+        sidebar_in_.completed.assign(feed.completed.begin(), feed.completed.end());
+        sidebar_in_.building.clear();
+        for (const auto& [t, p] : feed.building) sidebar_in_.building.push_back({static_cast<int32_t>(t), p});
+        sidebar_in_.weather_icon = std::move(feed.weather_icon);
+        sidebar_in_.interdicted = feed.interdicted;
+        const objects::GameObjectTypes* st = &data_.types;
+        const auto* ht = &ui_.hud_types;
+        sidebar_in_.type = [st, ht](int32_t t) {
+            ui::SidebarType o;
+            if (t < 0 || static_cast<size_t>(t) >= st->size()) return o;
+            const auto ti = static_cast<objects::TypeIndex>(t);
+            o.tray = st->get_bool(ti, objects::tags::Show_In_Sidebar_Tray);
+            const auto level = [st, ti](const auto& tag) {
+                const objects::TypeIndex x = st->resolve_name(ascii_trim(st->get_string(ti, tag)));
+                return x == objects::kNone ? -1 : static_cast<int32_t>(x);
+            };
+            o.previous = level(objects::tags::Previous_Upgrade_Level_Type);
+            o.next = level(objects::tags::Next_Upgrade_Level_Type);
+            o.icon = ti < ht->size() ? (*ht)[ti].icon_name : std::string();
+            return o;
+        };
+        hf.sidebar = &sidebar_in_;
+        hf.icons_per_column = hud_consts_.icons_per_column;
     }
     // Pause look, radar picture (fog of war), queue markers of the selected units (sim queued_orders, const reads).
     hf.paused = session_ && session_->pause_requested();

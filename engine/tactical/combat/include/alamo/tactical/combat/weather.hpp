@@ -60,6 +60,7 @@ struct WeatherScenario {
 struct WeatherTypeModifiers {
     std::array<float, kProjectileCategoryCount> accuracy{1, 1, 1, 1, 1, 1, 1, 1, 1, 1};  // unset = 1
     std::vector<std::pair<std::string, float>> speed, sight;  // (upper-cased Weather_Category name, value)
+    std::string icon;  // Icon_Name (#478: the land sidebar's weather slot, 0x468860 [M]); "" none (clear)
 };
 
 struct WeatherData {
@@ -112,6 +113,7 @@ public:
     // keeps the current scenario when only the name matches). data_ is not saved (the host's). False (unchanged) when
     // the scenario cannot be resolved or a phase index is out of range.
     void set_data(const WeatherData* data) { data_ = data; }
+    const WeatherData* data() const { return data_; }
     void write(ByteWriter& w) const;
     bool read(ByteReader& r);
 

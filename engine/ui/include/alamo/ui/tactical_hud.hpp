@@ -37,6 +37,7 @@
 #include "alamo/ui/hud_radar.hpp"
 #include "alamo/ui/hud_world.hpp"
 #include "alamo/ui/orders.hpp"
+#include "alamo/ui/upgrade_sidebar.hpp"
 
 namespace alamo::ui {
 
@@ -530,6 +531,9 @@ struct TacticalHudFrame {
     // refund). A left click sends TacticalSell {object}.
     HudSellButton sell;
     std::span<const HudFlyText> fly_texts;  // #664 generic_flytext records in front of the camera
+    // #478 skirmish_upgrade (0x232): what the sidebar shows (nullptr: no sidebar), and GameConstants Icons_Per_Column.
+    const SidebarInput* sidebar = nullptr;
+    int32_t icons_per_column = 13;
 };
 
 struct TacticalHudStats {
@@ -544,6 +548,7 @@ struct TacticalHudStats {
     bool pause_banner = false;          // Game Paused banner drawn
     bool sell_button = false;           // #477 tactical_sell button drawn
     uint32_t fly_texts = 0;             // #664 generic_flytext texts drawn
+    uint32_t sidebar_slots = 0;         // #478 skirmish_upgrade slots drawn
     uint32_t objectives = 0, objective_lines = 0;
     bool drag_box = false;              // drag-select box drawn
     uint32_t wings = 0;                 // [port: Gabriel] squadron wing buttons drawn
@@ -635,6 +640,7 @@ private:
     void build_garrison_respawn(const TacticalHudFrame& f);
     void build_sell(const TacticalHudFrame& f);
     void build_fly_texts(const TacticalHudFrame& f);
+    void build_sidebar(const TacticalHudFrame& f);
     void apply_command_buttons(const HudCommandButtons& s);
     void build_pause_banner(const TacticalHudFrame& f);
     void build_objectives(const TacticalHudFrame& f);
@@ -692,6 +698,8 @@ private:
     int32_t order_button_[6] = {-1, -1, -1, -1, -1, -1};  // c_button00..05
     int32_t garrison_respawn_ = -1;                       // garrison_respawn_counter (#474)
     int32_t flytext_ = -1;                                // generic_flytext (#664)
+    int32_t sidebar_ = -1;                                // skirmish_upgrade (#478)
+    UpgradeSidebar sidebar_list_;                         // its lists, kept across frames (HUD +0x1130 / +0x1148)
     int32_t sell_ = -1;                                   // tactical_sell (#477)
     uint32_t sell_drawn_ = 0;                             // the object of the sell button drawn this frame (0 = none)
     int32_t special_weapon_ = -1;                         // b_special_weapon (land: the bombing-run button)

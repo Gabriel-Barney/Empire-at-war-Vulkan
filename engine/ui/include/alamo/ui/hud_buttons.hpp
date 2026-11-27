@@ -61,6 +61,10 @@ struct ButtonRuntime {
     float build_fill2 = -1.0f;     // second dial (Build_Dial2_Offset)
     bool overlay = false, overlay2 = false, lower_effect = false, upper_effect = false;
     Rgba8 tint{255, 255, 255, 255};
+    // #478 skirmish_upgrade: a Show_In_Sidebar_Tray = False slot draws no Blank_Texture_Name frame; the icon is drawn at
+    // Scale x icon_scale (the component's Size.y, 0.8: vf +0x40 [M]).
+    bool no_blank = false;
+    float icon_scale = 1.0f;
     // P4 Lua GUI control (gui_script.hpp): GUI_Text_Color override, GUI_Component_Play_Anim state (anim_start >= 0: the
     // Can_Animate frame animation plays, anim_frame / HudButtons::draw).
     bool text_color_set = false;
@@ -168,6 +172,7 @@ struct HudConstants {
     Rgba8 win_message_color{223, 243, 255, 255};      // Win_Message_Color
     Rgba8 lose_message_color{255, 244, 223, 255};     // Lose_Message_Color
     int32_t cb_flash_count = 4;                       // CB_Flash_Count (b_reinforcement flashes on a pool add)
+    int32_t icons_per_column = 13;                    // Icons_Per_Column (#478: the skirmish_upgrade sidebar's rows)
     DefaultFonts fonts;                               // the GameConstants default fonts (FontCache::set_defaults)
     float text_reveal_rate = 120.0f;                  // Text_Reveal_Rate (story text typewriter, chars / s)
     // mcx4 t14 (MCX4_PRES_RE_ANSWERS_3 Q2): Num_Structures_For_Medium_Planet_Name / _Large_ (planet_label_class)

@@ -106,6 +106,8 @@ bool load_weather_data(const FileProvider& files, WeatherData& out, std::vector<
                     wm.speed.emplace_back(key, v);
                 } else if (iequal(tag, "Sight_Range_Modifier")) {
                     wm.sight.emplace_back(key, v);
+                } else if (iequal(tag, "Icon_Name")) {
+                    wm.icon = std::string(e.text_trimmed());
                 }
             }
         }
