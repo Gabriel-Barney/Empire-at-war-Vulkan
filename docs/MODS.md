@@ -560,7 +560,10 @@ Perception token handlers register their paths at start-up (`engine/ai/include/a
 coverage is what the code evaluates, and a test checks the registry and the handlers agree. The report's
 `ai.token_coverage` parses every perception equation the mod's AI data defines and lists the leaves the resolver of
 that equation's mode does not evaluate. Retail fails a whole equation on an unknown leaf, so a missing leaf silently
-turns an AI decision into nil; this report is the only place it shows (`token_missing`).
+turns an AI decision into nil; this report is the only place it shows (`token_missing`). A leaf of a unit target's
+`Location` that retail's location evaluators do not register (TacticalLocation 0x72ef80 and LandLocation 0x6d5b70, which
+`Location.Force` is not part of) fails the equation in retail too. The report lists it as a retail-equivalent
+`unregistered_token`, not as `token_missing` (#692).
 
 ### Fault containment and the no-abort rule
 

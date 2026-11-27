@@ -290,6 +290,8 @@ constexpr TokenSpec kTokenSpecs[] = {
     {TokenScope::Player, "ANYCURRENTTHREATS", "P:ANYCURRENTTHREATS", "", 15, 0x0, 0},
     {TokenScope::Player, "AVERAGEAGEOFGROUNDINTELLIGENCE", "", "", 0, 0x0, 0},
     {TokenScope::Player, "AVERAGEAGEOFSPACEINTELLIGENCE", "", "", 0, 0x0, 0},
+    {TokenScope::Player, "AVERAGEGROUNDBASE", "P:AVERAGEGROUNDBASE", "", 5, 0x0, 0},  // #692
+    {TokenScope::Player, "AVERAGESTARBASE", "P:AVERAGESTARBASE", "", 9, 0x0, 0},      // #692
     {TokenScope::Player, "BUDGETALLOCATION", "P:BUDGETALLOCATION", "", 2, 0x0, 0},
     {TokenScope::Player, "BUDGETFRACTIONTOBUILD", "P:BUDGETFRACTIONTOBUILD", "", 5, 0x0, 0},
     {TokenScope::Player, "CANADVANCETECH", "P:CANADVANCETECH", "", 6, 0x0, 0},
@@ -360,6 +362,7 @@ constexpr TokenSpec kTokenSpecs[] = {
     {TokenScope::Target, "HINTS.OFFENSEDELAYSPACE", "", "", 0, 0x0, 0},
     {TokenScope::Target, "HINTS.PRIORITYTARGET", "", "", 0, 0x0, 0},
     {TokenScope::Target, "INCOMEUNNORMALIZED", "T:INCOMEUNNORMALIZED", "", 15, 0x8, 3},
+    {TokenScope::Target, "ISBUILDING", "", "", 0, 0x0, 0},  // #692
     {TokenScope::Target, "ISCONNECTEDTO", "T:ISCONNECTEDTO", "", 5, 0x0, 0},
     {TokenScope::Target, "ISCONNECTEDTOCORRUPTION", "T:ISCONNECTEDTOCORRUPTION", "", 4, 0x0, 0},
     {TokenScope::Target, "ISCORRUPTED", "T:ISCORRUPTED", "", 3, 0x0, 0},
@@ -1730,6 +1733,12 @@ struct GalacticSimTokenResolver::Impl {
             out = political_player(p);
             return true;
         }
+        // IsBuilding, PlanetPerceptualEvaluator 0x65d740 [H] (#692): 1 when the planet's owner is Self and either of its
+        // two production queues (ground, space) holds an entry (0x401960: queue i's count > 0), else 0. Not cached.
+        if (k == "ISBUILDING") {
+            out = b2d(ps.owner == ctx.self && valid_player(ctx.self) && (!ps.queue[0].empty() || !ps.queue[1].empty()));
+            return true;
+        }
         if (k == "ISHUMANCONTROLLED") {
             out = b2d(valid_player(ps.owner) && players[static_cast<size_t>(ps.owner)].human);
             return true;
@@ -2173,6 +2182,28 @@ struct GalacticSimTokenResolver::Impl {
             if (is.sizes.size() < 2) return out = 0.0, true;
             std::sort(is.sizes.begin(), is.sizes.end(), std::greater<int32_t>());
             return out = static_cast<double>(is.sizes[1]) / static_cast<double>(is.sizes[0]), true;
+        }
+        // AverageGroundbase / AverageStarbase, GalacticPlayerPerceptualEvaluator 0x666df0 through the thunks 0x667100 /
+        // 0x667110 (token GroundbaseLevel / StarbaseLevel) [H] (#692): the mean of that target token over the target-list
+        // planets whose TargetPlayerID (truncated to int) is the root's id, summed in list order as doubles; 0 when the
+        // player owns none; a planet whose evaluation fails fails the token. Lifetimes 5 / 9.
+        if (k == "AVERAGEGROUNDBASE" || k == "AVERAGESTARBASE") {
+            const std::string_view leaf = k == "AVERAGEGROUNDBASE" ? "GROUNDBASELEVEL" : "STARBASELEVEL";
+            return cached_path(TokenScope::Player, k, true, pl, params, [&](double& v) {
+                v = 0.0;
+                int32_t n = 0;
+                for (size_t p = 0; p < planets.size(); ++p) {
+                    if (!planets[p].is_planet) continue;
+                    double id = 0.0, x = 0.0;
+                    if (!resolve_target(p, "TARGETPLAYERID", {}, id)) return false;
+                    if (static_cast<int32_t>(id) != pl) continue;
+                    if (!resolve_target(p, leaf, {}, x)) return false;
+                    v += x;
+                    ++n;
+                }
+                if (v != 0.0) v /= static_cast<double>(n);
+                return true;
+            }, out);
         }
         if (k == "ANYCURRENTTHREATS")
             return cached(token_spec(TokenScope::Player, "ANYCURRENTTHREATS"), true, pl, params, [&](double& v) {

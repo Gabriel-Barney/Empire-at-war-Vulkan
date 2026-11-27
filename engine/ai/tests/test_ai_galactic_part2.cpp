@@ -479,6 +479,63 @@ void test_fleet_distance_tokens() {
     std::printf("fleet distance tokens: IsConnectedTo follows MaximumFleetMovementDistance (P1 72.1, P2 120)\n");
 }
 
+// #692 (Global.c [H]): AverageStarbase / AverageGroundbase, 0x666df0 through the thunks 0x667110 / 0x667100, are the mean
+// of the planet token StarbaseLevel / GroundbaseLevel over the planets whose TargetPlayerID is the root's id (0 when it
+// owns none). IsBuilding, 0x65d740, is 1 on a planet Self owns whose ground or space production queue holds an entry.
+void test_average_base_and_is_building_tokens() {
+    ParityWorld pw(false, {"BuildBarracks"});
+    pw.run(2);
+    gal::GalacticSim& sim = *pw.sim;
+    const auto eval = [&](const std::string& t, int32_t self, int32_t target) {
+        EquationSet e;
+        e.add("T", t);
+        e.link();
+        EvalContext c;
+        c.self = self;
+        c.target = target;
+        const EvalResult r = evaluate(e, e.find("T"), c, pw.world->resolver());
+        CHECK(r.ok);
+        return r.value;
+    };
+    // P0's starbase is upgraded before the first evaluation, so the owned planets' levels differ.
+    std::vector<PlanetIndex> own;
+    for (PlanetIndex p = 0; p < sim.planets().size(); ++p)
+        if (sim.planets()[p].is_planet && sim.planets()[p].owner == 0) own.push_back(p);
+    CHECK(own.size() >= 2);
+    if (own.size() < 2) return;
+    CHECK(sim.starbase_type(own[0]) != gal::kNoIndex && sim.replace_starbase(own[0], tSB2));
+    const gal::EconomyConstants& gc = pw.rules.constants;
+    double sb = 0.0, gb = 0.0;
+    for (const PlanetIndex p : own) {
+        sb += sim.planets()[p].starbase_level / static_cast<double>(gc.max_starbase_level);
+        gb += sim.ground_base_level(p) / static_cast<double>(gc.max_groundbase_level);
+    }
+    sb /= static_cast<double>(own.size());
+    gb /= static_cast<double>(own.size());
+    const double a_sb = eval("Variable_Self.AverageStarbase", 0, 0), a_gb = eval("Variable_Self.AverageGroundbase", 0, 0);
+    std::printf("average base tokens: %zu owned planets, levels %d / %d, AverageStarbase %.4f (expected %.4f), "
+                "AverageGroundbase %.4f (expected %.4f)\n", own.size(), sim.planets()[own[0]].starbase_level,
+                sim.planets()[own[1]].starbase_level, a_sb, sb, a_gb, gb);
+    CHECK(sim.planets()[own[0]].starbase_level != sim.planets()[own[1]].starbase_level);
+    CHECK(a_sb == sb && a_gb == gb);
+    // a player that owns no planet: 0, not a failure
+    int32_t none = -1;
+    for (int32_t q = 0; q < static_cast<int32_t>(sim.players().size()) && none < 0; ++q) {
+        bool owns = false;
+        for (const gal::PlanetState& ps : sim.planets()) owns = owns || (ps.is_planet && ps.owner == q);
+        if (!owns) none = q;
+    }
+    if (none >= 0) CHECK(eval("Variable_Self.AverageStarbase", none, 0) == 0.0);
+    // IsBuilding: own[0] (P0, with the Barracks) idle, then a queued infantry; Self = the other player reads 0.
+    const auto target = static_cast<int32_t>(own[0]);
+    CHECK(eval("Variable_Target.IsBuilding", 0, target) == 0.0);
+    CHECK(sim.queue_of(own[0], 0).empty() && sim.queue_of(own[0], 1).empty());
+    CHECK(sim.enqueue(0, own[0], tInfantry) == commands::RejectReason::None);
+    CHECK(eval("Variable_Target.IsBuilding", 0, target) == 1.0);
+    CHECK(eval("Variable_Target.IsBuilding", 1, target) == 0.0);
+    std::printf("average base tokens: IsBuilding 0 idle, 1 with a queued unit, 0 for the other player\n");
+}
+
 void test_anti_stealth_effectiveness() {
     // #245 (0x6d9180, docs/re/ANTI_STEALTH_EFFECTIVENESS.md): AntiStealthEffectiveness = 1 - prod(1 - p) over the side's units,
     // p = Detection_Chance / Detect_Interval_In_Seconds of a Detect_Hero_Ability type.
