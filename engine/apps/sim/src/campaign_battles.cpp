@@ -149,8 +149,15 @@ lua::BridgeHookSets CampaignBattles::script_hook_sets() const {
 
 std::span<const std::string> CampaignBattles::hidden_sub_objects(objects::ObjectId id) const {
 #if defined(ALAMO_SIM_HAVE_STORY) || defined(ALAMO_SIM_HAVE_TACTICAL_AI)
-    for (const lua::ObjectBridge* b : script_bridges())
+    for (const lua::ObjectBridge* b : script_bridges()) {
+#ifdef ALAMO_SIM_HAVE_TACTICAL_AI
+        if (ai_ && b == &ai_->world().object_bridge()) {  // #634: the AI's published copy with the lane on
+            if (const std::span<const std::string> v = ai_->hidden_sub_objects(id); !v.empty()) return v;
+            continue;
+        }
+#endif
         if (const std::span<const std::string> v = b->hidden_sub_objects(id); !v.empty()) return v;
+    }
 #else
     (void)id;
 #endif
@@ -2210,7 +2217,7 @@ void CampaignBattles::galactic_context_begin(ModeKind kind) {
         c.has_galactic_ai = [gs](int32_t p) { return p >= 0 && static_cast<size_t>(p) < gs->players().size() && gs->players()[static_cast<size_t>(p)].ai; };
     }
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
-    c.release_credits = [this, gs](int32_t p, double amount) {
+    c.release_credits = ai_->lane_release_credits([this, gs](int32_t p, double amount) {  // #634: a batch write with the AI lane on
         galactic::econ::CreditAccount* acct = gs->credit_account(p);
         if (!acct) return;
         for (CreditTransfer& ct : credits_) {
@@ -2222,7 +2229,7 @@ void CampaignBattles::galactic_context_begin(ModeKind kind) {
             ct.state.released = std::min(a + ct.state.released, ct.state.saved);
             return;
         }
-    };
+    });
 #endif
     ai_->world().player_world().set_tactical_galactic(std::move(c));
 }

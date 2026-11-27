@@ -464,6 +464,7 @@ public:
         const auto it = hidden_sub_objects_.find(id);
         return it == hidden_sub_objects_.end() ? std::span<const std::string>() : std::span<const std::string>(it->second);
     }
+    const std::map<objects::ObjectId, std::vector<std::string>>& hidden_sub_object_map() const { return hidden_sub_objects_; }
     // every object with a script lock or a Divert (ascending id; struct ScriptLockFact below).
     std::vector<ScriptLockFact> script_lock_facts() const;
 

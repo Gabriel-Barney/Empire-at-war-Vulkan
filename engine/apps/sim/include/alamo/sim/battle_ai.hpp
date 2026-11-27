@@ -74,6 +74,15 @@ AiLaneDefaults& ai_lane_defaults();
 // how many times AI lane code (think()) read the live battle through a BattleAi host answer, process-wide, and
 // the first such answer's name (null when none). Diagnostic: alamo_headless fails a lane run with a nonzero count.
 uint64_t ai_lane_live_reads(const char** first = nullptr);
+// #634: process-wide, the battles run with the AI lane on, the lane applies whose result differed from the prediction
+// (BattleAi::lane_mismatches) and the Spawn_Unit calls refused in lane code. alamo_headless prints them after a lane run.
+struct AiLaneCounts {
+    uint64_t battles = 0, mismatches = 0, refused_spawns = 0;
+};
+AiLaneCounts ai_lane_counts();
+// #634: `inner` whose bodies run with the calling thread's AI-lane context (the AI whose lane code it runs, the facts'
+// snapshot mode); BattleAi gives it to its world as the fan-out of the goal candidates and solves when the lane is on.
+ParallelFor ai_lane_context_pf(ParallelFor inner);
 
 struct TacticalAiSetup {
     const ai::AiDefinitions* defs = nullptr;
@@ -153,6 +162,11 @@ public:
     // at once. Lane on: the owner's answer published at collect (no AI player / not initialised / done), and on done
     // queued for the next AI slot like the other pushes; a delivered push answering otherwise counts in lane_mismatches().
     lua::PreventAiResult prevent_ai_usage(objects::ObjectId id, int32_t owner, bool on);
+    // #634: Lua Release_Credits_For_Tactical of the AI VMs (lua::TacticalGalacticContext::release_credits): `live` itself
+    // with the lane off; with it on, a call from lane code is a batch write applied at the due tick (`live` then).
+    std::function<void(int32_t, double)> lane_release_credits(std::function<void(int32_t, double)> live);
+    // #634: the AI bridge's Hide_Sub_Object lists for presentation: with the lane on, the copy published at collect.
+    std::span<const std::string> hidden_sub_objects(objects::ObjectId id) const;
     size_t lane_pushes_pending() const { return lane_pushes_.size(); }  // #633 (tests)
     uint32_t lane_mismatches() const { return lane_mismatch_; }  // applied with another result than predicted [diagnostic]
     // ref5 t06 (host tests): captures the lane view now and runs `f` as lane code, so the host answers `f` asks for come from
@@ -226,11 +240,10 @@ private:
     // ---- the fact rules (BattleFacts, read from the battle; wired by wire_facts) ----
     ai::tactical::BattleFacts facts_;
     void wire_facts();
-    // lane_thinking_ and the facts' snapshot mode together (the view only while it is valid)
-    void set_thinking(bool on) {
-        lane_thinking_ = on;
-        facts_.set_snapshot(on && view_.valid);
-    }
+    // #634: this thread runs this AI's lane code (and the facts' snapshot mode, the view only while it is valid); per
+    // thread, so the critical lane never sees it, and carried into the AI's fan-outs (lane_context_pf).
+    void set_thinking(bool on);
+    bool lane_thinking() const;
     std::vector<ai::tactical::TacticalReinforcement> reinforcement_pool(int32_t player);
     bool can_reinforce(int32_t player);
     float population_cap(int32_t player) override;  // also the AI order rules' (AiOrderIssuer)
@@ -439,12 +452,16 @@ private:
         std::vector<Reserve> reserve;
         bool box = false;  // land: the map's playable box
         float box_min[2] = {0.0f, 0.0f}, box_max[2] = {0.0f, 0.0f};
+        // #634: the battle's finished flag; per host player the entry-facing record (Reinforce_Unit's facing; the last
+        // entry: a player without a side); the map objects' hint names (copied again when the list grew).
+        bool finished = false;
+        std::vector<Vec3> drop_facing;
+        std::vector<std::pair<objects::ObjectId, std::string>> map_hints;
     };
     LaneView view_;
-    // lane code reads only view_. lane_thinking_ is set while think() (and, lane on, the start scripts) run; every
-    // live battle read of a host answer goes through lane_live_read, which counts it (ai_lane_live_reads; alamo_headless
-    // fails a lane run that had one) and asserts in debug builds. Scratch, never read by sim code.
-    bool lane_thinking_ = false;
+    // lane code reads only view_. lane_thinking() holds on the thread running think() (and, lane on, the start scripts)
+    // and its fan-outs; every live battle read of a host answer goes through lane_live_read, which counts it
+    // (ai_lane_live_reads; alamo_headless fails a lane run that had one) and asserts in debug builds.
     void lane_live_read(const char* what) const;
     void capture_lane_rest();  // the ref5 t06 part of capture_lane_view
     bool view_line_clear(int32_t object_id, const ai::tactical::Vec3f& a, const ai::tactical::Vec3f& b) const;
@@ -509,7 +526,7 @@ private:
     bool view_hostile(uint8_t player, int32_t owner) const;
     // answer from the view only inside lane code (think(), the lane start scripts); the critical lane (fill at
     // publish, the batch's apply, a load's relink) reads the battle, which the capture left unchanged.
-    bool lane_view() const { return view_.valid && lane_thinking_; }
+    bool lane_view() const { return view_.valid && lane_thinking(); }
     struct LaneJob {
         bool pending = false;
         uint64_t frame = 0;   // global frame of the update (every lane write's issue tick; scheduled = frame + k_ai)
@@ -530,11 +547,11 @@ private:
     // #633 (docs/SIMULATION.md "AI lane"): what the critical lane pushes into the AI (order replaced, a fog refog,
     // Prevent_AI_Usage) is queued in order and delivered at the next AI slot, before the job starts; movement's threat
     // mode and Prevent_AI_Usage's answer read copies published as of the last collected job. Saved and hashed.
-    enum class LanePushKind : uint8_t { OrderReplaced = 1, Refog = 2, PreventAi = 3 };
+    enum class LanePushKind : uint8_t { OrderReplaced = 1, Refog = 2, PreventAi = 3, SetDifficulty = 4 };  // 4: #634
     struct LanePush {
         LanePushKind kind = LanePushKind::OrderReplaced;
-        int32_t id = 0;     // OrderReplaced / PreventAi: the object; Refog: the player
-        int32_t owner = 0;  // PreventAi
+        int32_t id = 0;     // OrderReplaced / PreventAi: the object; Refog / SetDifficulty: the player
+        int32_t owner = 0;  // PreventAi; SetDifficulty: the difficulty
         bool on = false;    // PreventAi
         float x = 0.0f;     // Refog: the point
         float y = 0.0f;
@@ -542,12 +559,21 @@ private:
     std::vector<LanePush> lane_pushes_;
     std::vector<std::pair<uint32_t, float>> lane_danger_;  // TacticalAiWorld::danger_layers of the last collected job
     std::vector<lua::PreventAiResult> lane_prevent_answer_;  // per player: TacticalAiWorld::prevent_ai_answer, likewise
+    std::vector<int32_t> lane_attack_pos_;  // #634: TacticalAiWorld::attack_positioning_ids, likewise (follow_service)
+    // #634: per player the difficulty set_difficulty answers from (the world's, then each queued change); presentation's
+    // copy of the AI bridge's hidden sub-objects; the host's Release_Credits_For_Tactical the batch applies.
+    std::vector<int32_t> lane_difficulty_;
+    std::map<objects::ObjectId, std::vector<std::string>> lane_hidden_;
+    std::function<void(int32_t, double)> release_credits_live_;
+    bool attack_positioning(objects::ObjectId id) const;  // lane on: lane_attack_pos_
+    void lane_rebuild_difficulty();
     void lane_publish_copies();
     void lane_deliver_pushes();
     // #632: a lane write's command header (player, AI source, the job's sequence and frames), appended to the job's batch
     // by the caller. Outside an open job it counts a live read (lane code must not stamp from the live battle).
     commands::Command lane_command(uint16_t player);
     uint32_t lane_seq_ = 0;  // the next sequence of a collected batch (sim thread: saved, hashed, moved at collect)
+    void count_mismatch();  // #634: lane_mismatch_ and the process-wide count
     uint32_t lane_mismatch_ = 0;  // not saved, not hashed: orders refused, writes counting other than predicted
     static bool lane_batched(const commands::EventData& ev);
     void count_executed(const commands::EventData& ev, commands::RejectReason r);  // executed_ (diagnostic)

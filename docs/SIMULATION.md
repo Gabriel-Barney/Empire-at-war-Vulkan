@@ -241,14 +241,19 @@ Two ticks (67 ms) is far below retail's AI cadences (goal cycle sleeps, the 90-f
 | Orders, ability and host writes, GlobalValue sets, releases | Commands in the batch; their same-call answer is a prediction from the capture (`BattleAi::predict_order`, dry runs). A predicted rejection is not queued. The job stamps them itself (`BattleAi::lane_command`): issue tick = the job's frame N, scheduled N + k_ai, sequence = the batch's base plus its place in the batch; the shared sequence counter moves on only when the job is collected (#632). |
 | Objects a command will create | Provisional handles that resolve when the batch applies. |
 | Random draws on the AI side | An AI-owned `GameRandom` seeded by `ai_lane_seeds(session seed)`, hashed and saved with the AI world. Host draws inside AI-issued orders stay on the synced stream, made at apply time. |
-| Pushes into the AI (`order_replaced`, fog refog, Lua `Prevent_AI_Usage`) | Queued in order (`BattleAi::LanePush`) and delivered at the next AI slot, before its snapshot. `Prevent_AI_Usage` answers at once from the per-player answer published at collect (no AI player, not initialised, done); a delivered push that answers otherwise counts as a mismatch. The queue is saved and hashed (#633). |
-| Movement reading AI state (threat grid, script locks, Divert) | The version of the last collected job: the threat mode reads the danger layers copied when the job is collected (`TacticalAiWorld::danger_layers`, `point_danger_from`; #633). |
+| Pushes into the AI (`order_replaced`, fog refog, Lua `Prevent_AI_Usage`, `BattleAi::set_difficulty`) | Queued in order (`BattleAi::LanePush`) and delivered at the next AI slot, before its snapshot. `Prevent_AI_Usage` answers at once from the per-player answer published at collect (no AI player, not initialised, done); a delivered push that answers otherwise counts as a mismatch. The queue is saved and hashed (#633). `set_difficulty` answers from the published AI flags and the difficulties set so far; the build-time multipliers follow at the delivery (#634). |
+| Movement reading AI state (threat grid, script locks, Divert) | The version of the last collected job: the threat mode reads the danger layers copied when the job is collected (`TacticalAiWorld::danger_layers`, `point_danger_from`; #633), the formation follow the attack-positioning flags copied then (#634). |
+| Presentation reading the AI bridge (Hide_Sub_Object) | The copy published at collect (`BattleAi::hidden_sub_objects`; #634). |
+| "In lane code" | A per-thread fact (#634): the thread running `think()` (and the lane start scripts) holds the AI's lane context, which is the thinking flag, the view (while valid), the facts' snapshot mode and the refused-order record; the AI's fan-outs (goal candidates, slot-10 solves) run with the caller's context (`ai_lane_context_pf`), and the critical lane reads live at the same time. |
 | Story / mission Lua and the AI | Story stays on the critical lane with the live tables; it reaches the AI through the snapshot, and AI GlobalValue sets reach story k_ai ticks later. |
 | Galactic state during a battle | Read-only copy; HIJACK_UNIT fails with the lane on. |
 
 Lane code must never read the live battle: `BattleAi::lane_live_read` counts every such read, and a lane write stamped
 outside an open job counts too (debug builds assert on both). `alamo_headless` exits 3 when the count is not 0, so every
-`--ai-lane` test checks it.
+`--ai-lane` test checks it. The AI VMs' remaining battle hooks answer from the capture (the finished flag, the map hints,
+the entry facings) or are batch writes (Set_Garrison_Spawn, Prevent_Opportunity_Fire, Release_Credits_For_Tactical);
+#634. After a lane run `alamo_headless` prints the lane's mismatches (applies whose result differed from the prediction)
+and the Spawn_Unit calls it refused.
 
 ### AI lane save and checksum rules
 

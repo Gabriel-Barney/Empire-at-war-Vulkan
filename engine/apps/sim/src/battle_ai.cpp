@@ -60,6 +60,27 @@ AiLaneDefaults& ai_lane_defaults() {
 namespace {
 std::atomic<uint64_t> g_lane_live_reads{0};       // ref5 t06 [diagnostic]
 std::atomic<const char*> g_lane_live_first{nullptr};
+std::atomic<uint64_t> g_lane_battles{0}, g_lane_mismatches{0}, g_lane_refused_spawns{0};  // #634 [diagnostic]
+// #634: the AI whose lane code this thread runs (BattleAi::set_thinking; carried into fan-outs by lane_context_pf)
+thread_local const BattleAi* t_lane_ai = nullptr;
+struct LaneContext {
+    const BattleAi* ai = nullptr;
+    const ai::tactical::BattleFacts* snapshot = nullptr;
+};
+// a parallel-for whose bodies run with the calling thread's lane context (the AI's goal candidates, its solves)
+ParallelFor lane_context_pf(ParallelFor inner) {
+    return [inner = std::move(inner)](uint32_t n, uint32_t grain, const RangeFn& fn) {
+        const LaneContext ctx{t_lane_ai, ai::tactical::BattleFacts::snapshot_owner()};
+        inner(n, grain, [&ctx, &fn](uint32_t b, uint32_t e) {
+            const LaneContext prev{t_lane_ai, ai::tactical::BattleFacts::snapshot_owner()};
+            t_lane_ai = ctx.ai;
+            ai::tactical::BattleFacts::set_snapshot_owner(ctx.snapshot);
+            fn(b, e);
+            t_lane_ai = prev.ai;
+            ai::tactical::BattleFacts::set_snapshot_owner(prev.snapshot);
+        });
+    };
+}
 // a crossing of the lane boundary: counted (headless exits 3 on any) and, in a debug build, an assert
 void count_lane_crossing(const char* what) {
     const char* none = nullptr;
@@ -73,9 +94,20 @@ uint64_t ai_lane_live_reads(const char** first) {
     if (first) *first = g_lane_live_first.load();
     return g_lane_live_reads.load();
 }
+AiLaneCounts ai_lane_counts() { return {g_lane_battles.load(), g_lane_mismatches.load(), g_lane_refused_spawns.load()}; }
+ParallelFor ai_lane_context_pf(ParallelFor inner) { return lane_context_pf(std::move(inner)); }
 
 void BattleAi::lane_live_read(const char* what) const {
-    if (lane_thinking_) count_lane_crossing(what);
+    if (lane_thinking()) count_lane_crossing(what);
+}
+void BattleAi::set_thinking(bool on) {
+    t_lane_ai = on ? this : (t_lane_ai == this ? nullptr : t_lane_ai);
+    facts_.set_snapshot(on && view_.valid);
+}
+bool BattleAi::lane_thinking() const { return t_lane_ai == this; }
+void BattleAi::count_mismatch() {
+    ++lane_mismatch_;
+    g_lane_mismatches.fetch_add(1);
 }
 
 std::string default_tactical_ai_type(int32_t player, const galactic::GalacticSim& g) {
@@ -123,7 +155,8 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         const auto& factions = g.rules().factions;
         cfg.quota_players = ai::goal_quota_players(qp, factions.size(), [&factions](size_t f) { return std::string_view(factions[f].name); });
     }
-    cfg.pf = host.parallel_for();  // goal candidates' perception values; slot-10 solves
+    // goal candidates' perception values; slot-10 solves. #634: with the lane on, run with the caller's lane context.
+    cfg.pf = setup.ai_lane ? lane_context_pf(host.parallel_for()) : host.parallel_for();
     cfg.pp_streams = setup.pp_streams;  // OPT2 t10
     cfg.plan_retest = setup.plan_retest;  // skai t15
     cfg.pp_latency = setup.pp_latency;
@@ -183,6 +216,7 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         }
         cfg.player_list_size = n;
     }
+    if (setup.ai_lane) g_lane_battles.fetch_add(1);  // #634
     world_ = std::make_unique<at::TacticalAiWorld>(mode.primary(), &mode.types(), setup.files, host.random(), *setup.defs,
                                                    *setup.equations, *this, std::move(cfg));
     lua::ObjectBridge& br = world_->object_bridge();
@@ -217,11 +251,24 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         return rep_store->exists(o) ? bt->team_company_type(rep_store->id(o)) : objects::kNone;
     };
     // Find_Hint / Get_Hint see the map objects' .ted hint names.
-    br.map_hint = [bt, rep_store](objects::ObjectHandle o) {
+    br.map_hint = [this, bt, rep_store](objects::ObjectHandle o) {
+        if (lane_view()) {  // #634: the captured hints
+            const objects::ObjectStore& vs = world_->view_store();
+            if (!vs.exists(o)) return std::string_view();
+            const objects::ObjectId id = vs.id(o);
+            const auto& v = view_.map_hints;
+            const auto it = std::lower_bound(v.begin(), v.end(), id,
+                                             [](const std::pair<objects::ObjectId, std::string>& e, objects::ObjectId k) { return e.first < k; });
+            return it != v.end() && it->first == id ? std::string_view(it->second) : std::string_view();
+        }
         return rep_store->exists(o) ? bt->map_hint(rep_store->id(o)) : std::string_view();
     };
     // the Reinforce_Unit stand-in faces the owner's entry-facing record (TACTICAL_COMBAT §3.1.1 "other spawns").
-    br.reinforce_facing = [bt](int32_t player) { return bt->player_drop_facing(player); };
+    br.reinforce_facing = [this, bt](int32_t player) {
+        if (!lane_view() || view_.drop_facing.empty()) return bt->player_drop_facing(player);
+        const size_t n = view_.drop_facing.size() - 1;  // #634: the captured records; the last: no side
+        return view_.drop_facing[player >= 0 && static_cast<size_t>(player) < n ? static_cast<size_t>(player) : n];
+    };
     br.order_finished = [this, bt](objects::ObjectId id, uint32_t) {
         if (lane_view()) {  // sp3 slice 4e
             const LaneView::Unit* u = view_unit(id);
@@ -436,7 +483,7 @@ enum HostOp : uint8_t {
     kHostDivert = 64, kHostBuild, kHostLockPad, kHostBombard, kHostBombingRun, kHostBombingDisabled, kHostBombardDisabled,
     kHostRemoveBombard, kHostForceWeather, kHostSwBegin, kHostSwFire, kHostSwLob, kHostTswFire, kHostTeleport, kHostFirstLock,
     kHostHyperspaceOut, kHostSetEnvironment, kHostReleaseClash, kHostFogRevealAll, kHostFogTempReveal, kHostFogDisableRendering,
-    kHostSetCinematicEnvironment
+    kHostSetCinematicEnvironment, kHostGarrisonSpawn, kHostOpportunityFire  // the last two: #634
 };
 }
 
@@ -584,13 +631,13 @@ void BattleAi::wrap_lane_hooks() {
         if (!lane_view() || !view_.sw) return f(w, t);
         const objects::ObjectId id = vid(w), tid = vid(t);
         queue(kHostSwFire, owner_of(id), {id}, {}, -1, false, tid);
-        return !b_->finished_ && tid != objects::kNoObjectId && tid != id && view_.sw->readiness(id, view_.frame) >= 1.0f;
+        return !view_.finished && tid != objects::kNoObjectId && tid != id && view_.sw->readiness(id, view_.frame) >= 1.0f;
     };
     k.fire_lobbing_at = [this, vid, queue, owner_of, f = k.fire_lobbing_at](objects::ObjectHandle w, Vec3 p) {
         if (!lane_view() || !view_.sw) return f(w, p);
         const objects::ObjectId id = vid(w);
         queue(kHostSwLob, owner_of(id), {id}, p);
-        return !b_->finished_ && (view_.sw->kinds(id) & tactical::abilities::kSwLobbing) != 0 && owner_of(id) >= 0;
+        return !view_.finished && (view_.sw->kinds(id) & tactical::abilities::kSwLobbing) != 0 && owner_of(id) >= 0;
     };
     k.tsw_fire = [this, vid, queue, owner_of, f = k.tsw_fire](objects::ObjectHandle t) {
         if (!lane_view() || !view_.sw) return f(t);
@@ -645,10 +692,23 @@ void BattleAi::wrap_lane_hooks() {
         queue_lane_write(w);
     };
 #endif
+    // #634: Set_Garrison_Spawn / Prevent_Opportunity_Fire of the AI VMs (the bridge's switches) are batch writes too.
+    lua::ObjectBridge& br = world_->object_bridge();
+    br.garrison_spawn_changed = [this, vid, queue, owner_of, f = br.garrison_spawn_changed](objects::ObjectHandle u, bool on) {
+        if (!lane_view()) return f ? f(u, on) : void();
+        const objects::ObjectId id = vid(u);
+        queue(kHostGarrisonSpawn, owner_of(id), {id}, {}, -1, on);
+    };
+    br.opportunity_fire_changed = [this, vid, queue, owner_of, f = br.opportunity_fire_changed](objects::ObjectHandle u, bool on) {
+        if (!lane_view()) return f ? f(u, on) : void();
+        const objects::ObjectId id = vid(u);
+        queue(kHostOpportunityFire, owner_of(id), {id}, {}, -1, on);
+    };
     // A spawned object is used at once (its handle): not available off the critical lane (no shipped AI script spawns).
     k.spawn = [this, f = k.spawn](const objects::SpawnParams& p) {
         if (!lane_view()) return f(p);
         ++lane_refused_spawns_;
+        g_lane_refused_spawns.fetch_add(1);
         return objects::ObjectHandle{};
     };
 }
@@ -781,6 +841,12 @@ void BattleAi::apply_host_write(const lua::LaneWrite& w) {
         case kHostFogDisableRendering:
             if (tactical::fog::FogOfWar* fog = b_->fog_rw()) fog->disable_rendering(w.seconds != 0.0f);
             break;
+        case kHostGarrisonSpawn:  // as the bridge's live switches (battle_ai.cpp constructor)
+            if (st.alive(h)) b_->set_garrison_spawn(id, w.on != 0);
+            break;
+        case kHostOpportunityFire:
+            if (st.alive(h)) b_->script_opportunity_fire(id, w.on != 0);
+            break;
         default: break;
     }
 }
@@ -840,6 +906,7 @@ bool BattleAi::start(std::vector<std::string>* diag) {
     queue_global_writes();  // slice 4e (part 3)
     lane_job_.open = false;
     lane_publish_copies();  // #633: what movement and Prevent_AI_Usage read until the first job is collected
+    lane_rebuild_difficulty();  // #634
     lane_seq_ += static_cast<uint32_t>(lane_job_.batch.size());
     for (cmd::Command& c : lane_job_.batch) lane_batch_.push_back(std::move(c));
     lane_job_.batch.clear();
@@ -994,6 +1061,10 @@ void BattleAi::capture_lane_view() {
                               c.team && c.type != 0xFFFFFFFFu ? static_cast<objects::TypeIndex>(c.type) : objects::kNone,
                               c.team && c.squad_type != 0xFFFFFFFFu ? static_cast<objects::TypeIndex>(c.squad_type) : objects::kNone};
         }
+        view_.finished = b_->finished_;  // #634
+        view_.drop_facing.resize(np + 1);
+        for (size_t p = 0; p <= np; ++p) view_.drop_facing[p] = b_->player_drop_facing(p < np ? static_cast<int32_t>(p) : -1);
+        if (view_.map_hints.size() != b_->map_hints_.size()) view_.map_hints = b_->map_hints_;  // the list only grows
         view_.retreat_ok.assign(np, 0);
         for (int32_t p = 0; p < players; ++p) view_.retreat_ok[static_cast<size_t>(p)] = b_->retreat_block(p) == 0 ? 1 : 0;
         view_.production = b_->ai_production_enabled();
@@ -1096,7 +1167,7 @@ void BattleAi::apply_lane_write(const cmd::Command& c) {
     if (b_->finished_ || !lua::decode_lane_write(c.payload.bytes_view("data"), w)) return;
     if (static_cast<uint8_t>(w.op) >= static_cast<uint8_t>(lua::LaneWriteOp::HostFirst)) return apply_host_write(w);  // slice 4e
     const int32_t n = lua::apply_lane_write(*b_->abilities_, b_->frame(), w, world_->object_bridge());
-    if (n >= 0 && n != w.value) ++lane_mismatch_;
+    if (n >= 0 && n != w.value) count_mismatch();
 }
 
 void BattleAi::lane_collect() {
@@ -1117,20 +1188,48 @@ void BattleAi::lane_publish_copies() {
     world_->danger_layers(lane_danger_);
     lane_prevent_answer_.resize(host_->players());
     for (uint32_t p = 0; p < host_->players(); ++p) lane_prevent_answer_[p] = world_->prevent_ai_answer(static_cast<int32_t>(p));
+    world_->attack_positioning_ids(lane_attack_pos_);  // #634
+    lane_hidden_ = world_->object_bridge().hidden_sub_object_map();
 }
 
+void BattleAi::lane_rebuild_difficulty() {  // #634: the world's, then the queued changes
+    lane_difficulty_.resize(host_->players());
+    for (uint32_t p = 0; p < host_->players(); ++p) lane_difficulty_[p] = world_->difficulty(static_cast<int32_t>(p));
+    for (const LanePush& q : lane_pushes_)
+        if (q.kind == LanePushKind::SetDifficulty && q.id >= 0 && static_cast<size_t>(q.id) < lane_difficulty_.size())
+            lane_difficulty_[static_cast<size_t>(q.id)] = q.owner;
+}
+
+bool BattleAi::attack_positioning(objects::ObjectId id) const {
+    if (!world_->ai_lane()) return world_->attack_positioning(static_cast<int32_t>(id));
+    return std::binary_search(lane_attack_pos_.begin(), lane_attack_pos_.end(), static_cast<int32_t>(id));
+}
+
+std::span<const std::string> BattleAi::hidden_sub_objects(objects::ObjectId id) const {
+    if (!world_->ai_lane()) return world_->object_bridge().hidden_sub_objects(id);
+    const auto it = lane_hidden_.find(id);
+    return it == lane_hidden_.end() ? std::span<const std::string>() : std::span<const std::string>(it->second);
+}
+
+
 void BattleAi::lane_deliver_pushes() {
+    bool difficulty = false;
     for (const LanePush& p : lane_pushes_) {
         switch (p.kind) {
             case LanePushKind::OrderReplaced: world_->order_replaced(p.id); break;
             case LanePushKind::Refog: world_->refog(p.id, p.x, p.y); break;
             case LanePushKind::PreventAi:  // answered Done when queued
-                if (world_->prevent_ai_usage(p.id, p.owner, p.on) != lua::PreventAiResult::Done) ++lane_mismatch_;
+                if (world_->prevent_ai_usage(p.id, p.owner, p.on) != lua::PreventAiResult::Done) count_mismatch();
+                break;
+            case LanePushKind::SetDifficulty:  // answered true when queued
+                if (world_->set_difficulty(p.id, p.owner)) difficulty = true;
+                else count_mismatch();
                 break;
             default: break;  // a loaded save's unknown kind
         }
     }
     lane_pushes_.clear();
+    if (difficulty) set_build_time_multipliers();
 }
 
 lua::PreventAiResult BattleAi::prevent_ai_usage(objects::ObjectId id, int32_t owner, bool on) {
@@ -1146,8 +1245,21 @@ lua::PreventAiResult BattleAi::prevent_ai_usage(objects::ObjectId id, int32_t ow
 void BattleAi::end() { world_->end_battle(); }
 
 bool BattleAi::set_difficulty(int32_t player, int32_t difficulty) {
-    if (!controls(player) || !world_->set_difficulty(player, difficulty)) return false;
-    set_build_time_multipliers();
+    if (!world_->ai_lane()) {
+        if (!controls(player) || !world_->set_difficulty(player, difficulty)) return false;
+        set_build_time_multipliers();
+        return true;
+    }
+    // #634: queued for the next AI slot like the other pushes (the build-time multipliers follow at the delivery); the
+    // answer from the AI flags published at collect and the difficulties set so far
+    const auto pi = static_cast<size_t>(player);
+    if (player < 0 || pi >= ai_side_.size() || !ai_side_[pi] || pi >= lane_prevent_answer_.size() ||
+        lane_prevent_answer_[pi] == lua::PreventAiResult::NoAiPlayer || pi >= lane_difficulty_.size())
+        return false;
+    const int32_t d = std::clamp(difficulty, 0, 2);
+    if (lane_difficulty_[pi] == d) return false;
+    lane_difficulty_[pi] = d;
+    lane_pushes_.push_back({LanePushKind::SetDifficulty, player, d, false, 0.0f, 0.0f});
     return true;
 }
 
@@ -1172,7 +1284,8 @@ constexpr uint32_t kBattleAiLaneSaveVersion5 = 5;  // version 4 + the AI lane's 
 constexpr uint32_t kBattleAiLaneSaveVersion6 = 6;  // sp3 slice 4e: version 5 + the movement-lock facts (published, job)
 constexpr uint32_t kBattleAiSaveVersion = 7;
 constexpr uint32_t kBattleAiLaneSaveVersion8 = 8;
-constexpr uint32_t kBattleAiLaneSaveVersion = 9;  // #633: version 8 + the queued pushes, the published danger copy and Prevent_AI_Usage answers
+constexpr uint32_t kBattleAiLaneSaveVersion9 = 9;  // #633: version 8 + the queued pushes, the published danger copy and Prevent_AI_Usage answers
+constexpr uint32_t kBattleAiLaneSaveVersion = 10;  // #634: version 9 + the published attack-positioning copy
 bool get_locks(ByteReader& r, std::vector<lua::ScriptLockFact>& v) {
     uint32_t n = 0;
     if (!r.count(n, 18)) return false;
@@ -1219,6 +1332,7 @@ void BattleAi::visit_saved(A& a) const {
     a.save_only_seq(lane_job_.locks, lock);
     a.seq(lane_pushes_, [](A& x, const LanePush& p) { push_fields(x, p); });  // version 9 (#633)
     a.save_only(lane_danger_, lane_prevent_answer_);  // copies of the world state its digest covers
+    a.save_only(lane_attack_pos_);  // version 10 (#634)
 }
 
 void BattleAi::write(ByteWriter& w) const {
@@ -1243,7 +1357,8 @@ bool BattleAi::read(ByteReader& r) {
                               version == kBattleAiLaneSaveVersion8 || version == kBattleAiLaneSaveVersion;
     const bool has_second = version == kBattleAiSaveVersion || version == kBattleAiLaneSaveVersion8 || version == kBattleAiLaneSaveVersion;  // mcx6 t06
     const bool has_locks = version == kBattleAiLaneSaveVersion6 || version == kBattleAiLaneSaveVersion8 || version == kBattleAiLaneSaveVersion;
-    const bool has_pushes = version == kBattleAiLaneSaveVersion;  // #633
+    const bool has_pushes = version == kBattleAiLaneSaveVersion9 || version == kBattleAiLaneSaveVersion;  // #633
+    const bool has_attack_pos = version == kBattleAiLaneSaveVersion;  // #634
     if (!r.ok() || !(version == kBattleAiSaveVersion || version == kBattleAiSaveVersion4 || (lane_version && world_->ai_lane())))
         return false;
     const std::span<const uint8_t> world = r.raw(r.u32());
@@ -1266,6 +1381,7 @@ bool BattleAi::read(ByteReader& r) {
     std::vector<LanePush> pushes;
     std::vector<std::pair<uint32_t, float>> danger;
     std::vector<lua::PreventAiResult> prevent_answer;
+    std::vector<int32_t> attack_pos;
     if (lane_version) {
         const auto get_batch = [&r](std::vector<cmd::Command>& out) {
             uint32_t n = 0;
@@ -1291,6 +1407,7 @@ bool BattleAi::read(ByteReader& r) {
             save_io::In pin(r);
             pin.seq(pushes, [](save_io::In& x, LanePush& p) { push_fields(x, p); });
             pin(danger, prevent_answer);
+            if (has_attack_pos) pin(attack_pos);
         }
     }
     if (!r.ok() || !r.done() || side != ai_side_) return false;  // the AI players are rebuilt by start()
@@ -1327,9 +1444,17 @@ bool BattleAi::read(ByteReader& r) {
     lane_pushes_ = std::move(pushes);
     lane_danger_ = std::move(danger);
     lane_prevent_answer_ = std::move(prevent_answer);
+    lane_attack_pos_ = std::move(attack_pos);
     // #633: any other save loaded into a lane-on world (lane 5..8, or a lane-off 4 / 7) takes the loaded world's copies
-    // (a 5..8 save with a pending job: its world is that job's, one ahead of the last collected one [port])
+    // (a 5..8 save with a pending job: its world is that job's, one ahead of the last collected one [port]); #634: a
+    // version-9 save its attack-positioning flags likewise
     if (world_->ai_lane() && !has_pushes) lane_publish_copies();
+    else if (world_->ai_lane() && !has_attack_pos) world_->attack_positioning_ids(lane_attack_pos_);
+    if (world_->ai_lane()) {
+        lane_rebuild_difficulty();  // #634
+        lane_hidden_ = world_->object_bridge().hidden_sub_object_map();
+    }
+    view_.map_hints.clear();  // #634: captured again (the loaded battle's list)
     view_.valid = false;  // captured again at the next AI slot
     view_.grid_valid = false;  // the grid copy too (a loaded grid may have another state at the same version)
     world_->object_bridge().lane_abilities = nullptr;  // sp3 slice 4b: likewise the ability records
@@ -2166,7 +2291,8 @@ bool BattleAi::lane_drop_valid(const cmd::Command& c) {
 namespace {
 constexpr uint16_t kLaneHostSubtype = 0x4148;  // "AH": ref5 t06, an AI host write (op, player, object, path)
 // kHostAddCredits (b0147): object_id carries the amount's float bits.
-constexpr uint8_t kHostUnitReleased = 1, kHostUnitLeftTaskForce = 2, kHostAddCredits = 3;
+// kHostReleaseCredits (#634): likewise, Release_Credits_For_Tactical's amount (negative: all that is left).
+constexpr uint8_t kHostUnitReleased = 1, kHostUnitLeftTaskForce = 2, kHostAddCredits = 3, kHostReleaseCredits = 4;
 }  // namespace
 
 void BattleAi::queue_host_release(uint8_t op, int32_t player, int32_t object_id, uint8_t path) {
@@ -2190,6 +2316,18 @@ void BattleAi::apply_host_release(const cmd::Command& c) {
         unit_left_task_force_live(id);
     else if (op == kHostAddCredits)
         add_credits_live(player, std::bit_cast<float>(id));
+    else if (op == kHostReleaseCredits && release_credits_live_)
+        release_credits_live_(player, static_cast<double>(std::bit_cast<float>(id)));
+}
+
+std::function<void(int32_t, double)> BattleAi::lane_release_credits(std::function<void(int32_t, double)> live) {
+    if (!world_->ai_lane()) return live;
+    release_credits_live_ = std::move(live);
+    return [this](int32_t p, double amount) {
+        // the amount is used as a float (CampaignBattles' transfer), so its float bits carry it
+        if (lane_view()) return queue_host_release(kHostReleaseCredits, p, std::bit_cast<int32_t>(static_cast<float>(amount)), 0);
+        if (release_credits_live_) release_credits_live_(p, amount);
+    };
 }
 
 // ---- order execution ----------------------------------------------------------------------------------------------
@@ -2230,7 +2368,7 @@ void BattleAi::follow_retry_at(objects::ObjectId target, uint32_t frame) {
 
 void BattleAi::stale_target() { ++stale_; }
 
-void BattleAi::order_refused(objects::ObjectId unit) { facts_.order_refused.push_back(static_cast<int32_t>(unit)); }
+void BattleAi::order_refused(objects::ObjectId unit) { facts_.refused_record().push_back(static_cast<int32_t>(unit)); }
 
 void BattleAi::follow_service() {
     const objects::ObjectStore& st = mode_->primary();
@@ -2267,7 +2405,7 @@ void BattleAi::follow_service() {
             const objects::ObjectId lead = f.units.front();
             const objects::ObjectHandle lh = st.find(lead);
             const objects::ObjectHandle ch = st.exists(lh) ? st.container(lh) : objects::ObjectHandle{};
-            if (world_->attack_positioning(lead) || (st.exists(ch) && world_->attack_positioning(st.id(ch)))) continue;
+            if (attack_positioning(lead) || (st.exists(ch) && attack_positioning(st.id(ch)))) continue;  // #634: lane on, the copy
         }
         f.gx = tp.x;
         f.gy = tp.y;
@@ -2428,7 +2566,7 @@ void BattleAi::order_signals(uint8_t player, const cmd::EventData& ev) {
 }
 
 cmd::RejectReason BattleAi::execute(uint8_t player, const cmd::EventData& ev) {
-    facts_.order_refused.clear();
+    facts_.refused_record().clear();  // #634: lane code its own record
     facts_.wrote();  // ref5 t07
     if (world_ && world_->ai_lane()) {  // queued for the batch due N + k_ai
         // sp3 slice 4c: an event execute_order does not act on is not run from the AI side either
@@ -2493,9 +2631,9 @@ bool BattleAi::lane_batched(const cmd::EventData& ev) {
 cmd::RejectReason BattleAi::predict_order(uint8_t player, const cmd::EventData& ev) {
     using R = cmd::RejectReason;
     using T = cmd::EventType;
-    // sp3 slice 4c: reads the lane view and the snapshot store only (finished_ is set on the critical lane before the
-    // AI slot of the deciding tick).
-    if (b_->finished_) return R::NotAllowed;
+    // sp3 slice 4c: reads the lane view and the snapshot store only (#634: the captured finished flag; finished_ is set
+    // on the critical lane before the AI slot of the deciding tick).
+    if (lane_view() ? view_.finished : b_->finished_) return R::NotAllowed;
     const objects::ObjectStore& st = world_->view_store();
     const auto movable = [this](objects::ObjectId id) {
         const LaneView::Unit* u = view_unit(id);
@@ -2662,7 +2800,7 @@ void BattleAi::apply_lane_batch(uint64_t frame) {
             count_executed(c.payload, cmd::RejectReason::None);
             continue;
         }
-        facts_.order_refused.clear();
+        facts_.refused_record().clear();
         const bool reinforce = c.payload.type() == cmd::EventType::Reinforce;
         const auto player = static_cast<int32_t>(c.header.player);
         const size_t before = reinforce ? mode_->primary().owned_by(player).size() : 0;
@@ -2670,7 +2808,7 @@ void BattleAi::apply_lane_batch(uint64_t frame) {
         const cmd::RejectReason r = reinforce && !lane_drop_valid(c) ? cmd::RejectReason::InvalidPosition
                                                                      : execute_order(static_cast<uint8_t>(c.header.player), c.payload);  // uint8_t ids: lossless
         if (r == cmd::RejectReason::None) order_signals(static_cast<uint8_t>(c.header.player), c.payload);
-        else ++lane_mismatch_;  // queued only when predicted accepted
+        else count_mismatch();  // queued only when predicted accepted
         count_executed(c.payload, r);
         if (reinforce) {  // slice 4d: the AI waits for an unload record of every lane drop
             const auto key = static_cast<int32_t>(c.payload.u("unit"));
