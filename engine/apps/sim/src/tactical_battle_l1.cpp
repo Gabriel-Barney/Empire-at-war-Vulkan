@@ -378,20 +378,18 @@ bool TacticalBattle::special_weapons_allowed(int32_t player) const {
 
 int32_t TacticalBattle::tsw_state(objects::ObjectId tsw) const { return l1_sw_.tsw_state(tsw); }
 
-bool TacticalBattle::tsw_fire(objects::ObjectId tsw) {
+bool TacticalBattle::tsw_planet_ok() const {
     // 0x42a720: the battle planet exists in the parent (galactic) store, is not destroyed and its type has
     // Planet_Is_Destroyable_By_TSW.
-    bool planet_ok = false;
     const PlanetIndex p = req_.info.planet;
-    if (!finished_ && !l1_planet_destroyed_ && p < galaxy_->planets().size() && !galaxy_->planets()[p].destroyed) {
-        const uint32_t gt = galaxy_->planets()[p].type;
-        if (gt < galaxy_->rules().types.size()) {
-            const objects::TypeIndex t = catalog_->types().resolve_name(galaxy_->rules().types[gt].name);
-            planet_ok = t != objects::kNone && catalog_->types().get(t, objects::tags::Planet_Is_Destroyable_By_TSW);
-        }
-    }
-    return l1_sw_.tsw_fire(tsw, planet_ok, frame_);
+    if (finished_ || l1_planet_destroyed_ || p >= galaxy_->planets().size() || galaxy_->planets()[p].destroyed) return false;
+    const uint32_t gt = galaxy_->planets()[p].type;
+    if (gt >= galaxy_->rules().types.size()) return false;
+    const objects::TypeIndex t = catalog_->types().resolve_name(galaxy_->rules().types[gt].name);
+    return t != objects::kNone && catalog_->types().get(t, objects::tags::Planet_Is_Destroyable_By_TSW);
 }
+
+bool TacticalBattle::tsw_fire(objects::ObjectId tsw) { return l1_sw_.tsw_fire(tsw, tsw_planet_ok(), frame_); }
 
 // ---- motion: teleport, hyperspace, engines ----
 

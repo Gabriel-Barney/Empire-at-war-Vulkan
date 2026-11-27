@@ -125,6 +125,10 @@ BombingRunStyle bombardment_style(const galactic::FactionRules& faction);
 // and TacticalBattle::bombardment_shown; ready = shown and bombardment_available (0x528970; [port] the player's gate is
 // read at once rather than through the service's `available`); recharge = bombardment_recharge.
 ui::HudBombardSwitch bombard_switch(bool land, bool shown, bool available, float recharge);
+// #718 0x31acd0 [H]: deathstar_switch. Always driven in a battle; shown = space, the local faction is the HUD's Empire
+// (space_weapon_faction_icon 1, the +0x2728 string) and `tsw_state` >= 0 (the battle's first TSW, any owner); ready =
+// state 4 (0x42a6b0); `pressed` = the app's once-per-battle latch (HUD +0x2040).
+ui::HudTswSwitch tsw_switch(bool space, bool empire, int32_t tsw_state, bool pressed);
 
 const char* hardpoint_type_name(uint8_t kind);
 ui::Vec3 hardpoint_world(ui::Vec3 position, ui::Vec3 facing, ui::Vec3 offset);

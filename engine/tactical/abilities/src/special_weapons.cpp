@@ -376,6 +376,12 @@ uint32_t SpecialWeaponSystem::victory_holds() const {
     return n;
 }
 
+ObjectId SpecialWeaponSystem::first_tsw() const {
+    for (const Pack& p : packs_)
+        if (p.desc < descs_.size() && (descs_[p.desc].kinds & kSwTsw)) return p.id;
+    return kNoObject;
+}
+
 bool SpecialWeaponSystem::tsw_spent(ObjectId id) const {
     const Pack* p = pack(id);
     return p && p->tsw_init == 2;

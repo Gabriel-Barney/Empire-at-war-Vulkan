@@ -934,6 +934,11 @@ void App::handle_hud_actions(const std::vector<ui::HudAction>& acts) {
                     bombard_toggle();
                     break;
                 }
+                // #718 deathstar_switch (0x107; click handler 0x2f4e90 through 0x3470f0): the space Death Star switch.
+                if (screen() == Screen::Battle && bview_.space() && ascii_iequals(a.name, "deathstar_switch") && a.button == ui::Button::Left) {
+                    tsw_press();
+                    break;
+                }
                 // ui1 t04 (HUD_GAPS §9.4: 0x346a80 in HUD mode 2 fires the space superweapon): aim the local special weapon.
                 if (screen() == Screen::Battle && bview_.space() && ascii_iequals(a.name, "b_special_weapon") && a.button == ui::Button::Left) {
                     space_weapon_toggle();
@@ -1700,6 +1705,36 @@ void App::bombard_toggle() {
     targeting_.cancel();
     if (const objects::TypeIndex st = b->bombardment_ship_type(local_player()); st != objects::kNone)
         audio_.ui(data_.types.get_string(st, "SFXEvent_Bomb_Run_Select_Target"));
+}
+
+// #718 0x2f4e90 [H]: the first press of the battle latches the switch (HUD +0x2040) and, when the switch's animation ends
+// ([port] at once: the animation and its end callback 0x2f4f30 are not played), 0x2f4f30 takes the battle's first TSW;
+// when it is the local player's, 0x42b8d0: the planet gate (0x42a720) failing plays the GUI negative SFX ([port] once,
+// the original plays it in 0x42b8d0 and again in its caller); state 4 sends command 38 op 2 (Fire), state 0 with a target
+// op 1 (0x42a330), any other state the negative SFX; a sent command plays the type's TSW_SFXEvent_GUI_Bttton_Press, 2D.
+void App::tsw_press() {
+    if (tsw_pressed_) return;
+    tsw_pressed_ = true;
+    const sim::TacticalBattle* b = battle();
+    const sim::TacticalMode* tm = session_ ? session_->host().modes().top_tactical() : nullptr;
+    if (!b || !tm) return;
+    const objects::ObjectId tsw = b->special_weapons().first_tsw();
+    const objects::ObjectHandle h = tm->primary().find(tsw);
+    if (tsw == tactical::abilities::kNoObject || !tm->primary().alive(h) || tm->primary().owner(h) != local_player()) return;
+    const int32_t state = b->tsw_state(tsw);
+    uint32_t op = 0;
+    if (b->tsw_planet_ok()) {
+        if (state == tactical::abilities::kTswReady) op = 2;
+        else if (state == tactical::abilities::kTswIdle && b->special_weapons().tsw_target(tsw) != tactical::abilities::kNoObject) op = 1;
+    }
+    if (op == 0) {
+        audio_.negative_feedback();
+        return;
+    }
+    commands::EventData ev(commands::EventType::TacticalSuperWeapon);
+    ev.set("weapon", static_cast<uint32_t>(tsw)).set("op", op);
+    submit(std::move(ev), false);
+    audio_.ui(data_.types.get_string(tm->primary().type(h), "TSW_SFXEvent_GUI_Bttton_Press"));
 }
 
 void App::bombard_end(bool cancel_sfx) {

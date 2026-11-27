@@ -1516,6 +1516,22 @@ cmd::RejectReason TacticalBattle::handle_command(TacticalMode& mode, uint8_t pla
         if (!bombardment_available(p)) return R::AbilityNotReady;
         return start_bombardment(mode, p, at, rng) ? R::None : R::NotAllowed;
     }
+    // #718 (command 38 TacticalSuperWeapon, execute 0x5d6cd0 [H]): the weapon must be the issuer's and carry the TSW
+    // behaviour; op 2 -> 0x42a200, Fire (the planet gate 0x42a720, state 4 with a target -> 5): tsw_fire, the AI's and
+    // Lua's path; op 1 -> 0x42a140, a target acquired from state 0 (-> 2). [port] the port's TSW is in state 0 only before
+    // its first service (which acquires on its own) and after its release, when 0x42a140 finds no live target dummy
+    // either, so op 1 has nothing to do: NotAllowed, as a refused Fire. No RNG.
+    if (t == T::TacticalSuperWeapon) {
+        const uint32_t ww = ev.u("weapon");
+        if (ww == cmd::kNoObject || ww > 0x7FFFFFFFu) return R::InvalidUnit;
+        const objects::ObjectStore& store = mode.primary();
+        const objects::ObjectHandle wh = store.find(static_cast<objects::ObjectId>(ww));
+        if (!store.alive(wh) || store.owner(wh) != static_cast<int32_t>(player)) return R::InvalidUnit;
+        const objects::ObjectId wid = store.id(wh);
+        if (tsw_state(wid) < 0) return R::InvalidUnit;
+        if (ev.u("op") == 2) return tsw_fire(wid) ? R::None : R::NotAllowed;
+        return R::NotAllowed;
+    }
     if (t != T::SetUnitAbilityMode && t != T::TacticalSpecialAbility && t != T::TacticalSpecialAbilityWithDummyTarget &&
         t != T::SetAbilityAutofire)
         return R::Unhandled;

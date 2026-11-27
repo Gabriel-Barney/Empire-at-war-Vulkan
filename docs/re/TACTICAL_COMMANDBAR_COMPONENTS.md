@@ -229,6 +229,32 @@ Port: `TacticalBattle::bombardment_shown` / `bombardment_recharge` / `bombardmen
 in `handle_command`, `ui::HudBombardSwitch` (`TacticalHud::apply_bombard_switch`, `build_bombard_recharge`),
 `game::bombard_switch` / `bombardment_style`, and `App::bombard_toggle` / `bombard_end` beside the bombing-run pick.
 
+### Death Star switch: deathstar_switch (0x107) [H]
+The human player's tactical super weapon button in space (#718). A TextButton with Can_Animate (5 fps, no loop).
+- **Update 0x31acd0, every frame.** Space only (+0x211c == 2). Shown when the local faction's name equals the HUD string
+  +0x2728 (copied from 0xb16b20, "Empire"), the object list has an object with the TSW behaviour (0x2c; the first one,
+  any owner) and HUD +0x26a0 <= 0 [L: its meaning; not ported]. Shown: unhidden, +0x2041 set; ready = 0x42a6b0 (the
+  TSW in state 4). Not pressed (+0x2040 clear): ready -> Icon_Alternate_Texture_Name 0, enabled; else 0x34c340 (the
+  Icon_Texture_Name), disabled. Pressed: disabled, the icon left as it was. Its shell bone is raised (z 8) while shown
+  [port: not done]. Not shown: hidden, the HUD's +0x2050 object hidden, the bone override off.
+- **Click 0x2f4e90** (the handler, through 0x3470f0; also hotkey case 0x38 of 0x63f00 [port: not bound]): only when not
+  pressed. It plays the switch's animation with 0x2f4f30 as its end callback (vf+0x2e8), sets +0x2040 (cleared only by
+  the battle reset 0x2f8ff0, so once per battle), hides +0x2050, and with +0x2af0 set pokes object +0x2af4's behaviour
+  0x46 (0x42fb70(.., 0x37)) [L; not ported].
+- **0x2f4f30:** the first TSW object; when it is the local player's, 0x42b8d0(behaviour); a 0 result plays the GUI
+  negative SFX (0x140b301c8).
+- **0x42b8d0:** the planet gate 0x42a720 failing plays the negative SFX and returns 0 (so the caller plays it again).
+  State 0 with a target (0x42a330) builds event 38 op 1; state 4 op 2; any other state returns 0. The event takes the
+  weapon id (0x3b01e0) and is sent (0x3b01f0); then the type's TSW_SFXEvent_GUI_Bttton_Press (+0x2150) plays, 2D.
+- **Execute 0x5d6cd0:** the weapon's owner must be the issuer and it must carry the behaviour; op 1 -> 0x42a140 (the
+  planet gate, state 0, a target dummy: -> state 2 with the target), op 2 -> 0x42a200 (Fire). The TSW's first service
+  0x42a7b0 does 0x42a140's work itself for a defender, and its switch has no case 0, so retail's state 0 waits for op 1.
+
+Port: `TacticalBattle::tsw_planet_ok`, `SpecialWeaponSystem::first_tsw`, the TacticalSuperWeapon handler in
+`handle_command` (op 1 is refused: the port's TSW is in state 0 only before its first service and after its release),
+`ui::HudTswSwitch` (`TacticalHud::apply_tsw_switch`), `game::tsw_switch` and `App::tsw_press`, which acts at once instead
+of after the switch's animation.
+
 ## 2. Port today and changes, ranked (smallest and most certain first)
 
 1. **garrison_respawn_counter** [H rule]. sim: TacticalBattle `std::optional<std::pair<float,bool>> garrison_respawn(player)`

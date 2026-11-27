@@ -635,6 +635,9 @@ private:
     bool bombard_shown() const;
     void bombard_toggle();
     void bombard_end(bool cancel_sfx);
+    // #718 the deathstar_switch press (0x2f4e90 -> 0x2f4f30 -> 0x42b8d0): once per battle (HUD +0x2040, reset with the battle).
+    bool tsw_pressed_ = false;
+    void tsw_press();
     // t04 (app_tactical_keys.cpp): tactical hotkeys / command-bar buttons beyond the camera and move toggles.
     void tactical_hotkeys(const std::vector<ui::HotkeyEvent>& hk, std::vector<commands::EventData>& cmds,
                           std::vector<ui::HudAction>& acts);

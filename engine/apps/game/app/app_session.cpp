@@ -785,6 +785,7 @@ void App::begin_battle(bool from_save) {
     fly_texts_.clear();   // #664: nor a bounty text (a load's frames can fall inside an old record's 60)
     bombing_targeting_ = false;  // nor a bombing-run pick
     bombard_targeting_ = false;  // nor a bombardment pick (#717)
+    tsw_pressed_ = false;        // #718 the Death Star switch's latch (the battle reset 0x2f8ff0 clears HUD +0x2040)
     autofire_seen_.clear();  // the default autofire is sent for this battle's objects
     sw_weapon_ = objects::kNoObjectId;  // nor a space special-weapon aim
     sw_station_ = false;

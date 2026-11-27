@@ -302,6 +302,8 @@ struct Run {
     bool fought = false;
     bool weapon_adopted = false, fired = false, hit = false, not_ready_refused = false, allowed_after = true;
     bool tsw_ready = false, tsw_fired = false, planet_destroyed = false;
+    // #718 (via_command): command 38 from the Empire (not its weapon), op 1, and op 2 again once fired are refused.
+    bool tsw_cmd_other = false, tsw_cmd_op1 = false, tsw_cmd_again = false, tsw_first = false, tsw_gate = false;
     bool jumped_out = false, away_died = false, engines_off = false, engines_back = false, teleported = false;
     int32_t increment = -1;
     float ground = 0.0f;
@@ -514,7 +516,24 @@ Run run(const Data& d, int32_t workers, int follow = 0, bool via_command = false
         }
         if (out.fired && !out.hit && b->combat().has_unit(target) && b->combat().health(target) < target_hp0) out.hit = true;
         if (out.fired && f == fire_frame + 60 && !out.tsw_fired) {
-            out.tsw_fired = b->tsw_fire(tsw);
+            out.tsw_first = b->special_weapons().first_tsw() == tsw;
+            out.tsw_gate = b->tsw_planet_ok();
+            if (via_command) {
+                const int32_t owner = st.owner(st.find(tsw));
+                commands::EventData ev(commands::EventType::TacticalSuperWeapon);
+                ev.set("weapon", static_cast<uint32_t>(tsw)).set("op", 2);
+                out.tsw_cmd_other = b->handle_command(*tm, static_cast<uint8_t>(owner == 0 ? 1 : 0), ev, host.random().synced()) ==
+                                    commands::RejectReason::InvalidUnit;
+                commands::EventData acquire(commands::EventType::TacticalSuperWeapon);
+                acquire.set("weapon", static_cast<uint32_t>(tsw)).set("op", 1);
+                out.tsw_cmd_op1 = b->handle_command(*tm, static_cast<uint8_t>(owner), acquire, host.random().synced()) ==
+                                  commands::RejectReason::NotAllowed;
+                out.tsw_fired = b->handle_command(*tm, static_cast<uint8_t>(owner), ev, host.random().synced()) == commands::RejectReason::None;
+                out.tsw_cmd_again = b->handle_command(*tm, static_cast<uint8_t>(owner), ev, host.random().synced()) ==
+                                    commands::RejectReason::NotAllowed;
+            } else {
+                out.tsw_fired = b->tsw_fire(tsw);
+            }
             out.tsw_fire_frame = f;
             dummy = b->special_weapons().tsw_target(tsw);
             if (follow == 1) CHECK(b->request_retreat(0));  // the Empire retreats: complete ~30 frames later, inside the hold
@@ -600,6 +619,10 @@ void test_battle(const Data& d) {
         const auto dv = first_divergence(a.crc, c.crc);
         std::printf("  via command 25: fired %d hit %d, %s, trace %s\n", c.fired, c.hit, dv.message.c_str(), c.trace == a.trace ? "identical" : "DIFFERENT");
         CHECK(c.fired && c.hit && !dv.diverged && c.trace == a.trace);
+        // #718: command 38 op 2 from the TSW's owner fires it as the direct call (same CRC log and trace); another
+        // player's command is InvalidUnit, op 1 and a second Fire NotAllowed; the HUD's first TSW and planet gate.
+        CHECK(c.tsw_fired && c.planet_destroyed && c.tsw_cmd_other && c.tsw_cmd_op1 && c.tsw_cmd_again);
+        CHECK(a.tsw_first && a.tsw_gate);
     }
     {  // #460: command 25 fires with another of the owner's special weapons aimed; a refused command still sweeps
         const auto dv = make_data("alamo_sim_l1_sw460", kSw460Types);
