@@ -277,6 +277,21 @@ BattleCamPicks App::battle_cam_picks() {
         return false;  // no participant of the local player
     };
     p.interesting = [this](bool first, BattleCamShot& out) { return interesting_object_shot(first, out); };
+    // #563 0x49f370: the local player's land bombing run (the sim's presentation query).
+    p.bombing_run = [this](BattleCamShot& out) {
+        const sim::TacticalBattle* b = battle();
+        if (!b || bview_.space()) return false;  // mode type 1 only
+        sim::TacticalBattle::BombingRunCamera c;
+        if (!b->bombing_run_camera(local_player(), c)) return false;
+        BombingRunView v;
+        v.bomber = static_cast<uint32_t>(c.bomber);
+        v.target = static_cast<uint32_t>(c.marker);
+        v.bomber_at = {c.bomber_at.x, c.bomber_at.y, c.bomber_at.z};
+        v.target_at = {c.marker_at.x, c.marker_at.y, c.marker_at.z};
+        v.speed = c.speed;
+        v.range = c.range;
+        return bombing_run_shot(v, static_cast<int32_t>(galactic::econ::kFramesPerSecond), out);
+    };
     return p;
 }
 
@@ -507,6 +522,8 @@ void App::battle_cam_step() {
         if (std::none_of(list.begin(), list.end(), [clash](const ClashEntry& e) { return e.key == clash; }))
             cine_.cam.clash_ended(battle_cam_picks());
     }
+    if (cine_.cam.shot().bombing_run && !b->bombing_run_in_progress(local_player()))  // #563 0x4aaf00: the run ended
+        cine_.cam.bombing_run_ended(battle_cam_picks());
     if (cine_.cam.active() && !drawn_object(static_cast<objects::ObjectId>(cine_.cam.shot().target), nullptr)) cine_.cam.stop();  // [port] the object is gone
     battle_cam_sync();
     if (!cine_.cam.active()) return;

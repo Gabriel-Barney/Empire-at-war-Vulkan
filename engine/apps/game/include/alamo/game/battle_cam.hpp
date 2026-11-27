@@ -11,7 +11,7 @@
 // Presentation only. Nothing here is written into the sim, and the orbit direction is an unsynced draw.
 // Ported shots: Cinematic View, the hero clash orbit, and the interesting-object shot with its orbit, fly-past and
 // static templates (#568), its push-in, drive-by and land flying shots (#569), and its structure, attack-run and
-// fighter shots (#570). [port] The land bombing run (0x49f370, #563) and the hardpoint and glory templates (#571, #572)
+// fighter shots (#570), and the land bombing run (0x49f370, #563). [port] The hardpoint and glory templates (#571, #572)
 // are not ported yet: they fail, and the next pick is tried, as retail does when a pick fails.
 #pragma once
 
@@ -40,6 +40,7 @@ struct BattleCamShot {
     int32_t handheld_frames = kHandheldFrames;  // its duration
     int32_t length = 0;              // #568: frames (0x4ad3a0); 0 = no length (it runs until input or the next key up)
     bool interesting = false;        // #568: an interesting-object shot; starting one sets +0x360, so the chain reaches the next
+    bool bombing_run = false;        // #563 (+0x32c): the shot ends with the local bombing run (bombing_run_ended)
 };
 
 // 0x4a6790 [H]: view n (0..7) steps 45 degrees clockwise round the object: yaw 0, 315, 270 ... 45.
@@ -67,6 +68,22 @@ float hero_clash_radius(const tactical::Vec3& half_extents, bool space);
 // clash's end.
 BattleCamShot hero_clash_shot(uint32_t hero, uint64_t clash, const tactical::Vec3& half_extents, bool space, bool reverse);
 
+// #563 0x49f370 [H]: the land bombing run, Movie Mode's pick after the hero clash. Needs the local player's run in
+// progress (mode +0x38, 0x494480). The bomber is the record's first object (+0x30), the target its first marker (+0x48).
+struct BombingRunView {
+    uint32_t bomber = 0, target = 0;
+    tactical::Vec3 bomber_at, target_at;  // world positions now
+    float speed = 0.0f;                   // the bomber's |velocity| per frame
+    float range = 0.0f;                   // its attack range (behaviour 9 vf+0x140)
+};
+// n = (int)((|target - bomber| - range) / speed), the frames until the bomber is in range. Eye: linear keys on the
+// bomber at (15, 60, 30), frames 0 and n - 30, then an orbit of the target at (300, 300, 250) from frame n, period 600,
+// clockwise. Look: one linear world key at the target's position, frame n - 30. Length (int)(FPS x (600 / FPS +
+// (int)(dist / speed))) [M: 0x4ad3a0 takes seconds, so the 600 meant as frames is 600 frames and the travel time is
+// FPS x frames: a retail seconds / frames mix-up, kept]. Smoothing 0, no handheld noise, the raw look; it ends with the
+// run (bombing_run_ended). [port] A bomber with no speed fails (retail divides by it).
+bool bombing_run_shot(const BombingRunView& v, int32_t fps, BattleCamShot& out);
+
 // What the host reads each time a key or button reaches the controller.
 struct BattleCamGates {
     bool in_game_cinematics = true;  // GameConstants In_Game_Cinematics (DAT_140b16dd2)
@@ -86,6 +103,8 @@ struct BattleCamPicks {
     // #568 0x2cd930(ctrl, first): the interesting-object pick and its template (interesting_pick, interesting_shot).
     // `first` = a random object of the selection; otherwise the next object of the chain.
     std::function<bool(bool first, BattleCamShot& out)> interesting;
+    // #563 0x49f370: the land bombing run of the local player (bombing_run_shot), tried after the clash.
+    std::function<bool(BattleCamShot& out)> bombing_run;
 };
 
 class BattleCam {
@@ -123,6 +142,8 @@ public:
     bool terrain_clamp() const { return terrain_clamp_; }
     // 0x2cbc40: the framed clash ended. The chain (0x2cda20), else stop.
     void clash_ended(const BattleCamPicks& p);
+    // #563 0x4aaf00 (+0x32c): the framed bombing run is no longer in progress. The chain, else stop.
+    void bombing_run_ended(const BattleCamPicks& p);
     // #568 0x4aaf00, once per shot frame: `clock` = frames since the shot started. A shot with a length expires at it:
     // outside the battle cam it ends; while the Movie Mode key or Tab is held the clock freezes on its last value;
     // otherwise the chain (0x2cda20: the next clash, then another interesting object if this one is) or stop. Returns

@@ -190,12 +190,31 @@ The key down in state 3 sets the hold +0x317; in state 4 it is swallowed.
   - the handheld noise `0x4ab780` [M];
   - the engine-loop SFX on the hero (+0x318, type +0x1420 / +0x1520).
 
+### The land bombing run `0x49f370(ctrl, mode)` [H] (#563)
+
+- **Needs:** mode type 1 and the local player's 0x78-byte bombing-run record (mode +0x38) active: +0x28 set, and every
+  int of its list at +0x40 / +0x68 zero (`0x494480`). [port] The port reads "in progress" (`bombing_run_camera`); its
+  runs have no such pending list [M].
+- **Participants:** the bomber is the first object of record +0x30. It must not be dying (+0x3a0 & 2). The target is
+  the first object of record +0x48: the port takes that bomber's marker [M].
+- **Frames:** n = (int)((|target − bomber| − range) / |v|). The range is behaviour 9 vf+0x140 (`0x566ca0`: the attack
+  range, Targeting_Max_Attack_Distance × (1 + the range modifiers) [H]); v is the bomber's velocity (+0xa8 +0x14..+0x1c).
+  [port] The range has no modifiers, as the port's own fire test; a bomber with no speed fails, where retail divides by it.
+- **Keys:** a draw `rand(0, 1)` is made and both outcomes take the same branch.
+  - eye 1: frame 0, linear, attached to the bomber at (15, 60, 30), tangent scale 0.5;
+  - eye 2: the same at frame n − 30;
+  - look: frame n − 30, linear, the target's world position;
+  - eye 3: frame n, an orbit attached to the target at (300, 300, 250), period 600, clockwise (+0x50 = 1).
+  `0x499c60` inserts by frame, so with n < 30 the second chase key comes first.
+- **Length:** `0x4ad3a0(+0x14c, 600/FPS + (int)(dist / |v|))` takes seconds, so the length is 600 + FPS × the travel
+  frames [M: a retail seconds / frames mix-up, kept].
+- **The rest:** letterbox (0.5), cinematic mode on, smoothing +0x270 = 0, +0x1bd = 0 (raw look), no handheld noise,
+  +0x32c = 1. `0x4aaf00` ends the shot once the record goes inactive, then chains (the next clash, then an interesting
+  object) or stops.
+- **Order:** Movie Mode's first pick tries it after the hero clash; the chain tries it after the next clash.
+
 ### Not ported yet
 
-- **`0x49f370`, the land bombing run [H].** It needs the local player's active bombing-run record (mode +0x38). The eye
-  chases the bomber at offset (15, 60, 30), linear, until frames − 30. It then orbits the target marker at
-  (300, 300, 250), period 600, clockwise. The look is fixed on the target. The length is 600 + FPS × frames [M: a retail
-  seconds / frames mix-up]. The shot ends with the run (+0x32c).
 - **`0x4a30b0`, a galactic-map tour,** reached from `0x2cc780` [H]. It is never a tactical shot.
 
 ## The interesting-object shot (#568)
@@ -415,7 +434,7 @@ The TSW firing shot is state 3 too. `0x2ccf30` sets the baseline at Fire, and ev
 
 All of them are presentation: no sim state, no synced draw, so tiers 2 and 3 are untouched. Camera feel is tier 1, so
 each of these is a known gap rather than an accepted difference:
-- The not-ported picks and templates: the bombing run (#563); the glory and hardpoint templates (#571, #572) fail and
+- The not-ported picks and templates: the glory and hardpoint templates (#571, #572) fail and
   fall through. The 3/4 hardpoint draw is made, but no hardpoint is picked, and its index draws are not made, so for an object with
   hardpoints the later draws differ from retail's (#571).
 - The fighter chase leaves out retail's CameraAnimeSpiral wander (parameter slots [M]); its box is the one box, where
@@ -466,7 +485,6 @@ start stops a running TSW shot.
 
 - The interesting-object templates not ported yet: the hardpoint shot (#571) and the glory files (#572).
 - The fighter chase's CameraAnimeSpiral parameter slots (+0x38..+0x50).
-- The bombing-run shot `0x49f370` (#563).
 - The exact axes of `0x4a6790`'s rotation.
 - `0x49a610` (polar interpolation), the look smoothing `0x4a96d0`, the roll keys (#562: only its templates use them).
 - State 4 (script cinematics) and the story START cinematic mode (+0x348).

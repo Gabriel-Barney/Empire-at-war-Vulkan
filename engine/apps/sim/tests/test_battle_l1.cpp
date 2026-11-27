@@ -650,6 +650,10 @@ struct LandRun {
     bool bombard_started = false, bombard_hit = false, bombard_reset = false;
     bool run_started = false, bombers_flew = false, run_done = false, refused_unavailable = false;
     bool bombard_fed = false, run_fed = false;  // the strike_starts presentation feed
+    // #563 the battle cam's query: none before the run; in the run its first bomber (the feed's), a live marker, the
+    // bomber's speed and range; none once the run is over.
+    bool cam_none_before = false, cam_in_run = false, cam_none_after = false;
+    objects::ObjectId first_bomber = objects::kNoObjectId;
     std::vector<TacticalBattle::BombardFlashEvent> flashes;  // #314 the bombard_flashes feed, every tick
     // the strike projectile in the battle tables equals the catalog's one builder, visuals stay index-aligned.
     bool strike_desc_found = false, strike_desc_same = false, strike_visuals_aligned = false;
@@ -776,6 +780,8 @@ LandRun run_land(const Data& d, int32_t workers, bool via_command = false) {
         if (out.bombard_hit && !out.bombard_reset && !b->bombardment_available(1) && bombard_end_ready == 0) bombard_end_ready = f;
         if (out.bombard_hit && b->bombardment_available(1) && f > 120) out.bombard_reset = true;
         if (!out.run_started && out.bombard_hit && b->bombing_run_available(1)) {
+            TacticalBattle::BombingRunCamera none;
+            out.cam_none_before = !b->bombing_run_in_progress(1) && !b->bombing_run_camera(1, none);
             out.run_wait_at_start = b->bombing_run_frames_until_available(1);
             out.dial_before = b->bombing_run_cooldown_fraction(1);
             // The wire point is quantized (q1..q3): both variants start at the dequantized point, as the original's execute does.
@@ -792,6 +798,7 @@ LandRun run_land(const Data& d, int32_t workers, bool via_command = false) {
             out.dial_at_start = b->bombing_run_cooldown_fraction(1);
             out.run_fed = out.run_started && !b->strike_starts().empty() && !b->strike_starts().back().bombard &&
                           b->strike_starts().back().first_bomber != objects::kNoObjectId;
+            if (out.run_fed) out.first_bomber = b->strike_starts().back().first_bomber;
         }
         if (out.run_started && !out.run_done) {
             const float dial = b->bombing_run_cooldown_fraction(1);
@@ -800,6 +807,16 @@ LandRun run_land(const Data& d, int32_t workers, bool via_command = false) {
             out.wait_in_run = std::max(out.wait_in_run, b->bombing_run_frames_until_available(1));
         }
         if (out.run_started && !b->bombing_run_finished(1)) out.bombers_flew = true;
+        if (out.run_started && !out.run_done && !out.cam_in_run && out.first_bomber != objects::kNoObjectId) {
+            TacticalBattle::BombingRunCamera c;  // checked once, on the run's start tick (every bomber is still alive)
+            out.cam_in_run = b->bombing_run_in_progress(1) && b->bombing_run_camera(1, c) && c.bomber == out.first_bomber &&
+                             c.marker != objects::kNoObjectId && c.speed > 0.0f && c.range > 0.0f;
+            out.first_bomber = objects::kNoObjectId;
+        }
+        if (out.run_done && !out.cam_none_after) {
+            TacticalBattle::BombingRunCamera c;
+            out.cam_none_after = !b->bombing_run_camera(1, c);
+        }
         if (out.bombers_flew && !out.run_done && b->bombing_run_finished(1)) {
             out.run_done = true;
             out.run_wait_after = b->bombing_run_frames_until_available(1);
@@ -884,6 +901,7 @@ void test_land(const Data& d) {
     CHECK(a.refused_unavailable && a.bombard_started && a.bombard_hit && a.bombard_reset);
     CHECK(a.run_started && a.bombers_flew && a.run_done);
     CHECK(a.bombard_fed && a.run_fed);  // strike_starts names the bombardment and the run's first bomber
+    CHECK(a.cam_none_before && a.cam_in_run && a.cam_none_after);  // #563 the battle cam's bombing-run query
     // #314 (0x52a110): salvo 0's seconds entry is 0 (no light); each of salvo 1's three shots makes one, with that
     // salvo's colour and intensity, at its impact point.
     CHECK(a.flashes.size() == 3);

@@ -102,8 +102,10 @@ struct World {
     std::vector<BattleCamShot> interesting;
     std::vector<bool> interesting_first;
     uint32_t last_view_target = 0xFFFFFFFFu;
+    std::optional<BombingRunView> run;  // #563: the local bombing run in progress, if any
     BattleCamPicks picks() {
         BattleCamPicks p;
+        p.bombing_run = [this](BattleCamShot& out) { return run && bombing_run_shot(*run, 30, out); };
         p.view = [this](uint32_t target, uint32_t& id, V3& half_extents) {
             ++view_calls;
             last_view_target = target;
@@ -138,7 +140,7 @@ void test_movie_mode() {
     World w;
     BattleCamGates g;
     BattleCam cam;
-    // No clash: Movie Mode frames nothing ([port] the bombing run / interesting-object picks are not ported).
+    // No clash (and no bombing run, no interesting object here): Movie Mode frames nothing.
     CHECK(!cam.movie_key_up(g, w.picks()) && !cam.active());
     w.clashes = {1, 2};
     // The gates: ENABLE_COMBAT_CINEMATIC off or LOCK_CONTROLS on, nothing; In_Game_Cinematics off, no shot.
@@ -854,6 +856,68 @@ void test_interesting_chain() {
     CHECK(cam.active() && cam.shot().target == 6 && w.interesting_first.back());
 }
 
+// #563 0x49f370: the bombing-run shot's keys and length, and its place after the clash in the picks and the chain.
+void test_bombing_run() {
+    BombingRunView v;
+    v.bomber = 40;
+    v.target = 41;
+    v.bomber_at = {0.0f, 0.0f, 100.0f};
+    v.target_at = {1000.0f, 0.0f, 100.0f};
+    v.speed = 10.0f;
+    v.range = 200.0f;
+    BattleCamShot s;
+    CHECK(bombing_run_shot(v, 30, s));
+    // n = (1000 - 200) / 10 = 80: chase keys at 0 and 50 on the bomber, the orbit of the marker at 80.
+    CHECK(s.target == 40 && s.second == 41 && s.bombing_run && s.smoothing && *s.smoothing == 0.0f && !s.handheld && !s.interesting);
+    CHECK(s.eye.size() == 3 && s.look.size() == 1);
+    if (s.eye.size() == 3 && s.look.size() == 1) {
+        for (size_t i = 0; i < 2; ++i)
+            CHECK(s.eye[i].segment == ShotKey::Segment::Linear && s.eye[i].attached && !s.eye[i].on_second &&
+                  near(s.eye[i].where, {15.0f, 60.0f, 30.0f}));
+        CHECK(s.eye[0].frame == 0 && s.eye[1].frame == 50);
+        const ShotKey& o = s.eye[2];
+        CHECK(o.frame == 80 && o.segment == ShotKey::Segment::Orbit && o.attached && o.on_second && o.period == 600 && o.reverse &&
+              near(o.where, {300.0f, 300.0f, 250.0f}));
+        const ShotKey& l = s.look[0];
+        CHECK(l.frame == 50 && l.segment == ShotKey::Segment::Linear && !l.attached && near(l.where, {1000.0f, 0.0f, 100.0f}));
+    }
+    // Length: FPS x (600 / FPS + (int)(dist / speed)) = 30 x (20 + 100) (retail's seconds / frames mix-up, kept).
+    CHECK(s.length == 3600);
+    // A bomber already in range: n = -10, the keys stay in frame order (0x499c60 inserts by frame).
+    v.target_at = {100.0f, 0.0f, 100.0f};
+    CHECK(bombing_run_shot(v, 30, s) && s.eye.size() == 3 && s.eye[0].frame == -40 && s.eye[1].frame == -10 &&
+          s.eye[1].segment == ShotKey::Segment::Orbit && s.eye[2].frame == 0);
+    v.speed = 0.0f;  // [port] no speed: no shot
+    CHECK(!bombing_run_shot(v, 30, s));
+    v.speed = 10.0f;
+    v.target_at = {1000.0f, 0.0f, 100.0f};
+
+    // Movie Mode: with no clash the run comes before the interesting object; a clash comes first.
+    World w;
+    BattleCamGates g;
+    BattleCam cam;
+    w.run = v;
+    w.interesting = {timed(1, 60)};
+    CHECK(cam.movie_key_up(g, w.picks()) && cam.state() == State::Movie && cam.shot().bombing_run && cam.shot().target == 40);
+    CHECK(w.interesting_first.empty());
+    cam.stop();
+    w.clashes = {1};
+    CHECK(cam.movie_key_up(g, w.picks()) && cam.shot().clash == 1);
+    // The clash ends: the chain takes the run.
+    w.clashes.clear();
+    cam.clash_ended(w.picks());
+    CHECK(cam.active() && cam.shot().bombing_run);
+    // The run ends (+0x32c): the chain, here nothing (the run is over and no interesting object was reached), so stop.
+    w.run.reset();
+    cam.bombing_run_ended(w.picks());
+    CHECK(!cam.active());
+    // A shot that is not the run's ignores the call.
+    w.clashes = {1};
+    CHECK(cam.movie_key_up(g, w.picks()) && cam.shot().clash == 1);
+    cam.bombing_run_ended(w.picks());
+    CHECK(cam.active() && cam.shot().clash == 1);
+}
+
 void test_toggle_and_smoothing() {
     World w;
     BattleCamGates g;
@@ -906,6 +970,7 @@ int main() {
     test_follow_dispatch();
     test_interesting_chain();
     test_toggle_and_smoothing();
+    test_bombing_run();
     std::printf(g_fail == 0 ? "game battle cam tests passed\n" : "%d game battle cam check(s) FAILED\n", g_fail);
     return g_fail == 0 ? 0 : 1;
 }
