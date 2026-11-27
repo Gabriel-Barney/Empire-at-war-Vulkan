@@ -558,6 +558,61 @@ void MovementSystem::attack_slots(const MoveOrder& order, const std::vector<uint
     unslotted(forms[ref]);
 }
 
+// #649 (#482 slice 2): 0x417520's speed fit (the type-2 branch, after the request fill 0x59d120; read 2026-11-26, [H]
+// structure and constants). With the start at least 40 from the goal (3-D [port] 2-D), the request speed v (from the
+// formation speed F +0x20c) is fitted until a pass changes it by at most 0.001:
+// - R = v / (0.017453292 x the type's turn rate) (0x372560: +0x38c x the difficulty factor [port] loco_turn_rate);
+// - not a TEAM lead (behaviour 0x16 absent; [L] the block byte +0x5c unset): the start S is the lead's position, moved on
+//   along its heading by |speed^2 - v^2| / 2a when it is slower than v (a = the locomotor's vf +0x2d8, accel). The goal
+//   inside either turn circle (S +- R x the left normal), or behind (heading . (goal - S) < -0.001) and nearer than 2R:
+//   v' = v x clamp(|goal - S| x 0.9 / 2R, 0.1, 1), at least 0.1 x the first v;
+// - a > 0: with d = |goal - the lead| (the lead's own position) and d < v^2 / a + R, v'' = v x 0.9^k for the least k with
+//   d >= R(v'') + v''^2 / a, or the first step below 0.1 x v; v' = min(v', v'').
+// [port] at most 256 passes (retail loops until it settles). [L] not modelled: the block byte +0x5c (R x 3, the block's
+// +0x44 in the request), +0x5d (the request's own speed instead of F +0x20c) and the +0x54 speed fallback when nothing fits.
+float air_speed_fit(const AirSpeedFit& in) {
+    constexpr float kRad = 0.017453292f;
+    const float v0 = in.cruise;
+    if (!(v0 > 0.0f) || !(in.turn_rate > 0.0f) || distance(in.pos, in.goal) < 40.0f) return v0;
+    const float h = in.yaw_deg * kRad;
+    const V2 fwd{std::cos(h), std::sin(h)};
+    const V2 left{-fwd.y, fwd.x};
+    float v = v0;
+    for (int pass = 0; pass < 256; ++pass) {
+        float r = v / (kRad * in.turn_rate);
+        float s = v;
+        if (!in.team) {
+            V2 st = in.pos;
+            if (in.speed < v && in.accel > 0.0f) st = st + fwd * (std::fabs(in.speed * in.speed - v * v) / (in.accel * 2.0f));
+            const float d1 = distance(in.goal, st + left * r);
+            const float d2 = distance(in.goal, st - left * r);
+            const V2 to = in.goal - st;
+            const float dist = std::sqrt(length_sq(to));
+            const bool behind = fwd.x * to.x + fwd.y * to.y < -0.001f && dist < r * 2.0f;
+            if (d1 < r || d2 < r || behind) {
+                const float f = std::max(0.1f, dist * 0.9f / (r * 2.0f));
+                if (f * v <= v) s = f * v;
+                s = std::max(s, v0 * 0.1f);
+            }
+        }
+        if (in.accel > 0.0f) {
+            const float d = distance(in.pos, in.goal);
+            float w = v;
+            if (d < v * v / in.accel + r) {
+                do {
+                    w *= 0.9f;
+                    if (w < v * 0.1f) break;
+                    r = w / (kRad * in.turn_rate);
+                } while (d < r + w * w / in.accel);
+            }
+            s = std::min(s, w);
+        }
+        if (std::fabs(s - v) <= 0.001f) break;
+        v = s;
+    }
+    return v;
+}
+
 // #648 (#482 slice 1): 0x417520's type-2 branch (formation type 2, reason >= 2 [H], read 2026-11-24 / 26), the goal part:
 // - T = the top block, the order's object block; its goal G (0x5833e0: the object's goal point, staged by 0x40e260 when the
 //   formation has more than one member: LandAttack::g);
@@ -570,7 +625,7 @@ void MovementSystem::attack_slots(const MoveOrder& order, const std::vector<uint
 // - every member re-plans on the land air path (need_path: plan_space_path on air_). Members kept by a re-path keep theirs.
 // [L] not modelled: the block flag 0x10 skip (T +0x48 bit 4), the non-object (0x59caa0) branch (a land attack order
 // always tops an object block), the goal height (type
-// +0x16dc), the speed fit (#649), the retry ladder (#650: the §2.4 chain) and the request byte +0x284.
+// +0x16dc), the retry ladder (#650: the §2.4 chain) and the request byte +0x284. The speed fit (#649): air_speed_fit.
 void MovementSystem::air_formation_goal(const MoveOrder& order, const std::vector<uint32_t>& idx, const LandForm& f,
                                         const std::vector<uint8_t>& kept) {
     const Unit& lead = units_[idx[f.members[0]]];
@@ -586,9 +641,24 @@ void MovementSystem::air_formation_goal(const MoveOrder& order, const std::vecto
         p = {std::clamp(p.x, lo.x, hi.x), std::clamp(p.y, lo.y, hi.y)};
     }
     ++stats_.air_formation_goals;
+    // #649: the speed fit of the request, from the lead toward P at the formation's plan speed
+    AirSpeedFit in;
+    in.pos = lead.m.pos;
+    in.goal = p;
+    in.yaw_deg = lead.m.yaw;
+    in.speed = lead.m.speed;
+    const float vmax = loco_max_speed(lead);
+    in.cruise = lead.formation_speed > 0.0f ? std::min(vmax, lead.formation_speed) : vmax;
+    in.turn_rate = loco_turn_rate(lead);
+    in.accel = lead.lp.accel;
+    in.team = lead.d.team_container;
+    const float fit = air_speed_fit(in);
+    const float cap = fit < in.cruise ? fit : 0.0f;
+    if (cap > 0.0f) ++stats_.air_speed_fits;
     for (const uint32_t m : f.members) {
         Unit& x = units_[idx[m]];
         if (m < kept.size() && kept[m]) continue;
+        x.air_fit = cap;
         x.goal = p;
         x.self_goal = p;
         x.has_goal = true;
