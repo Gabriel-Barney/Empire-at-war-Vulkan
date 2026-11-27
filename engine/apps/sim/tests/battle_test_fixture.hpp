@@ -317,6 +317,19 @@ inline std::string squad_types(bool garrison = false) {
 
 // the team data plus a landing transport: S10_Squad (Max_Squad_Size 2: two teams) names Company_Transport_Unit
 // S10_Lander, whose Landing_Transport_Variant S10_Lander_Landing (TRANSPORT, Hover_Offset 10 inherited) carries it down.
+// #754 / #758: a hero team (S10_Hero_Team, Company_Units S10_Hero) whose member has
+// Attach_To_Flagship_During_Space_Battle, for the flagship tests (types patch: g_types_patch).
+inline std::string flagship_hero_types(std::string t) {
+    const std::string end = "</S10>";
+    const size_t p = t.find(end);
+    if (p != std::string::npos)
+        t.insert(p, " <GroundInfantry Name=\"S10_Hero\"><Tactical_Health>200</Tactical_Health><Max_Speed>1.0</Max_Speed>"
+                    "<Attach_To_Flagship_During_Space_Battle>Yes</Attach_To_Flagship_During_Space_Battle><Behavior>SELECTABLE</Behavior>"
+                    "<MovementClass>Infantry</MovementClass><LandBehavior>WALK_LOCOMOTOR</LandBehavior></GroundInfantry>\n"
+                    " <GroundCompany Name=\"S10_Hero_Team\"><Company_Units>S10_Hero</Company_Units><Hyperspace>Yes</Hyperspace>"
+                    "<Hyperspace_Speed>1.5</Hyperspace_Speed><Population_Value>1</Population_Value></GroundCompany>\n");
+    return t;
+}
 inline std::string landing_types() {
     std::string t = team_types();
     const std::string at = "<GroundCompany Name=\"S10_Squad\">";
@@ -974,6 +987,24 @@ inline std::unique_ptr<anim::AnimModel> synth_model(const char* base, std::initi
     return m;
 }
 #endif
+
+// #754: put a new S10_Hero_Team of `player` into its fleet at `planet` and make the fleet's last corvette the lead
+// (set_gui_index 999). The team, or no handle when a step fails.
+inline objects::ObjectHandle board_flagship_hero(const Data& d, galactic::GalacticSim& gs, int32_t player, PlanetIndex planet,
+                                                 objects::ObjectHandle* lead_out = nullptr) {
+    const objects::ObjectHandle h = gs.spawn_unit(player, planet, type_of(d, "S10_Hero_Team"));
+    if (!gs.store().alive(h)) return {};
+    const std::vector<objects::ObjectHandle> up{h};
+    if (gs.launch_units(player, planet, up) != commands::RejectReason::None) return {};
+    const std::vector<uint32_t> fl = gs.fleets_at(planet, player);
+    if (fl.size() != 1) return {};
+    objects::ObjectHandle lead;
+    for (objects::ObjectHandle m : gs.fleets()[fl[0]].contents)
+        if (static_cast<uint32_t>(gs.store().type(m)) == type_of(d, "S10_Corvette")) lead = m;
+    if (!gs.store().alive(lead) || gs.set_gui_index(player, lead, commands::kPathfinderGuiIndex) != commands::RejectReason::None) return {};
+    if (lead_out) *lead_out = lead;
+    return h;
+}
 
 inline galactic::GalacticSetup make_setup(const Data& d, bool land) {
     galactic::GalacticSetup s;

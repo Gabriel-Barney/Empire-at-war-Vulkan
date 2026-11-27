@@ -56,6 +56,7 @@ struct Fixture {
     bool weather = false;            // #420: the land map's environment runs the Rain_Test weather scenario
     uint64_t skirmish_buy_frame = 0; // #420: a skirmish battle (production data); the frame the Empire buys S10_Tech_Upgrade
     bool story = false;              // #420: a story session (Story_Plots_SC.xml) runs from the start (story CRC on)
+    uint64_t flagship_kill_frame = 0;  // #758: flagship data, an Underworld hero inside its lead; the frame the lead dies (0: none)
 };
 
 const Fixture kFixtures[] = {
@@ -70,6 +71,7 @@ const Fixture kFixtures[] = {
     {"land_weather", true, 0.0f, false, 3000, 0, 0, 0.0f, 0, 0, true},
     {"space_skirmish", false, 0.0f, false, 2500, 0, 0, 0.0f, 0, 0, false, 2},
     {"space_story", false, 0.0f, false, 2500, 0, 0, 0.0f, 0, 0, false, 0, true},
+    {"space_flagship", false, 0.0f, false, 2500, 0, 0, 0.0f, 0, 0, false, 0, false, 160},
 };
 
 // #420: the story fixture's file provider (made after its plots were written beside the default data)
@@ -174,13 +176,16 @@ struct Session {
     bool hangar_killed = false; // #419: the carrier's launched units were killed (likewise)
     bool garrison_sent = false; // #419: the garrison orders were given (likewise)
     bool skirmish_bought = false; // #420: the skirmish purchase was ordered (likewise)
+    uint64_t flagship_kill_frame = 0;
+    bool flagship_killed = false;  // #758: the lead was killed (likewise)
     objects::TypeIndex tie_type = objects::kNone;  // #419: S10_TIE (the hangar fixture's data)
     objects::TypeIndex base_type = objects::kNone, tech_type = objects::kNone;  // #420: S10_Star_Base_1, S10_Tech_Upgrade
     size_t crc_seen = 0;  // records of crc_log() already collected
 
     Session(const Data& d, const Fixture& f, uint32_t workers, bool launch)
         : land(f.land), ability_frame(f.ability_frame), reward_frame(f.reward_frame), hangar_kill_frame(f.hangar_kill_frame),
-          garrison_frame(f.garrison_frame), skirmish_buy_frame(f.skirmish_buy_frame), bombard_delay(f.bombard_delay) {
+          garrison_frame(f.garrison_frame), skirmish_buy_frame(f.skirmish_buy_frame), bombard_delay(f.bombard_delay),
+          flagship_kill_frame(f.flagship_kill_frame) {
         js = std::make_unique<jobs::JobSystem>(jobs::JobSystemConfig{static_cast<int32_t>(workers)});
         SimConfig cfg;
         cfg.seed = 2026;
@@ -214,6 +219,7 @@ struct Session {
         opt.battle.fog = true;
         if (f.weather) opt.weather = g_weather;           // #420
         opt.battle.skirmish = f.skirmish_buy_frame > 0;   // #420
+        opt.conflict.attach_to_flagship = f.flagship_kill_frame > 0;  // #758
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
         battles_budget_hook(opt, budget, *gs);
 #endif
@@ -236,6 +242,7 @@ struct Session {
                 if (gs->store().owner(h) == 1) up.push_back(h);
             CHECK(gs->launch_units(1, 2, up) == commands::RejectReason::None);
         }
+        if (f.flagship_kill_frame > 0) CHECK(gs->store().alive(board_flagship_hero(d, *gs, 1, 2)));  // #758
         const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
         CHECK(!uf.empty());
         if (!uf.empty()) CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
@@ -304,6 +311,15 @@ struct Session {
                     (void)host->execute_direct(0, commands::CommandSource::Player, ev);  // a full bunker refuses the rest
                 }
                 garrison_sent = true;
+            }
+        if (flagship_kill_frame > 0 && !flagship_killed)
+            if (TacticalBattle* b = battle(); b && b->frame() >= flagship_kill_frame) {
+                // #758: the Underworld lead dies (Die), so the battle is saved with its hero inside and released
+                CHECK(b->contained().size() == 1);
+                const objects::ObjectId lead = b->contained().empty() ? objects::kNoObjectId : b->contained_host(0);
+                CHECK(lead != objects::kNoObjectId);
+                if (lead != objects::kNoObjectId) TacticalBattleTestAccess::kill(*b, *host->tactical(), lead);
+                flagship_killed = true;
             }
         if (skirmish_buy_frame > 0 && !skirmish_bought)
             if (TacticalBattle* b = battle(); b && b->frame() >= skirmish_buy_frame) {
@@ -551,6 +567,7 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         fresh->hangar_killed = s->hangar_killed;  // #419: and the kill
         fresh->garrison_sent = s->garrison_sent;  // #419: and the garrison orders
         fresh->skirmish_bought = s->skirmish_bought;  // #420: and the purchase
+        fresh->flagship_killed = s->flagship_killed;  // #758: and the lead's death
         LoadReport rep;
         if (!fresh->host->load(save, &why, &rep)) {
             std::printf("  %s: load at tick %" PRIu64 " failed: %s\n", f.name, tick, rep.text().c_str());
@@ -789,6 +806,13 @@ int main(int argc, char** argv) {
     skirmish_prefix = prefix + "_skirmish";
     g_temp_prefix = skirmish_prefix.c_str();
     auto dk = make_data(false, false, false, false, true);
+    // #758: the flagship fixture's data (a hero team whose member has Attach_To_Flagship_During_Space_Battle)
+    static std::string flagship_prefix;
+    flagship_prefix = prefix + "_flagship";
+    g_temp_prefix = flagship_prefix.c_str();
+    g_types_patch = flagship_hero_types;
+    auto df = make_data();
+    g_types_patch = nullptr;
     g_temp_prefix = prefix.c_str();
     {  // #420: the weather tables beside the default data (only the weather fixture's battles get them)
         const fs::path x = d->root / "Data/XML";
@@ -822,6 +846,7 @@ int main(int argc, char** argv) {
                              : f.hangar_kill_frame > 0  ? *dh
                              : f.garrison_frame > 0     ? *dg
                              : f.skirmish_buy_frame > 0 ? *dk
+                             : f.flagship_kill_frame > 0 ? *df
                                                         : *d,
                              f, workers);
     if (!out_path.empty()) {
@@ -845,6 +870,7 @@ int main(int argc, char** argv) {
     remove_all_long(dh->root, ec);
     remove_all_long(dg->root, ec);
     remove_all_long(dk->root, ec);
+    remove_all_long(df->root, ec);
     if (g_fail) {
         std::printf("%d check(s) FAILED\n", g_fail);
         return 1;

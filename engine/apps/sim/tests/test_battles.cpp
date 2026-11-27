@@ -4411,20 +4411,12 @@ void test_corruption_upgrade_spawns() {
 // position and facing, a live combat unit that dies again on Die.
 // Off: no record, and the battle's objects are the same.
 namespace {
-std::string flagship_hero_types(std::string t) {
+std::string flagship_test_types(std::string t) {
     // the ships' lasers do no damage: the leads outlast the 300 frames and the retreat, so a hero stays inside unless
     // the test kills its lead (test_flagship_contents also sets Space_Retreat_Attrition_Factor 0)
     const std::string dmg = "<Projectile_Damage>150</Projectile_Damage>";
     if (const size_t q = t.find(dmg); q != std::string::npos) t.replace(q, dmg.size(), "<Projectile_Damage>0</Projectile_Damage>");
-    const std::string end = "</S10>";
-    const size_t p = t.find(end);
-    if (p != std::string::npos)
-        t.insert(p, " <GroundInfantry Name=\"S10_Hero\"><Tactical_Health>200</Tactical_Health><Max_Speed>1.0</Max_Speed>"
-                    "<Attach_To_Flagship_During_Space_Battle>Yes</Attach_To_Flagship_During_Space_Battle><Behavior>SELECTABLE</Behavior>"
-                    "<MovementClass>Infantry</MovementClass><LandBehavior>WALK_LOCOMOTOR</LandBehavior></GroundInfantry>\n"
-                    " <GroundCompany Name=\"S10_Hero_Team\"><Company_Units>S10_Hero</Company_Units><Hyperspace>Yes</Hyperspace>"
-                    "<Hyperspace_Speed>1.5</Hyperspace_Speed><Population_Value>1</Population_Value></GroundCompany>\n");
-    return t;
+    return flagship_hero_types(std::move(t));
 }
 struct FlagshipRun {
     bool battle = false;
@@ -4451,6 +4443,9 @@ struct FlagshipRun {
     bool jump_marked = false;
     bool retreat_done = false;  // the battle's post-retreat ran (retreat_completed)
     uint32_t fleet_killed = 0;  // kill_fleet: the Underworld battle units killed at frame 20 (5: one ship is a reserve)
+    // #758 (kill_lead, frame 30: one record released, one inside): the battle state written and read back in place
+    // gives the same hash; the same bytes with the previous state version (29) are refused and leave the battle as it was
+    bool state_same = false, stale_refused = false;
 };
 // One scenario of the flagship test (the Underworld side's events; all off: the #754 run, to frame 300).
 struct FlagshipCase {
@@ -4542,6 +4537,21 @@ FlagshipRun flagship_run(const Data& d, const FlagshipCase& k) {
             const auto ty = static_cast<uint32_t>(st.type(o));
             out.hero_objects += inside && st.alive(o) && (ty == hero || ty == team) ? 1u : 0u;
         }
+        if (kill_lead && b->frame() == 30) {
+            StateHasher h0;
+            b->hash(h0);
+            ByteWriter w;
+            b->write_part(TacticalBattle::SavePart::State, w);
+            std::vector<uint8_t> stale = w.bytes();
+            if (stale.size() >= 4) stale[0] = 29, stale[1] = stale[2] = stale[3] = 0;  // u32 version, little-endian
+            ByteReader rs(stale);
+            out.stale_refused = !b->read_part(TacticalBattle::SavePart::State, rs);
+            ByteReader rd(w.bytes());
+            const bool read = b->read_part(TacticalBattle::SavePart::State, rd);
+            StateHasher h1;
+            b->hash(h1);
+            out.state_same = read && h0.digest() == h1.digest();
+        }
         if (k.kill_fleet && b->frame() == 20) {
             std::vector<objects::ObjectId> ids;  // collected first: each kill removes an object
             for (const objects::ObjectHandle o : st.all_objects())
@@ -4608,7 +4618,7 @@ FlagshipRun flagship_run(const Data& d, const FlagshipCase& k) {
 void test_flagship_contents() {
     const char* prefix = g_temp_prefix;
     const char* constants = g_constants_extra;
-    g_types_patch = flagship_hero_types;
+    g_types_patch = flagship_test_types;
     g_constants_extra = "<Space_Retreat_Attrition_Factor>0</Space_Retreat_Attrition_Factor>";
     g_temp_prefix = "alamo_sim_battle_tests_flagship";
     {
@@ -4629,6 +4639,9 @@ void test_flagship_contents() {
                     "killed %d, record state %u\n",
                     rel.pending ? 1 : 0, rel.released_frame, static_cast<double>(rel.release_offset), rel.facing_ok ? 1 : 0,
                     rel.targetable ? 1 : 0, rel.killed ? 1 : 0, rel.record_state);
+        std::printf("  #758 battle state at frame 30: read back same %d, version 29 refused %d\n", rel.state_same ? 1 : 0,
+                    rel.stale_refused ? 1 : 0);
+        CHECK(rel.state_same && rel.stale_refused);
         CHECK(rel.pending && rel.released_frame == 21 && rel.release_offset >= 0.0f && rel.release_offset < 1.0f && rel.facing_ok &&
               rel.targetable && rel.killed && rel.record_state == 2);
         // #756: a hero inside its retreating flagship leaves with it and is alive in its fleet after the battle. One released

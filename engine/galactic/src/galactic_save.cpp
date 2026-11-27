@@ -84,8 +84,9 @@ constexpr uint32_t kGalacticSaveVersionNoSlots = 8;
 constexpr uint32_t kGalacticSaveVersionNoGalab = 7;
 constexpr uint32_t kGalacticSaveVersionNoNames = 6;
 // v2: BattleRequest::linked; v3: BattleRequest::sandbox (q6); v4: ArCombatant::strength_bonus; v5: ArCombatant::spawned /
-// shot (#193); v6: ArCombatant::planet (#558)
-constexpr uint32_t kConflictSaveVersion = 6;
+// shot (#193); v6: ArCombatant::planet (#558); v7: BattleForces::flagship_contents (#758: per force, the units then their
+// flagships; v1 - v6 read none)
+constexpr uint32_t kConflictSaveVersion = 7;
 
 using records::get_handle;
 using records::put_handle;
@@ -722,6 +723,15 @@ void ConflictManager::write(ByteWriter& w) const {
     w.boolean(request_.land_base_destruction_forces_retreat).boolean(request_.space_station_destruction_forces_retreat);
     w.boolean(request_.linked);
     w.boolean(request_.sandbox);  // v3
+    for (const BattleForces& f : request_.forces) {  // v7 (#758)
+        std::vector<ObjectHandle> units, flagships;
+        for (const BattleForces::FlagshipContent& c : f.flagship_contents) {
+            units.push_back(c.unit);
+            flagships.push_back(c.flagship);
+        }
+        put_handles(w, st, units);
+        put_handles(w, st, flagships);
+    }
 
     w.u32(static_cast<uint32_t>(planet_map_.size()));
     for (const std::string& m : planet_map_) w.str(m);
@@ -874,6 +884,12 @@ bool ConflictManager::read(ByteReader& r) {
     req.space_station_destruction_forces_retreat = r.boolean();
     if (version >= 2) req.linked = r.boolean();
     if (version >= 3) req.sandbox = r.boolean();
+    if (version >= 7)  // #758
+        for (BattleForces& f : req.forces) {
+            std::vector<ObjectHandle> units, flagships;
+            if (!get_handles(r, st, units) || !get_handles(r, st, flagships) || units.size() != flagships.size()) return false;
+            for (size_t i = 0; i < units.size(); ++i) f.flagship_contents.push_back({units[i], flagships[i]});
+        }
 
     uint32_t nmaps = 0;
     if (!r.ok() || !r.count(nmaps, 4)) return false;
