@@ -548,6 +548,7 @@ bool galactic_radar_click(const GalacticRadarFit& fit, Vec2f at, Vec2f size, Vec
 struct GalacticHudStats {
     uint32_t labels = 0, label_icons = 0, buttons = 0, build_buttons = 0, queue_entries = 0, fleet_slots = 0,
              land_slots = 0, objectives = 0, hit_boxes = 0, ability_rows = 0, radar_blips = 0;
+    uint32_t battle_info = 0;  // #691 objectives drawn in the battle-info section
     uint32_t garrison_icons = 0, stack_icons = 0;  // planet icons (OI 2026-10-28)
     uint32_t planet_rings = 0, planet_values = 0;  // g_planet_ring, g_planet_value
     uint32_t level_pips = 0, weather_icons = 0, ability_icons = 0, credit_bars = 0, corruption_texts = 0;  // ui4 t03

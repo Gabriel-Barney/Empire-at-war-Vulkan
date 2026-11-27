@@ -395,6 +395,12 @@ void test_gpu_real(Gpu& g, [[maybe_unused]] const std::string& src_dir, bool str
                     {ui::HudQueuedStep::Kind::Ability, {-200, 120, 0}, true}};
         hf.order_queues = std::span<const ui::HudOrderQueue>(&oq, 1);
         hf.paused = true;
+        // #691 the objectives box with a battle-info line (Add_Objective(text, true)) above two objectives.
+        std::vector<ui::HudObjective> objs;
+        objs.push_back({"", U"Space station bonus: +20% shields", ui::HudObjective::State::Active, true});
+        objs.push_back({"TEXT_TACTICAL_PRIMARY_SPACE_ATTACK", U"", ui::HudObjective::State::Active, false});
+        objs.push_back({"", U"Destroy the space station", ui::HudObjective::State::Complete, false});
+        hf.objectives = objs;
         hf.providers.abilities = [](const ui::SelectedGroup& grp, std::vector<ui::HudAbility>& out) {
             ui::HudAbility a;
             a.ability_type = 5;

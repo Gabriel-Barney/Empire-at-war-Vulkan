@@ -1661,6 +1661,11 @@ void TacticalHud::build_pause_banner(const TacticalHudFrame& f) {
 // [port: Gabriel, original screenshot] Mission Objectives box: objective_back width (Size x 266), right edge 24 units
 // inside the canvas, bottom 30 units above the canvas bottom; header + 1-unit rule + "n. text" lines wrapped to the
 // box (objective_text Size y = line spacing, objective_header_text Size y = header spacing).
+// #691 the two sections of the objectives panel 0x2fdef0 [H]: while any objective is a battle-info line, its
+// TEXT_TEST_BATTLE_INFO_HEADER section comes first with those lines ("n. " = the line's place in the whole list + 1),
+// then the TEXT_TEST_OBJECTIVE_HEADER section (always) with the other objectives and their completed / failed marks.
+// Retail numbers those by the serial Add_Objective gave them (a per-list counter, 0x326460 +0xd0); the port has no
+// serial and uses the place in the list + 1 too, the same while nothing is removed [M: the counter's first value].
 void TacticalHud::build_objectives(const TacticalHudFrame& f) {
     if (f.objectives.empty() || f.objectives_hidden) return;
     const CommandBarComponent* back = obj_back_ >= 0 ? &(*table_)[static_cast<size_t>(obj_back_)] : nullptr;
@@ -1678,7 +1683,7 @@ void TacticalHud::build_objectives(const TacticalHudFrame& f) {
         HudObjective::State state;
         bool first;
     };
-    std::vector<Line> lines;
+    std::vector<Line> info, lines;  // the battle-info section's lines, the objective section's
     const float wrap_px = (width - 2.0f * pad_x - 12.0f) / canvas_.units_per_pixel_x;
     int n = 0;
     for (const HudObjective& o : f.objectives) {
@@ -1687,13 +1692,16 @@ void TacticalHud::build_objectives(const TacticalHudFrame& f) {
         std::snprintf(num, sizeof num, "%d. ", ++n);
         bool first = true;
         for (std::u32string& w : wrap_text(*fonts_, tf, ascii32(num) + t, wrap_px)) {
-            lines.push_back({std::move(w), o.state, first});
+            (o.battle_info ? info : lines).push_back({std::move(w), o.state, first});
             first = false;
         }
         ++stats_.objectives;
+        if (o.battle_info) ++stats_.battle_info;
     }
-    stats_.objective_lines = static_cast<uint32_t>(lines.size());
-    const float height = pad_y + header_h + 4.0f + line_h * static_cast<float>(lines.size()) + pad_y;
+    stats_.objective_lines = static_cast<uint32_t>(info.size() + lines.size());
+    const float section_h = header_h + 4.0f;  // a header and the gap under its rule
+    const float height = pad_y + (info.empty() ? 0.0f : section_h + line_h * static_cast<float>(info.size())) + section_h +
+                         line_h * static_cast<float>(lines.size()) + pad_y;
     const float right = 0.5f * canvas_.width - 24.0f, bottom = -0.5f * canvas_.height + 30.0f;
     const float left = right - width, top = bottom + height;
     const auto layer = [](const CommandBarComponent* c, int32_t def) {
@@ -1714,17 +1722,8 @@ void TacticalHud::build_objectives(const TacticalHudFrame& f) {
     hs.align = TextAlign::Left;
     std::u32string header = f.objectives_header;
     if (header.empty()) header = text_or(text_, "TEXT_TEST_OBJECTIVE_HEADER");
-    const float hy = top - pad_y - 0.5f * header_h;
-    add_text(dl_, tl, HudList::Text, *fonts_, canvas_, upper32(std::move(header)), {left + pad_x, hy}, hs);
-    {  // rule under the header
-        HudQuad q;
-        q.min = {left + pad_x - 2.0f, hy - 0.5f * header_h - 1.0f};
-        q.max = {right - 2.0f, hy - 0.5f * header_h};
-        q.color = Rgba8{200, 204, 210, 220};
-        dl_.add(tl, HudList::Alpha, q);
-    }
-    float y = hy - 0.5f * header_h - 4.0f - 0.5f * line_h;
-    for (const Line& l : lines) {
+    float y = top - pad_y;  // the top of the next section
+    const auto draw_line = [&](const Line& l, float ly, bool marks) {
         const bool done = l.state == HudObjective::State::Complete, failed = l.state == HudObjective::State::Failed;
         HudTextStyle st;
         st.font = tf;
@@ -1733,15 +1732,34 @@ void TacticalHud::build_objectives(const TacticalHudFrame& f) {
         if (failed) st.color = hdr && hdr->has_text_color2 ? hdr->text_color2 : Rgba8{255, 0, 0, 255};
         st.outline = txt ? txt->text_outline : true;
         st.align = TextAlign::Left;
-        if (l.first && ico && (done || failed)) {
+        if (marks && l.first && ico && (done || failed)) {
             const std::vector<std::string>& v = done ? ico->icon_texture : ico->icon_alternate_texture;
             if (!v.empty())
-                add_atlas_quad(dl_, tl, HudList::Alpha, *atlas_, v[0], {left - 8.0f, y}, {12.0f, 12.0f}, 1.0f, Rgba8{},
+                add_atlas_quad(dl_, tl, HudList::Alpha, *atlas_, v[0], {left - 8.0f, ly}, {12.0f, 12.0f}, 1.0f, Rgba8{},
                                {12.0f, 12.0f});
         }
-        add_text(dl_, tl, HudList::Text, *fonts_, canvas_, l.text, {left + pad_x + 6.0f, y}, st);
-        y -= line_h;
-    }
+        add_text(dl_, tl, HudList::Text, *fonts_, canvas_, l.text, {left + pad_x + 6.0f, ly}, st);
+    };
+    // One section: the header, the rule under it and its lines; marks = the completed / failed icons.
+    const auto section = [&](std::u32string title, const std::vector<Line>& rows, bool marks) {
+        const float hy = y - 0.5f * header_h;
+        add_text(dl_, tl, HudList::Text, *fonts_, canvas_, upper32(std::move(title)), {left + pad_x, hy}, hs);
+        {  // rule under the header
+            HudQuad q;
+            q.min = {left + pad_x - 2.0f, hy - 0.5f * header_h - 1.0f};
+            q.max = {right - 2.0f, hy - 0.5f * header_h};
+            q.color = Rgba8{200, 204, 210, 220};
+            dl_.add(tl, HudList::Alpha, q);
+        }
+        float ly = hy - 0.5f * header_h - 4.0f - 0.5f * line_h;
+        for (const Line& l : rows) {
+            draw_line(l, ly, marks);
+            ly -= line_h;
+        }
+        y -= section_h + line_h * static_cast<float>(rows.size());
+    };
+    if (!info.empty()) section(text_or(text_, "TEXT_TEST_BATTLE_INFO_HEADER"), info, false);
+    section(std::move(header), lines, true);
 }
 
 // [port: Gabriel, 2026-11-13] Squadron wing buttons (HudWing): a column at the left edge of the canvas, 40 units below

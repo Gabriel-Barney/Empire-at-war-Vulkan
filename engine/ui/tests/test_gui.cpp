@@ -30,6 +30,7 @@
 #endif
 #ifdef ALAMO_UI_HAVE_LUA
 #include "alamo/lua/presentation.hpp"
+#include "alamo/lua/story_model.hpp"
 #include "alamo/ui/gui_script_lua.hpp"
 #endif
 
@@ -2152,7 +2153,19 @@ void test_galactic_hud() {
     std::printf("galactic: %u labels, %u icons, %u buttons, %u build, %u queue, %u fleet, %u objectives, %u hits\n", s.labels,
                 s.label_icons, s.buttons, s.build_buttons, s.queue_entries, s.fleet_slots, s.objectives, s.hit_boxes);
     CHECK(s.labels == 2 && s.label_icons == 1 && s.build_buttons == 1 && s.queue_entries == 1 && s.fleet_slots == 2 &&
-          s.objectives == 2 && hud.selected_planet() == 1);
+          s.objectives == 2 && s.battle_info == 0 && hud.selected_planet() == 1);
+    {  // #691 a battle-info line: counted in its own section
+        GalacticHudFrame bi = f;
+        bi.providers.objectives = [](std::vector<HudObjective>& out) {
+            out.push_back({"", U"Bonus: +20% shields", HudObjective::State::Active, true});
+            out.push_back({"TEXT_OBJ_1", U"Conquer Kuat and hold it for three days", HudObjective::State::Active});
+            out.push_back({"TEXT_OBJ_2", U"Done", HudObjective::State::Complete});
+        };
+        hud.build(bi);
+        CHECK(hud.stats().objectives == 3 && hud.stats().battle_info == 1);
+        hud.build(f);
+        CHECK(hud.stats().battle_info == 0);
+    }
     // ui4 t07 (HUD_GAPS §2.2): the encyclopedia subject of each pad - the build pad's and the queue hologram's type, the
     // organiser unit pads' units; nothing for the other components.
     {
@@ -2777,6 +2790,12 @@ void test_lua_gui() {
     CHECK(gui_script_calls(log, lc) == 1 && lc[0].frame == 12 && lc[0].op == GuiScriptOp::ComponentVisibility &&
           lc[0].args.size() == 2 && lc[0].args[1].b);
     CHECK(apply_gui_scripts(lc, table, b, &text, 5.0) == 1 && !r->hidden);
+    // #691 hud_objectives carries Add_Objective's battle-info flag to the HUD.
+    lua::StoryModel story;
+    story.add_objective("TEXT_BONUS", true);
+    story.add_objective("TEXT_OBJ", false);
+    const std::vector<HudObjective> ho = hud_objectives(story);
+    CHECK(ho.size() == 2 && ho[0].text_key == "TEXT_BONUS" && ho[0].battle_info && ho[1].text_key == "TEXT_OBJ" && !ho[1].battle_info);
 #else
     std::printf("lua gui bridge: alamo_lua not configured, skipped\n");
 #endif
