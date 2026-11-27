@@ -841,6 +841,7 @@ void test_real(Gpu& g, [[maybe_unused]] const std::string& src_dir) {
             out.push_back(fl);
         };
         f.providers.objectives = [](std::vector<ui::HudObjective>& out) {
+            out.push_back({"", U"Space station bonus: +20% shields", ui::HudObjective::State::Active, true});  // #691
             out.push_back({"", U"Capture Kuat to unlock the Star Destroyer", ui::HudObjective::State::Active});
             out.push_back({"", U"Build a level 2 space station", ui::HudObjective::State::Complete});
             out.push_back({"", U"Keep the Emperor alive", ui::HudObjective::State::Failed});
@@ -865,7 +866,7 @@ void test_real(Gpu& g, [[maybe_unused]] const std::string& src_dir) {
         const ui::GalacticHudStats& s = hud.stats();
         std::printf("real galactic: %u labels, %u icons, %u buttons, %u build, %u queue, %u fleet, %u objectives, %u hit boxes\n",
                     s.labels, s.label_icons, s.buttons, s.build_buttons, s.queue_entries, s.fleet_slots, s.objectives, s.hit_boxes);
-        CHECK(s.labels >= 4 && s.build_buttons >= 4 && s.objectives == 3 && s.buttons > 5);
+        CHECK(s.labels >= 4 && s.build_buttons >= 4 && s.objectives == 4 && s.battle_info == 1 && s.buttons > 5);
         // The shell step needs the frame, so these frames are recorded here rather than through render_frame.
         using ShellStep = std::function<void(rhi::Frame&, VkCommandBuffer, uint32_t, render::DrawStats&)>;
         auto render_shells = [&](const ui::HudDrawList& list, const ShellStep& draw_shells, const std::function<void()>& resident,

@@ -1419,23 +1419,38 @@ void GalacticHud::build_objectives(const GalacticHudFrame& f) {
         float y;
         HudObjective::State state;
         bool first;
+        bool marks;  // the completed / failed icon (not on a battle-info line)
     };
     std::vector<Line> lines;
-    y -= header_spacing;
+    struct Header {
+        std::u32string text;
+        float y;
+    };
+    std::vector<Header> headers;
     const int32_t tf = font_of(obj_text_);
-    for (const HudObjective& o : objs) {
-        std::u32string t = o.text;
-        if (t.empty()) t = text_ ? gui_unescape(utf16_to_utf32(text_->text(o.text_key))) : utf8_to_utf32(o.text_key);
-        const float wrap_px = (width - 24.0f) / canvas_.units_per_pixel_x;
-        std::vector<std::u32string> wrapped = tf >= 0 ? wrap_text(*fonts_, tf, t, wrap_px) : std::vector<std::u32string>{t};
-        bool first = true;
-        for (std::u32string& w : wrapped) {
-            lines.push_back({std::move(w), y - 0.5f * line, o.state, first});
-            first = false;
-            y -= line;
+    // #691 the panel 0x2fdef0's sections [H]: the battle-info lines (Add_Objective(text, true)) under
+    // TEXT_TEST_BATTLE_INFO_HEADER first while there are any, then the TEXT_TEST_OBJECTIVE_HEADER section (always).
+    const auto section = [&](std::u32string title, bool battle_info) {
+        headers.push_back({std::move(title), y - 0.5f * header_spacing});
+        y -= header_spacing;
+        for (const HudObjective& o : objs) {
+            if (o.battle_info != battle_info) continue;
+            const std::u32string t = hud_objective_text(text_, o);
+            const float wrap_px = (width - 24.0f) / canvas_.units_per_pixel_x;
+            std::vector<std::u32string> wrapped = tf >= 0 ? wrap_text(*fonts_, tf, t, wrap_px) : std::vector<std::u32string>{t};
+            bool first = true;
+            for (std::u32string& w : wrapped) {
+                lines.push_back({std::move(w), y - 0.5f * line, o.state, first, !battle_info});
+                first = false;
+                y -= line;
+            }
+            ++stats_.objectives;
+            if (battle_info) ++stats_.battle_info;
         }
-        ++stats_.objectives;
-    }
+    };
+    if (std::any_of(objs.begin(), objs.end(), [](const HudObjective& o) { return o.battle_info; }))
+        section(text_or("TEXT_TEST_BATTLE_INFO_HEADER", U"Battle Info"), true);  // [port] English stand-in
+    section(std::move(header), false);
     const float bottom = y - pad_y;
     // Background (Blank_Texture_Name stretched, Color alpha) on Base_Layer.
     const uint32_t bl = static_cast<uint32_t>(std::clamp(back.base_layer, 0, 12));
@@ -1444,13 +1459,13 @@ void GalacticHud::build_objectives(const GalacticHudFrame& f) {
         add_atlas_quad(dl_, bl, HudList::Alpha, *atlas_, *t, c, {width, y_top - bottom}, 1.0f, back.has_color ? back.color : Rgba8{}, {width, y_top - bottom});
     }
     const uint32_t tl_layer = static_cast<uint32_t>(std::clamp(hdr ? hdr->base_layer : 4, 0, 12));
-    text_at(obj_header_, header, {tl.x + pad_x, y_top - pad_y - 0.5f * header_spacing}, tl_layer);
+    for (const Header& h : headers) text_at(obj_header_, h.text, {tl.x + pad_x, h.y}, tl_layer);
     for (const Line& l : lines) {
         const bool done = l.state == HudObjective::State::Complete, failed = l.state == HudObjective::State::Failed;
         Rgba8 col = txt && txt->has_text_color ? txt->text_color : Rgba8{};
         if (done && txt && txt->has_text_color2) col = txt->text_color2;
         if (failed && hdr && hdr->has_text_color2) col = hdr->text_color2;
-        if (l.first && ico && (done || failed)) {
+        if (l.marks && l.first && ico && (done || failed)) {
             const std::string* t = done ? pick(ico->icon_texture, 0) : pick(ico->icon_alternate_texture, 0);
             if (t)
                 add_atlas_quad(dl_, static_cast<uint32_t>(std::clamp(ico->base_layer, 0, 12)), HudList::Alpha, *atlas_, *t,

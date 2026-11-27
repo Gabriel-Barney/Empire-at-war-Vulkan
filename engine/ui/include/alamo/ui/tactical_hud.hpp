@@ -293,6 +293,9 @@ struct HudObjective {
     std::string text_key;               // MasterTextFile key
     std::u32string text;                // overrides the key when not empty
     State state = State::Active;
+    // #691 Lua Add_Objective(text, true): a battle-info line (the panel's TEXT_TEST_BATTLE_INFO_HEADER section, no
+    // completed / failed mark), not a numbered objective.
+    bool battle_info = false;
 };
 
 // An objective's line text: its own `text`, else the key's MasterTextFile entry (GUI escapes resolved), else the key
@@ -577,6 +580,7 @@ struct TacticalHudStats {
     uint32_t sidebar_slots = 0;         // #478 skirmish_upgrade slots drawn
     bool bombard_bar = false;           // #717 pb_switch_recharge drawn
     uint32_t objectives = 0, objective_lines = 0;
+    uint32_t battle_info = 0;           // #691 objectives drawn in the battle-info section
     bool drag_box = false;              // drag-select box drawn
     uint32_t wings = 0;                 // [port: Gabriel] squadron wing buttons drawn
     uint32_t fleet_tabs = 0;            // [port: Gabriel] fleet group header tabs drawn whose centre hits them (#598)

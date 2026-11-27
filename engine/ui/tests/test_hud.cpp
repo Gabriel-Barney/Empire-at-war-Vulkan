@@ -1864,6 +1864,29 @@ void test_tactical_panels() {
     }
     CHECK(backing && rule && grey);
     CHECK(min_x > right - 266.0f && max_x <= right + 0.5f);  // all glyphs inside the box
+    // #691 a battle-info line (Add_Objective(text, true)): a TEXT_TEST_BATTLE_INFO_HEADER section of its own above the
+    // objectives (a second header rule above the objectives' one, which stays put: the box keeps its bottom and grows up).
+    const auto rules = [&] {
+        std::vector<float> ys;
+        for (const HudQuad& q : hud.draw_list().items(4, HudList::Alpha))
+            if (q.max.y - q.min.y < 1.5f && q.max.x - q.min.x > 200.0f) ys.push_back(q.max.y);
+        return ys;
+    };
+    const auto box_top = [&] {
+        float t = -1e9f;
+        for (const HudQuad& q : hud.draw_list().items(3, HudList::Alpha))
+            if (std::fabs(q.max.x - right) < 0.01f && q.max.x - q.min.x > 200.0f) t = std::max(t, q.max.y);
+        return t;
+    };
+    const std::vector<float> rule1 = rules();
+    const float top1 = box_top();
+    CHECK(rule1.size() == 1 && hud.stats().battle_info == 0);
+    objs.insert(objs.begin(), HudObjective{"", U"Space station bonus: +20% shields", HudObjective::State::Active, true});
+    fr.objectives = objs;
+    hud.build(fr, {}, {});
+    const std::vector<float> rule2 = rules();
+    CHECK(hud.stats().objectives == 3 && hud.stats().battle_info == 1 && rule2.size() == 2);
+    CHECK(rule2.size() == 2 && rule2[0] > rule2[1] && std::fabs(rule2[1] - rule1[0]) < 0.01f && box_top() > top1 + 10.0f);
 }
 
 // #597 (Classic, a port line): the fleet cohesion line sits clear of the planet panel's name, tech and population texts

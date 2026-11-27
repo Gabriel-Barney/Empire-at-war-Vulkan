@@ -53,6 +53,7 @@ std::vector<HudObjective> hud_objectives(const lua::StoryModel& story) {
         h.state = o.state == lua::StoryObjectiveState::Complete ? HudObjective::State::Complete
                   : o.state == lua::StoryObjectiveState::Failed ? HudObjective::State::Failed
                                                                  : HudObjective::State::Active;
+        h.battle_info = o.battle_info;
         out.push_back(std::move(h));
     }
     return out;
