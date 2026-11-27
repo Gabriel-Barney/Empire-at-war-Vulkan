@@ -1026,7 +1026,8 @@ void test_tactical_bounty() {
 // not in the battle, and its corruption upgrade S10_UW_Salvage (DUMMY_UPGRADE, Underworld, a Bounty_On_Faction 1.0 on
 // the Empire) reaches the battle as an absent upgrade (CampaignBattles' list for the non-fighting players), so no object
 // exists for it. When player 1 kills an Empire trooper (Override_Bounty_SP 10), player 3 is paid 10. Player 1 holds no
-// ability and is not paid. Without the absent upgrade, nobody is paid.
+// ability and is not paid. Without the absent upgrade, nobody is paid; held by the Neutral player (not allied with the
+// killer), it pays nothing.
 // [port] The galactic side has no way to give a fourth player a per-planet list in this fixture: completed corruption
 // credits first_corruption_player() (reveal.cpp), which is player 1 here. So the test sets the battle's list directly.
 std::string absent_bounty_patch(std::string t) {
@@ -1047,10 +1048,10 @@ void test_absent_player_bounty() {
     g_types_patch = nullptr;
     const objects::TypeIndex trooper = d->types.resolve_name("S10_Trooper"), salvage = d->types.resolve_name("S10_UW_Salvage");
     CHECK(trooper != objects::kNone && salvage != objects::kNone);
-    std::vector<std::pair<int32_t, float>> paid, without, with;
+    std::vector<std::pair<int32_t, float>> paid, without, with, enemy;
     int stage = 0;
     size_t salvage_objects = 0;
-    objects::ObjectId victims[2] = {objects::kNoObjectId, objects::kNoObjectId};
+    objects::ObjectId victims[3] = {objects::kNoObjectId, objects::kNoObjectId, objects::kNoObjectId};
     objects::ObjectId killer = objects::kNoObjectId;
     land_battle(
         *d, nullptr, 600,
@@ -1065,13 +1066,16 @@ void test_absent_player_bounty() {
                     const objects::ObjectId id = st.id(h);
                     if (!b.combat().has_unit(id) || !b.combat().alive(id)) continue;
                     if (st.owner(h) == 0 && st.type(h) == trooper) {
-                        if (victims[0] == objects::kNoObjectId) victims[0] = id;
-                        else if (victims[1] == objects::kNoObjectId) victims[1] = id;
+                        for (objects::ObjectId& v : victims)
+                            if (v == objects::kNoObjectId) {
+                                v = id;
+                                break;
+                            }
                     }
                     if (st.owner(h) == 1 && killer == objects::kNoObjectId) killer = id;
                 }
-                CHECK(victims[1] != objects::kNoObjectId && killer != objects::kNoObjectId);
-                if (victims[1] == objects::kNoObjectId || killer == objects::kNoObjectId) return false;
+                CHECK(victims[2] != objects::kNoObjectId && killer != objects::kNoObjectId);
+                if (victims[2] == objects::kNoObjectId || killer == objects::kNoObjectId) return false;
                 paid.clear();
                 CHECK(alamo::sim::TacticalBattleTestAccess::crush(b, killer, victims[0]));
                 stage = 1;
@@ -1085,8 +1089,16 @@ void test_absent_player_bounty() {
                 stage = 2;
                 return true;
             }
-            with = paid;
-            stage = 3;
+            if (stage == 2) {  // the same upgrade held by the Neutral player (2), not allied with the killer: nothing
+                with = paid;
+                paid.clear();
+                b.set_absent_upgrades({{2, static_cast<uint32_t>(salvage)}});
+                CHECK(alamo::sim::TacticalBattleTestAccess::crush(b, killer, victims[2]));
+                stage = 3;
+                return true;
+            }
+            enemy = paid;
+            stage = 4;
             return false;
         },
         false,
@@ -1095,10 +1107,12 @@ void test_absent_player_bounty() {
             u2.ai = false;
             s.players.push_back(u2);
         });
-    std::printf("  #542 absent bounty: salvage objects in the battle %zu; payments without the absent upgrade %zu, with it %zu%s\n",
+    std::printf("  #542 absent bounty: salvage objects in the battle %zu; payments without the absent upgrade %zu, with it %zu%s, "
+                "held by a player not allied with the killer %zu\n",
                 salvage_objects, without.size(), with.size(),
-                with.size() == 1 && with[0].first == 3 && with[0].second == 10.0f ? " (player 3 +10)" : "");
-    CHECK(stage == 3);
+                with.size() == 1 && with[0].first == 3 && with[0].second == 10.0f ? " (player 3 +10)" : "", enemy.size());
+    CHECK(stage == 4);
+    CHECK(enemy.empty());
     CHECK(salvage_objects == 0);  // no object for a player who is not fighting
     CHECK(without.empty());
     CHECK(with.size() == 1 && with[0].first == 3 && with[0].second == 10.0f);

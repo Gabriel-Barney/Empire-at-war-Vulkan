@@ -3492,8 +3492,8 @@ private:
     std::vector<HgUpgradeObject> hg_upgrade_objs_;            // DUMMY_UPGRADE objects created by production (creation order)
     std::vector<std::pair<int32_t, uint32_t>> ga_upgrades_;   // galab: {player, upgrade type} to spawn at setup (not saved)
     bool ga_spawn_ = true;                                    // galab: false for a battle rebuilt by a save load (types only)
-    std::vector<std::pair<int32_t, uint32_t>> corruption_upgrades_;
-    std::vector<std::pair<int32_t, uint32_t>> absent_upgrades_;  // #542: {player, type} of non-fighting players (not saved)   // #68: {player, corruption upgrade type} to spawn (not saved)
+    std::vector<std::pair<int32_t, uint32_t>> corruption_upgrades_;   // #68: {player, corruption upgrade type} to spawn (not saved)
+    std::vector<std::pair<int32_t, uint32_t>> absent_upgrades_;       // #542: {player, type} of non-fighting players (not saved)
     std::vector<objects::ObjectId> hg_orphans_;               // contents of a removed container: removed next frame
     bool prod_used_ = false;
     std::unique_ptr<tactical::hangar::HangarSystem> hangars_;
