@@ -2856,7 +2856,7 @@
 {"CommandBarComponent", "Click_Shift", 0x50, LedgerState::Consumed, "docs/re/xml_reference_index.md", 71, 1},
 {"CommandBarComponent", "Tutorial_Scene", 0x50, LedgerState::Consumed, "docs/re/xml_reference_index.md", 5, 1},
 {"CommandBarComponent", "Dialog_Scene", 0x50, LedgerState::Consumed, "docs/re/xml_reference_index.md", 5, 1},
-{"CommandBarComponent", "Should_Render_At_Drag_Pos", 0x50, LedgerState::RetailUnused, "docs/re/xml_reference_index.md CommandBarComponent.Should_Render_At_Drag_Pos", 20, 1},
+{"CommandBarComponent", "Should_Render_At_Drag_Pos", 0x50, LedgerState::Verified, "docs/re/COMMAND_BAR_DRAG.md", 20, 1},
 {"CommandBarComponent", "Disable_Darken", 0x50, LedgerState::Consumed, "docs/re/xml_reference_index.md", 23, 1},
 {"CommandBarComponent", "Animate_Back", 0x50, LedgerState::Consumed, "docs/re/xml_reference_index.md", 43, 1},
 {"CommandBarComponent", "Animate_Upper_Effect", 0x50, LedgerState::Consumed, "docs/re/xml_reference_index.md", 24, 1},

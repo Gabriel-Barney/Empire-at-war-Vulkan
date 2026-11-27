@@ -66,7 +66,8 @@ Base FoC: Yes on 142 of 145 rows. The No rows are the header pads `q1_0000`, `q2
 The TextButton's drag start 0x352880 puts the pad in draw state 5 (+0x5f0). It then makes a ghost of the pad
 (+0x600, a new TextButton) when all of these hold:
 - the pad's data has `Should_Ghost` (+0x3e2 bit 0x08);
-- +0x3e5 is negative;
+- the data has `Should_Render_At_Drag_Pos`: +0x3e5 bit 0x80, tested as the byte's sign (`cmp byte [data+0x3e5], 0`,
+  `jge` = no ghost);
 - the pad's stack count (+0x7d8) is at least 2, or the data has `Ghost_Base_Only` (+0x3e3 bit 0x08).
 
 The ghost copies the pad's textures and colours, and its count is the pad's count - 1.
@@ -83,6 +84,11 @@ clear).
 - `Should_Ghost` is True on 198 TextButtons: `Pad_NN`, `build_padNN`, `land_fleet_NN`, the `qN_NNNN` organiser pads,
   `r_NNNN` and `unit_padNN`.
 - `Ghost_Base_Only` is True on 56 of them: `Pad_NN`, `build_padNN`, `unit_padNN` and the header pads `qN_0000`.
+
+- `Should_Render_At_Drag_Pos` is set on only 20 rows, `r_NNNN`, all False. No ghosting pad has it, so **base FoC never
+  makes a ghost**. A mod that sets it on a pad gets one.
+- This reading is also the retail reader of `Should_Render_At_Drag_Pos`. It was listed as "without a known retail reader"
+  (legacy MCX4_T15); the TextButton draw 0x34f160 reads it too, in draw state 5.
 
 **Port:** `GalacticHud::ghost_dragged_pad`.
 - It covers the organiser pads, the land-force pads and the planet-map pads. While such a pad is dragged it shows its
