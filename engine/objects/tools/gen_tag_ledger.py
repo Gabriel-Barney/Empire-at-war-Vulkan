@@ -93,7 +93,6 @@ RETAIL_UNUSED = {
     ("Campaign", "Camera_Distance"): "docs/re/xml_reference_index.md Campaign.Camera_Distance",
     ("Campaign", "Camera_Shift_X"): "docs/re/xml_reference_index.md Campaign.Camera_Shift_X",
     ("Campaign", "Camera_Shift_Y"): "docs/re/xml_reference_index.md Campaign.Camera_Shift_Y",
-    ("CommandBarComponent", "Should_Render_At_Drag_Pos"): "docs/re/xml_reference_index.md CommandBarComponent.Should_Render_At_Drag_Pos",
     ("Decal", "Category"): "docs/re/xml_reference_index.md Decal.Category",
     ("Eat_Attack_Ability", "Needs_To_Rotate"): "docs/re/xml_reference_index.md Eat_Attack_Ability.Needs_To_Rotate",
     ("Eat_Attack_Ability", "Rotation_Base_Bone_Name"): "docs/re/xml_reference_index.md Eat_Attack_Ability.Rotation_Base_Bone_Name",

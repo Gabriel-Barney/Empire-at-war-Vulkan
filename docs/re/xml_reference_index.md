@@ -64,7 +64,6 @@ The classifier covers the owner and field together. H and M preserve high and me
 | `Laser_Defense_Ability.Lightning_Effect_Name` | legacy docs/re/MCX4_T14_RE_ANSWERS.md Laser_Defense_Ability.Lightning_Effect_Name [M] |
 | `Cable_Ability.Cable_Fadeout_Time` | legacy docs/re/MCX4_T15_RE_ANSWERS.md Cable_Ability.Cable_Width family [H] |
 | `Campaign.Camera_Distance`, `Campaign.Camera_Shift_X`, `Campaign.Camera_Shift_Y` | legacy docs/re/MCX4_T15_RE_ANSWERS.md Campaign.Camera_Distance family [M] |
-| `CommandBarComponent.Should_Render_At_Drag_Pos` | legacy docs/re/MCX4_T15_RE_ANSWERS.md CommandBarComponent.Swap_Texture family [H] |
 | `Eat_Attack_Ability.Rotation_Base_Bone_Name` | legacy docs/re/MCX4_T15_RE_ANSWERS.md Eat_Attack_Ability.Rotation_Base_Bone_Name [M] |
 | `Faction.Land_Mode_Garrison_Selection_Blob_Material_Name`, `Faction.Space_Mode_Garrison_Selection_Blob_Material_Name` | legacy docs/re/MCX4_T15_RE_ANSWERS.md Faction.Land_Mode_Garrison_Selection_Blob_Material_Name family [M] |
 | `Force_Confuse_Ability.Confuse_Effect` | legacy docs/re/MCX4_T15_RE_ANSWERS.md Force_Confuse_Ability.Confuse_Effect [M] |
@@ -268,6 +267,10 @@ Each entry lists tags named by the source reading. The compiled field ledger rec
 **legacy docs/re/COMMANDS.md**
 
 `Not_Really_Selectable` `Uses_Multiple_Locomotors`
+
+**COMMAND_BAR_DRAG.md**
+
+`Can_Drag_Stack` `Ghost_Base_Only` `Should_Ghost` `Should_Render_At_Drag_Pos` `Snap_Drag` `Snap_Location` `Stackable`
 
 **legacy docs/re/CU8F_T01_T02_T07_RE.md**
 

@@ -869,6 +869,7 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         r.selected = s.selected;
         r.text = s.count > 1 ? num32(s.count) : std::u32string();
         r.tooltip_text = s.name;  // [port] a player-given fleet / ship name
+        ghost_dragged_pad(ci, static_cast<int32_t>(s.count), r);
         const ComponentPlacement& p = layout_.placement(u);
         if (!p.placed) return false;
         const CommandBarComponent& c = (*table_)[u];
@@ -1129,6 +1130,27 @@ uint32_t GalacticHud::stack_under(float px, float py, bool& land) const {
 bool GalacticHud::takes_button(int32_t component, Button b) const {
     if (b == Button::Right && component >= 0 && (component == planet_fleet_ || component == planet_land_)) return false;
     return true;
+}
+
+// #723 (docs/re/COMMAND_BAR_DRAG.md "Ghosting" [H]: the TextButton's drag start 0x352880): while a pad with Should_Ghost
+// and Should_Render_At_Drag_Pos is dragged, a ghost of it stays in its place. Ghost_Base_Only: the ghost is the pad's
+// base without the unit's icon or count. Otherwise a ghost only for a stack of two or more: the stack less the dragged
+// unit, its count as "x%d" (0x804eb0) while above one. Without a ghost the pad draws as before [port: retail's
+// state-5 draw belongs to #763]. Base FoC sets Should_Render_At_Drag_Pos on no ghosting pad, so it never ghosts.
+void GalacticHud::ghost_dragged_pad(int32_t component, int32_t count, ButtonRuntime& r) {
+    if (!drag_.active || component < 0 || drag_.component != component) return;
+    const CommandBarComponent& c = (*table_)[static_cast<size_t>(component)];
+    if (!data::parse_flag_char(c.raw_value("SHOULD_GHOST")) || !data::parse_flag_char(c.raw_value("SHOULD_RENDER_AT_DRAG_POS")))
+        return;
+    if (data::parse_flag_char(c.raw_value("GHOST_BASE_ONLY"))) {
+        r.icon_override.clear();
+        r.text.clear();
+    } else if (count >= 2) {
+        r.text = count - 1 > 1 ? U"x" + num32(static_cast<uint32_t>(count - 1)) : std::u32string();
+    } else {
+        return;
+    }
+    ++stats_.ghosts;
 }
 
 // #722 (docs/re/COMMAND_BAR_DRAG.md "Snapping" [H]: the drag icon's move 0x352650, which the command bar's mouse move

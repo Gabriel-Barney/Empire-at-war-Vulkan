@@ -785,6 +785,12 @@ void test_anim_hack_drag() {
         };
         add_tag("q1_0002", "Snap_Drag");
         add_tag("q2_0001", "Snap_Location");
+        add_tag("q1_0001", "Should_Ghost");  // #723
+        add_tag("q1_0001", "Should_Render_At_Drag_Pos");
+        add_tag("q2_0001", "Should_Ghost");
+        add_tag("q2_0001", "Ghost_Base_Only");
+        add_tag("q2_0001", "Should_Render_At_Drag_Pos");
+        add_tag("q1_0002", "Should_Ghost");  // without Should_Render_At_Drag_Pos: never a ghost (base FoC's case)
         ComponentTable st;
         const data::XmlDocument sd = data::XmlDocument::parse(std::string_view(xml), "s.xml");
         st.parse(sd.root());
@@ -797,6 +803,9 @@ void test_anim_hack_drag() {
                 if (h.component == st.find(name)) return Vec2f{0.5f * (h.min.x + h.max.x), 0.5f * (h.min.y + h.max.y)};
             return Vec2f{-1e9f, -1e9f};
         };
+        std::u32string ghost_text;  // #723 the dragged pad's text / icon and the ghost count while it is dragged
+        std::string ghost_icon;
+        uint32_t ghosts = 0;
         const auto press_and_move = [&](std::string_view from, std::string_view over_name, Vec2f to_px) {
             const int32_t fc = st.find(from);
             const Vec2f p = sh.canvas().canvas_to_pixel(centre(from).x, centre(from).y);
@@ -816,6 +825,10 @@ void test_anim_hack_drag() {
             CHECK(sh.drag().active && sh.drag().component == fc);
             sh.build(gf);
             const Vec2f at = sh.drag_icon_position();
+            const ButtonRuntime* br = sh.buttons().find_state(static_cast<uint32_t>(fc));
+            ghost_text = br ? br->text : U"?";
+            ghost_icon = br ? br->icon_override : "?";
+            ghosts = sh.stats().ghosts;
             r.owner = {};
             r.hud = {{HudPointerEvent::Kind::Release, Button::Left, -1, 0, 0}};
             sh.update_input(r, false, false, 1.2, out);  // a release in empty space ends the drag
@@ -841,6 +854,42 @@ void test_anim_hack_drag() {
         at = press_and_move("q1_0001", "q2_0001", near_px);
         const Vec2f nc = sh.canvas().pixel_to_canvas(near_px.x, near_px.y);
         CHECK(std::fabs(at.x - nc.x) < 0.01f && std::fabs(at.y - nc.y) < 0.01f);
+        // ledger: verifies CommandBarComponent.Should_Ghost
+        // ledger: verifies CommandBarComponent.Ghost_Base_Only
+        // ledger: verifies CommandBarComponent.Should_Render_At_Drag_Pos
+        // #723 (docs/re/COMMAND_BAR_DRAG.md "Ghosting") Should_Ghost without Ghost_Base_Only: a pad of one unit has no
+        // ghost.
+        CHECK(ghosts == 0 && ghost_icon == "i_frame.tga");
+        press_and_move("q1_0002", "", {40.0f, 40.0f});
+        CHECK(ghosts == 0 && ghost_icon == "i_frame.tga");
+        // A stack of three on q1_0001: the ghost is the stack less the dragged unit, "x2".
+        GalacticHudFrame g3 = gf;
+        g3.providers.fleets = [](uint32_t, std::vector<GalacticFleet>& out) {
+            out.push_back({900, {{901, "i_frame.tga", 3, false}, {902, "i_frame.tga", 3, false}}});
+            out.push_back({950, {{951, "i_big.tga", 2, false}}});
+        };
+        const GalacticHudFrame saved = gf;
+        gf = g3;
+        sh.build(gf);
+        press_and_move("q1_0001", "", {40.0f, 40.0f});
+        CHECK(ghosts == 1 && ghost_text == U"x2" && ghost_icon == "i_frame.tga");
+        // A stack of three on q1_0002, Should_Ghost without Should_Render_At_Drag_Pos: no ghost, the pad keeps "3".
+        press_and_move("q1_0002", "", {40.0f, 40.0f});
+        CHECK(ghosts == 0 && ghost_text == U"3");
+        // Ghost_Base_Only (q2_0001, a stack of two): the pad's base only, no unit icon and no count.
+        press_and_move("q2_0001", "", {40.0f, 40.0f});
+        CHECK(ghosts == 1 && ghost_text.empty() && ghost_icon.empty());
+        // After the drop the pad shows its stack again.
+        const ButtonRuntime* back = sh.buttons().find_state(static_cast<uint32_t>(st.find("q2_0001")));
+        CHECK(back && back->text == U"2" && back->icon_override == "i_big.tga" && sh.stats().ghosts == 0);
+        // A stack of two on q1_0001: the ghost holds one unit, so no count.
+        gf.providers.fleets = [](uint32_t, std::vector<GalacticFleet>& out) {
+            out.push_back({900, {{901, "i_frame.tga", 2, false}, {902, "i_frame.tga", 1, false}}});
+        };
+        sh.build(gf);
+        press_and_move("q1_0001", "", {40.0f, 40.0f});
+        CHECK(ghosts == 1 && ghost_text.empty() && ghost_icon == "i_frame.tga");
+        gf = saved;
     }
 }
 
