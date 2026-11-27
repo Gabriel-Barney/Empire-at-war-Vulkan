@@ -7,6 +7,8 @@
 namespace alamo::sim {
 
 struct TacticalBattleTestAccess {
+    // #661: mark the running battle a sandbox story battle (BattleRequest::sandbox; the pad / upgrade persistence gates).
+    static void set_sandbox(TacticalBattle& b, bool sandbox) { b.req_.sandbox = sandbox; }
     // #418: the BOMBARD_DELAY story reward's override (TacticalBattle::reward_bombard_delay; 0 = none)
     static float bombard_delay_override(const TacticalBattle& b) { return b.bombard_delay_override_; }
     static tactical::abilities::AbilitySystem& abilities(TacticalBattle& b) { return *b.abilities_; }
