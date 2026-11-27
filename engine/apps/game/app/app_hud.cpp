@@ -1090,16 +1090,19 @@ void App::build_tactical_hud() {
         sidebar_in_.weather_icon = std::move(feed.weather_icon);
         sidebar_in_.interdicted = feed.interdicted;
         const objects::GameObjectTypes* st = &data_.types;
-        sidebar_in_.type = [st](int32_t t) {
+        const auto* ht = &ui_.hud_types;
+        sidebar_in_.type = [st, ht](int32_t t) {
             ui::SidebarType o;
             if (t < 0 || static_cast<size_t>(t) >= st->size()) return o;
             const auto ti = static_cast<objects::TypeIndex>(t);
-            o.tray = st->get_bool(ti, "Show_In_Sidebar_Tray");
-            o.previous = static_cast<int32_t>(st->resolve_name(st->get_string(ti, "Previous_Upgrade_Level_Type")));
-            o.next = static_cast<int32_t>(st->resolve_name(st->get_string(ti, "Next_Upgrade_Level_Type")));
-            if (o.previous == static_cast<int32_t>(objects::kNone)) o.previous = -1;
-            if (o.next == static_cast<int32_t>(objects::kNone)) o.next = -1;
-            o.icon = std::string(st->get_string(ti, "Icon_Name"));
+            o.tray = st->get_bool(ti, objects::tags::Show_In_Sidebar_Tray);
+            const auto level = [st, ti](const auto& tag) {
+                const objects::TypeIndex x = st->resolve_name(ascii_trim(st->get_string(ti, tag)));
+                return x == objects::kNone ? -1 : static_cast<int32_t>(x);
+            };
+            o.previous = level(objects::tags::Previous_Upgrade_Level_Type);
+            o.next = level(objects::tags::Next_Upgrade_Level_Type);
+            o.icon = ti < ht->size() ? (*ht)[ti].icon_name : std::string();
             return o;
         };
         hf.sidebar = &sidebar_in_;

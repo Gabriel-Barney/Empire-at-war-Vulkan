@@ -1222,7 +1222,10 @@ void TacticalBattle::sidebar_feed(int32_t player, SidebarFeed& out) const {
     if (!space_) {
         const tactical::combat::WeatherSystem& w = l1_weather_;
         const tactical::combat::WeatherData* d = w.data();
-        if (w.active() && w.intensity() > 0.5f && d) out.weather_icon = d->modifiers[static_cast<size_t>(w.type())].icon;
+        // 0x468860: the current type's record above intensity 0.5, else the first (clear) record. [port] Only while the
+        // weather runs.
+        if (w.active() && d)
+            out.weather_icon = d->modifiers[w.intensity() > 0.5f ? static_cast<size_t>(w.type()) : size_t{0}].icon;
     } else if (!cfg_.skirmish) {
         out.interdicted = retreat_refusal(player) == 3;
     }

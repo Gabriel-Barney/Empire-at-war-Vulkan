@@ -1445,8 +1445,6 @@ FlyTextLook fly_text_look(int32_t age) {
     return l;
 }
 
-// #664 generic_flytext: each record's text in the component's font and colour (EmpireAtWar-Medium 7, yellow, embossed),
-// centred on its projected point plus the rise, at its alpha.
 // #478 / #548 skirmish_upgrade (0x232; docs/re/TACTICAL_COMMANDBAR_COMPONENTS.md "skirmish_upgrade (0x232)"): the lists
 // (UpgradeSidebar::update, 0x317480) and each slot drawn where 0x301190 puts it: the component's icon slot with the
 // slot's icon (the interdictor: Icon_Alternate_Texture_Name[0]), its Blank_Texture_Name piece (none for a Tray = False
@@ -1493,6 +1491,8 @@ void TacticalHud::build_sidebar(const TacticalHudFrame& f) {
     r.hidden = true;  // the component itself is only drawn as these slots
 }
 
+// #664 generic_flytext: each record's text in the component's font and colour (EmpireAtWar-Medium 7, yellow, embossed),
+// centred on its projected point plus the rise, at its alpha.
 void TacticalHud::build_fly_texts(const TacticalHudFrame& f) {
     if (flytext_ < 0 || f.fly_texts.empty() || !fonts_) return;
     const CommandBarComponent& c = (*table_)[static_cast<size_t>(flytext_)];

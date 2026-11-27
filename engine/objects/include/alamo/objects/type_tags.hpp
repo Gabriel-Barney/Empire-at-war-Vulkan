@@ -489,6 +489,7 @@ struct SubObjectsTag {
     X(Text, Previous_Upgrade_Level_Type, "")                                                                          \
     X(Bool, Show_In_Sidebar_While_Building, true)                                                                     \
     X(Bool, Show_In_Sidebar_When_Complete, true)                                                                      \
+    X(Bool, Show_In_Sidebar_Tray, true)                                                                               \
     X(Bool, Locomotor_Has_Animation_Priority, false)                                                                  \
     X(Bool, Is_Special_Weapon_In_Space, false)                                                                        \
     X(Int, Special_Weapon_Index, 0)                                                                                   \

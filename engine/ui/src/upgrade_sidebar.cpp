@@ -5,6 +5,10 @@
 
 namespace alamo::ui {
 
+namespace {
+SidebarType type_of(const SidebarInput& in, int32_t t) { return in.type ? in.type(t) : SidebarType{}; }
+}  // namespace
+
 std::u32string sidebar_percent(float progress) {
     char buf[16];
     std::snprintf(buf, sizeof buf, "%d%%", static_cast<int>(progress * 100.0f));
@@ -26,7 +30,7 @@ UpgradeSidebar::Slot* UpgradeSidebar::share(int32_t type, bool list1, bool at_fr
     const auto chain_has = [&](int32_t from, int32_t want, bool up) {  // walk Next (up) or Previous from `from`
         int32_t t = from;
         for (int guard = 0; guard < 64 && t >= 0; ++guard) {
-            const SidebarType st = in.type ? in.type(t) : SidebarType{};
+            const SidebarType st = type_of(in, t);
             t = up ? st.next : st.previous;
             if (t == want) return true;
         }
@@ -42,14 +46,14 @@ UpgradeSidebar::Slot* UpgradeSidebar::share(int32_t type, bool list1, bool at_fr
             s.type = type;
             s.building = -1;
             s.stale = false;
-            s.tray = in.type ? in.type(type).tray : true;
+            s.tray = type_of(in, type).tray;
             return &s;
         }
         if (chain_has(type, s.type, true)) return nullptr;  // a higher level is already shown
     }
     Slot n;
     n.type = type;
-    n.tray = in.type ? in.type(type).tray : true;
+    n.tray = type_of(in, type).tray;
     if (at_front) {
         const auto first = std::find_if(l.begin(), l.end(), [](const Slot& s) { return s.kind == Kind::Upgrade; });
         return &*l.insert(first, std::move(n));
@@ -64,11 +68,11 @@ void UpgradeSidebar::update(const SidebarInput& in) {
     for (Slot& s : list0_) s.stale = true;
     for (Slot& s : list1_) s.stale = true;
     const auto icon_of = [&](int32_t t) {
-        std::string i = in.type ? in.type(t).icon : std::string();
+        std::string i = type_of(in, t).icon;
         return i.empty() ? std::string("missing.tga") : i;
     };
     for (const int32_t t : in.completed) {
-        const bool tray = in.type ? in.type(t).tray : true;
+        const bool tray = type_of(in, t).tray;
         Slot* s = share(t, false, !tray, in);
         if (!s) continue;
         s->icon = icon_of(t);
@@ -77,7 +81,7 @@ void UpgradeSidebar::update(const SidebarInput& in) {
         s->building = -1;
     }
     for (const SidebarInput::Building& b : in.building) {
-        const int32_t prev = in.type ? in.type(b.type).previous : -1;
+        const int32_t prev = type_of(in, b.type).previous;
         Slot* s = prev < 0 ? share(b.type, true, false, in) : share(prev, false, false, in);
         if (!s) continue;
         if (prev >= 0) s->building = b.type;
