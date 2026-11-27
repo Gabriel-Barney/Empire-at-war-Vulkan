@@ -419,6 +419,12 @@ void test_objectives() {
     CHECK(s.objectives_panel && !s.objectives_folded && s.objective_texts.size() == 3 && h.classic.stats().objectives == 3);
     for (size_t i = 0; i < objs.size() && i < s.objective_texts.size(); ++i) CHECK(s.objective_texts[i] == hud_objective_text(nullptr, objs[i]));
     CHECK(s.objective_texts[0] == U"TEXT_TACTICAL_PRIMARY_SPACE_ATTACK" && s.objective_texts[1] == U"Protect the corvette");
+    // #691 a battle-info line (Add_Objective(text, true)) keeps its text but draws no state mark.
+    const size_t marked = h.modern.draw_list().total();
+    objs[1].battle_info = true;
+    h.build(f);
+    CHECK(h.modern.stats().objective_texts.size() == 3 && h.modern.draw_list().total() < marked);
+    objs[1].battle_info = false;
     f.objectives_hidden = true;
     h.build(f);
     CHECK(h.modern.stats().objectives_panel && h.modern.stats().objectives_folded && h.modern.stats().objective_texts.empty());

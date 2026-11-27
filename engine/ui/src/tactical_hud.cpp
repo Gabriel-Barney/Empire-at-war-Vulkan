@@ -1683,7 +1683,7 @@ void TacticalHud::build_objectives(const TacticalHudFrame& f) {
         HudObjective::State state;
         bool first;
     };
-    std::vector<Line> info, lines;  // the battle-info section's lines, the objective section's
+    std::vector<Line> battle_info_lines, objective_lines;
     const float wrap_px = (width - 2.0f * pad_x - 12.0f) / canvas_.units_per_pixel_x;
     int n = 0;
     for (const HudObjective& o : f.objectives) {
@@ -1692,16 +1692,16 @@ void TacticalHud::build_objectives(const TacticalHudFrame& f) {
         std::snprintf(num, sizeof num, "%d. ", ++n);
         bool first = true;
         for (std::u32string& w : wrap_text(*fonts_, tf, ascii32(num) + t, wrap_px)) {
-            (o.battle_info ? info : lines).push_back({std::move(w), o.state, first});
+            (o.battle_info ? battle_info_lines : objective_lines).push_back({std::move(w), o.state, first});
             first = false;
         }
         ++stats_.objectives;
         if (o.battle_info) ++stats_.battle_info;
     }
-    stats_.objective_lines = static_cast<uint32_t>(info.size() + lines.size());
+    stats_.objective_lines = static_cast<uint32_t>(battle_info_lines.size() + objective_lines.size());
     const float section_h = header_h + 4.0f;  // a header and the gap under its rule
-    const float height = pad_y + (info.empty() ? 0.0f : section_h + line_h * static_cast<float>(info.size())) + section_h +
-                         line_h * static_cast<float>(lines.size()) + pad_y;
+    const float info_h = battle_info_lines.empty() ? 0.0f : section_h + line_h * static_cast<float>(battle_info_lines.size());
+    const float height = pad_y + info_h + section_h + line_h * static_cast<float>(objective_lines.size()) + pad_y;
     const float right = 0.5f * canvas_.width - 24.0f, bottom = -0.5f * canvas_.height + 30.0f;
     const float left = right - width, top = bottom + height;
     const auto layer = [](const CommandBarComponent* c, int32_t def) {
@@ -1758,8 +1758,8 @@ void TacticalHud::build_objectives(const TacticalHudFrame& f) {
         }
         y -= section_h + line_h * static_cast<float>(rows.size());
     };
-    if (!info.empty()) section(text_or(text_, "TEXT_TEST_BATTLE_INFO_HEADER"), info, false);
-    section(std::move(header), lines, true);
+    if (!battle_info_lines.empty()) section(text_or(text_, "TEXT_TEST_BATTLE_INFO_HEADER"), battle_info_lines, false);
+    section(std::move(header), objective_lines, true);
 }
 
 // [port: Gabriel, 2026-11-13] Squadron wing buttons (HudWing): a column at the left edge of the canvas, 40 units below

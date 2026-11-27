@@ -1659,7 +1659,12 @@ void ModernTacticalHud::build_objectives(const TacticalHudFrame& f, float top) {
     HudTextStyle st;
     st.font = font();
     st.color = colours_.text;
-    std::vector<std::pair<std::vector<std::u32string>, HudObjective::State>> entries;
+    struct Entry {
+        std::vector<std::u32string> wrapped;
+        HudObjective::State state;
+        bool battle_info;  // #691 Add_Objective(text, true): no state mark
+    };
+    std::vector<Entry> entries;
     const float mark = 0.6f * text_height_units();
     const float wrap_px = (width - 3.0f * kPad - mark) / canvas_.units_per_pixel_x;
     size_t lines = 0;
@@ -1667,8 +1672,8 @@ void ModernTacticalHud::build_objectives(const TacticalHudFrame& f, float top) {
         for (const HudObjective& o : f.objectives) {
             const std::u32string t = hud_objective_text(text_, o);
             stats_.objective_texts.push_back(t);
-            entries.push_back({wrap_text(*fonts_, st.font, t, wrap_px), o.state});
-            lines += entries.back().first.size();
+            entries.push_back({wrap_text(*fonts_, st.font, t, wrap_px), o.state, o.battle_info});
+            lines += entries.back().wrapped.size();
         }
     const std::u32string header = f.objectives_header.empty() ? text_or_port(text_, "TEXT_TEST_OBJECTIVE_HEADER", U"Mission Objectives")
                                                               : f.objectives_header;
@@ -1682,10 +1687,10 @@ void ModernTacticalHud::build_objectives(const TacticalHudFrame& f, float top) {
     hs.color = colours_.label;
     add_text(dl_, kPanelLayer, HudList::Text, *fonts_, canvas_, header, {left, y}, hs);
     key_badge(hk::kHolocron, {c.x + 0.5f * width - 2.0f, top - 2.0f}, kPanelLayer);
-    for (const auto& [wrapped, state] : entries) {
+    for (const auto& [wrapped, state, battle_info] : entries) {
         y -= line;
         const Vec2f mc{left + 0.5f * mark, y};
-        switch (state) {  // open: an outline; done: filled; failed: a cross
+        if (!battle_info) switch (state) {  // open: an outline; done: filled; failed: a cross
             case HudObjective::State::Complete:
                 add_rect(dl_, kPanelLayer, mc.x - 0.5f * mark, mc.y - 0.5f * mark, mc.x + 0.5f * mark, mc.y + 0.5f * mark, accent(255));
                 break;
