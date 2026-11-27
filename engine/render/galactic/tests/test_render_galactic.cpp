@@ -159,6 +159,19 @@ static void test_r2_records() {
         CHECK(render::faction_text_color(tab, "Neutral", c) && near(c.x, 128 / 255.0f));
         CHECK(!render::faction_map_color(tab, "Hutts", c) && !render::faction_text_color(tab, "", c));
     }
+    {  // #727 Animate_During_Galactic_Mode_Pause (0x2be640 [H]): FoC no; set, the clips run on through a pause.
+        // ledger: verifies GameConstants.Animate_During_Galactic_Mode_Pause
+        render::GalacticPauseClock off = render::load_galactic_pause_clock(gc_doc.root());
+        CHECK(!off.animate_while_paused && off.advance(1.0, true) == 0.0f && off.advance(2.0, true) == 0.0f);
+        const data::XmlDocument on_doc = data::XmlDocument::parse(std::string_view(
+            "<GameConstants><Animate_During_Galactic_Mode_Pause> Yes </Animate_During_Galactic_Mode_Pause></GameConstants>"));
+        render::GalacticPauseClock on = render::load_galactic_pause_clock(on_doc.root());
+        CHECK(on.animate_while_paused && on.advance(10.0, true) == 0.0f);  // the first frame only starts the clock
+        CHECK(near(on.advance(10.05, true), 1.5f));                         // 0.05 s paused = 1.5 frames
+        CHECK(near(on.advance(10.10, false), 1.5f) && near(on.advance(11.0, false), 1.5f));  // running: kept, not grown
+        CHECK(near(on.advance(12.0, true), 4.5f));                          // a long frame counts as 0.1 s
+        CHECK(near(on.advance(-1.0, true), 4.5f));                          // no wall clock: unchanged
+    }
     const render::GalacticCorruptionSettings cs = render::load_galactic_corruption_settings(gc_doc.root());
     CHECK(cs.planet_particle == "Light_Galactic_Corruption_Particles" && cs.line_particle == "Galactic_Corruption_Line_Particles" &&
           near(cs.brightness[0], 0.25f) && near(cs.brightness[1], 0.75f));

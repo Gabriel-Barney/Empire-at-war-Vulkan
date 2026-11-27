@@ -180,6 +180,7 @@ void GalacticView::init(GpuCore& gpu, const GameData& data, std::vector<render::
     const ui::UiConstants uc = ui_constants(data);
     camera_ = ui::GalacticCameraController(uc.galactic, uc.strategic);
     corruption_ = render::load_galactic_corruption_settings(game_constants(data));
+    pause_clock_ = render::load_galactic_pause_clock(game_constants(data));  // #727
 #ifdef ALAMO_PARTICLES_HAVE_SIM
     pworld_ = std::make_unique<render::particles::ParticleWorld>(1u << 18);  // [port] capacity: corruption smoke only
     plib_ = std::make_unique<render::particles::ParticleLibrary>(data.files.get());
@@ -249,6 +250,7 @@ void GalacticView::prepare(float alpha, double now_s, uint32_t selected_planet, 
     const render::GalacticSnapshotBuffer::Pair p = buffer_.latest();
     if (!p.curr || !builder_) return;
     render::interpolate_galactic(p.prev.get(), *p.curr, alpha, render::InterpMode::Smooth, frame_);  // alpha 1 = the current snapshot (Original)
+    frame_.pause_anim_frames = pause_clock_.advance(now_s, paused_);  // #727 Animate_During_Galactic_Mode_Pause
     render::GalacticSelection sel;
     sel.planet = selected_planet ? static_cast<objects::ObjectId>(selected_planet) : objects::kNoObjectId;
     if (cam) {
