@@ -1319,6 +1319,8 @@ inline void test_infection() {
     for (uint32_t f = s0 + 1; f <= s0 + 29; ++f) {
         if (f % 60u == 0u) ++expect_draws;
         w.tick();
+        // #688: a cough only on a draw frame, and only for an infected unit (the sound on a 0 draw).
+        CHECK(w.sys->cough_events().empty() || (f % 60u == 0u && w.sys->cough_events().size() == 1 && w.sys->cough_events()[0] == 10));
     }
     CHECK(w.rng.draws() - d0 == expect_draws);
     // Damage_Per_Second / FPS on every service frame (s0 + 1 .. s0 + 29: 29 frames).

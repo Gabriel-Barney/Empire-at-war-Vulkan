@@ -691,6 +691,7 @@ bool CombatSystem::read(ByteReader& r) {
     leaders_.clear();
     flush_hps_.clear();
     stun_visuals_.clear();  // presentation only, not saved (the serial keeps counting)
+    cough_events_.clear();  // #688 presentation only
     rebuild_team_members();  // derived from the units (phase A rebuilds it every tick)
     return true;
 }

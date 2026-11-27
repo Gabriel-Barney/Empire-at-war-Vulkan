@@ -562,6 +562,13 @@ void test_land_damage_stage() {
     CHECK(H::land_damage_stage(quirk, 1.0f) == 0 && H::land_damage_stage({}, 0.1f) == -1);
 }
 
+// #688 (0x636e80): the cough event: the type's override, else Unit_Infantry_Coughing.
+void test_cough_event() {
+    using H = GameAudioHost;
+    CHECK(H::cough_event("") == "Unit_Infantry_Coughing" && H::cough_event("  ") == "Unit_Infantry_Coughing");
+    CHECK(H::cough_event(" Unit_Droid_Cough ") == "Unit_Droid_Cough");
+}
+
 // aud4 b0289 / b0300: garrison entry line and the hero clash win speech (both builds; presentation rules only).
 void test_garrison_and_clash_lines() {
     using H = GameAudioHost;
@@ -2273,6 +2280,7 @@ int main() {
     test_unit_room();                   // mcx4 t13 batch J
     test_strike_available_tags();       // mcx4 t13 batch M
     test_land_damage_stage();           // mcx4 t13 batch O
+    test_cough_event();                 // #688
     test_pad_lines();                   // mcx4 t13 batch P
     test_tsw_approach();                // mcx4 t13 batch S
     test_point_contested();             // mcx4 t13 batch U
