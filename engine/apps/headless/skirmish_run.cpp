@@ -942,6 +942,14 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
         unsigned long auto_pushes = 0, auto_pops = 0, guard_repaths = 0, guard_rechecks = 0, guard_unseen = 0, guard_drops = 0;
         unsigned long step10 = 0;
         std::vector<std::string> error_list;
+        auto take_counts = [&](const sim::BattleAi& a) {  // #636: BattleAi::world_counts (the lane's copy with it on)
+            sim::BattleAi::WorldCounts c = a.world_counts();
+            orders = c.orders;
+            rejected = c.rejected;
+            decisions = c.decisions;
+            error_list = std::move(c.lua_errors);
+            lua_errors = error_list.size();
+        };
         std::string state_text;  // skai: --ai-log state lines
         std::string script_state;  // q6: --object-scripts, the battle's last state line (units per player)
         // q6: --ai-log diagnostics, damage taken by the slot players' DUMMY_LAND_BASE_LEVEL_COMPONENT objects since the last
@@ -965,14 +973,7 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
             }
             if (!invaded && !gs->fleets_at(1, 1).empty())  // battle host: arrived at B - invade (a land conflict)
                 invaded = gs->invade(1, 1, {}) == commands::RejectReason::None;
-            if (const sim::BattleAi* a = battles.tactical_ai()) {  // #636: the lane's copy (its job may still run)
-                sim::BattleAi::WorldCounts c = a->world_counts();
-                orders = c.orders;
-                rejected = c.rejected;
-                decisions = c.decisions;
-                error_list = std::move(c.lua_errors);
-                lua_errors = error_list.size();
-            }
+            if (const sim::BattleAi* a = battles.tactical_ai()) take_counts(*a);  // #636: the lane's copy (its job may still run)
             if (const sim::TacticalBattle* tb = battles.battle()) {
                 const sim::BattleStats& bs = tb->stats();
                 if (opt.report_fielded)
@@ -1075,12 +1076,7 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
         }
         if (sim::BattleAi* a = battles.tactical_ai()) {  // #636: a battle running at the tick limit: its last job too
             a->lane_sync();
-            sim::BattleAi::WorldCounts c = a->world_counts();
-            orders = c.orders;
-            rejected = c.rejected;
-            decisions = c.decisions;
-            error_list = std::move(c.lua_errors);
-            lua_errors = error_list.size();
+            take_counts(*a);
         }
         out.crc = host.crc_log();
         out.ticks = t;

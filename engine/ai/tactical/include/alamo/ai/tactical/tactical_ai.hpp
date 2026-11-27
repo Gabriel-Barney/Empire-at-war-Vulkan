@@ -382,7 +382,8 @@ public:
     void think();
     // #636 (lua_vm.hpp "Threading"): every Lua VM of this world - the free stores, the running plans', the evaluators and
     // the plan pools (pristine VMs included) - is owned by the calling thread from now on. The AI lane's thread claims
-    // them before think(), the sim thread back before a save, a load, the end of the battle and the error reads.
+    // them before think(); the joining thread takes them back at every join (BattleAi::lane_join: the collect, a save,
+    // a load, the end of the battle, a host's lane_sync).
     void claim_scripts();
     // Battle end (slot 7 / context teardown): every running plan ends (released by the goal system).
     void end_battle();

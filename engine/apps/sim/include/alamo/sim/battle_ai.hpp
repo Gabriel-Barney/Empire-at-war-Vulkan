@@ -164,7 +164,6 @@ public:
     // #633: Lua Prevent_AI_Usage on object `id` (CampaignBattles' object-script hook). Lane off: TacticalAiWorld's answer
     // at once. Lane on: the owner's answer published at collect (no AI player / not initialised / done), and on done
     // queued for the next AI slot like the other pushes; a delivered push answering otherwise counts in lane_mismatches().
-    bool lane_job_running() const { return static_cast<bool>(lane_wait_); }  // #636: a job runs on the lane thread
     lua::PreventAiResult prevent_ai_usage(objects::ObjectId id, int32_t owner, bool on);
     // #634: Lua Release_Credits_For_Tactical of the AI VMs (lua::TacticalGalacticContext::release_credits): `live` itself
     // with the lane off; with it on, a call from lane code is a batch write applied at the due tick (`live` then).
@@ -445,15 +444,12 @@ private:
         // The active BASE_SHIELDs l1_base_shield_covers counts (combat's shield on; centre, radius squared), store order.
         struct Shield {
             float x = 0.0f, y = 0.0f, z = 0.0f, r2 = 0.0f;
+            int32_t owner = -1;  // side_shields only
         };
         std::vector<Shield> shields;
         // #636: Are_On_Opposite_Sides_Of_Shield's shields (TacticalBattle::opposite_sides_of_shield with shield damage:
         // alive, BASE_SHIELD, a radius, on), with the owner for its player test.
-        struct SideShield {
-            float x = 0.0f, y = 0.0f, z = 0.0f, r2 = 0.0f;
-            int32_t owner = -1;
-        };
-        std::vector<SideShield> side_shields;
+        std::vector<Shield> side_shields;
         // The land passability grid's effective values (MovementSystem::grid), copied again only when its version moved;
         // per battle unit the movement mask is Unit::mask. Empty in space.
         bool grid_valid = false;

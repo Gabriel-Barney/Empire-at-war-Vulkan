@@ -1282,7 +1282,8 @@ void BattleAi::apply_lane_write(const cmd::Command& c) {
 }
 
 bool BattleAi::view_opposite_sides_of_shield(Vec3 a, Vec3 b, int32_t player, bool friendly) const {
-    for (const LaneView::SideShield& s : view_.side_shields) {
+    for (const LaneView::Shield& s : view_.side_shields) {
+        // the live test's !is_enemy(player, owner); view_hostile knows players 0..255 (none other is hostile)
         if (player >= 0 && (player >= 256 || !view_hostile(static_cast<uint8_t>(player), s.owner)) != friendly) continue;
         auto inside = [&s](Vec3 p) {
             const float dx = p.x - s.x, dy = p.y - s.y, dz = p.z - s.z;
@@ -1341,7 +1342,7 @@ void BattleAi::publish_counts() {
 
 BattleAi::WorldCounts BattleAi::world_counts() const {
     if (world_->ai_lane()) return lane_counts_;
-    return {world_->orders_issued(), world_->orders_rejected(), world_->decision_log().size(), world_->lua_errors()};
+    return {world_->orders_issued(), world_->orders_rejected(), world_->decision_log().size(), world_->lua_errors()};  // live
 }
 
 void BattleAi::lane_sync() { lane_join(); }
@@ -1656,6 +1657,7 @@ bool BattleAi::read(ByteReader& r) {
     view_.grid_valid = false;  // the grid copy too (a loaded grid may have another state at the same version)
     world_->object_bridge().lane_abilities = nullptr;  // sp3 slice 4b: likewise the ability records
     lane_unloaded_.clear();  // sp3 slice 4d: consumed within the tick of its apply
+    if (world_->ai_lane()) publish_counts();  // #636: the loaded world's
     return true;
 }
 
@@ -2332,7 +2334,7 @@ void BattleAi::capture_lane_rest() {
                 const float r = b_->catalog_->types().get(st.type(h), objects::tags::Base_Shield_Radius);
                 if (!(r > 0.0f)) continue;
                 const Vec3 c = st.position(h);
-                view_.shields.push_back({c.x, c.y, c.z, r * r});
+                view_.shields.push_back({c.x, c.y, c.z, r * r, -1});
             }
     }
     // #636: Are_On_Opposite_Sides_Of_Shield's (the same filter as TacticalBattle::opposite_sides_of_shield)
