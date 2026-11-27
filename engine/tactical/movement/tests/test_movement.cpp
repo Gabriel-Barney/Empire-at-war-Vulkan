@@ -983,6 +983,24 @@ static void test_collision_helpers() {
         // turning in place: one zero-length segment at the mover's position
         CHECK(foot_path_contact({0.0f, 0.0f}, px, 1, ha, foot_rect({17.0f, 0.0f}, 0.0f, 8.0f, 4.0f), 1000.0f, 0.0f) == 0.0f);
         CHECK(foot_path_contact({0.0f, 0.0f}, px, 1, ha, foot_rect({19.0f, 0.0f}, 0.0f, 8.0f, 4.0f), 1000.0f, 0.0f) < 0.0f);
+        // #713 (ApproximationSmoothCosAngle, 0x505fe0's thinning): the path bends 2.3 degrees at (100, 0) toward +y (dot
+        // 0.9992). A box 10.5 above the bend is missed by the unthinned approximation (abeam at 10.5, as above); thinned at
+        // FoC's 0.9962 the bend point goes, the sweep runs (0, 0) -> (200, 4) and passes 8.5 from it (contact). A stricter
+        // value (0.9999) keeps the bend and misses it again.
+        // ledger: verifies GameConstants.ApproximationSmoothCosAngle
+        {
+            const std::vector<V2> bent{{0.0f, 0.0f}, {100.0f, 0.0f}, {200.0f, 4.0f}};
+            const FootRect box = foot_rect({100.0f, 10.5f}, 0.0f, 8.0f, 4.0f);
+            const float plain = foot_path_contact({0.0f, 0.0f}, bent, 1, ha, box, 1000.0f, kNoFacing, 2.0f);
+            const float foc = foot_path_contact({0.0f, 0.0f}, bent, 1, ha, box, 1000.0f, kNoFacing, 2.0f, 0.9962f);
+            const float strict = foot_path_contact({0.0f, 0.0f}, bent, 1, ha, box, 1000.0f, kNoFacing, 2.0f, 0.9999f);
+            std::printf("  #713 approximation thinning: unthinned %.2f, 0.9962 %.2f, 0.9999 %.2f\n", static_cast<double>(plain),
+                        static_cast<double>(foc), static_cast<double>(strict));
+            CHECK(plain < 0.0f && foc >= 0.0f && strict < 0.0f);
+            // a straight path: thinning keeps only the end point and gives the unthinned answer
+            CHECK(nearf(foot_path_contact({0.0f, 0.0f}, px, 1, ha, foot_rect({100.0f, 0.0f}, 0.0f, 8.0f, 4.0f), 1000.0f, kNoFacing, 2.0f, 0.9962f),
+                        82.0f, 1e-2f));
+        }
         // MovingVsMoving: two (5, 5) movers head-on at speed 2 each, 100 apart: touch at 10 after 22.5 frames (< 45);
         // 300 apart: not inside 45 frames, inside 90
         const std::vector<V2> pp{{0.0f, 0.0f}, {400.0f, 0.0f}};

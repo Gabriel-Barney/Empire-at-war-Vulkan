@@ -86,9 +86,12 @@ inline constexpr float kFootApproxStep = 2.0f;  // ApproximationForwardDistance:
 // first contact when that is < max_dist, else -1. `turn_yaw` != kNoFacing: the mover turns in place - one zero-length
 // segment at `pos` with the forward axis dir(turn_yaw) (the caller swells ha toward a square). `step` = the
 // approximation's point spacing, GameConstants ApproximationForwardDistance (BKR1_RE_ANSWERS Q5: straight steps of at
-// most that length, at least 0.1).
+// most that length, at least 0.1). `thin_cos` <= 1 (#713, ApproximationSmoothCosAngle, MCX4_T11_T12_RE_ANSWERS B4 [H]):
+// the approximation's points up to max_dist are thinned before the sweep - from each kept point, the next point whose
+// following step bends from the kept point's first step by dot < thin_cos is kept, and the last point always; the
+// sweep then runs kept point to kept point. Above 1 (the default): no thinning.
 float foot_path_contact(V2 pos, std::span<const V2> path, uint32_t next, V2 ha, const FootRect& b, float max_dist,
-                        float turn_yaw = kNoFacing, float step = kFootApproxStep);
+                        float turn_yaw = kNoFacing, float step = kFootApproxStep, float thin_cos = 2.0f);
 // MovingVsMoving predictor 0x442540: both movers walked along their polylines in step at their assumed speeds (the
 // effective max speed when facing toward the other party, else the current speed), directional radii with the lane rule,
 // whole frames; true when they touch before `frames` (45; 90 for a crusher pair). With neither moving at the start: the

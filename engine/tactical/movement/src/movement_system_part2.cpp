@@ -1156,7 +1156,8 @@ bool MovementSystem::mvs_hostile_in_way(const CollisionObject& c, Unit& a, const
         const Unit& o = units_[ci];
         if (o.d.id == a.d.id || !hostile(a.d.owner, o.d.owner)) continue;
         if (foot_path_contact(probe[0], probe, 1, foot_half(a), foot_of(o), 3.0e38f, kNoFacing,
-                              cfg_.constants.approximation_forward_distance) < 0.0f)  // mcx4 t11
+                              cfg_.constants.approximation_forward_distance,  // mcx4 t11
+                              cfg_.constants.approximation_thinning ? cfg_.constants.approximation_smooth_cos_angle : 2.0f) < 0.0f)  // #713
             continue;
         if (a.form_id == 0) return false;  // no formation (pack +0x1f0 null)
         formation_attacks_.push_back({a.d.id, o.d.id});

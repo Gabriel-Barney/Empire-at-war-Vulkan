@@ -92,6 +92,8 @@ MovementConstants MovementConstants::from_game_constants(const data::GameConstan
     c.formation_minimum_side_error = gc.get_float("FormationMinimumSideError", c.formation_minimum_side_error);  // mcx4 t11
     c.formation_maximum_side_error = gc.get_float("FormationMaximumSideError", c.formation_maximum_side_error);
     c.approximation_forward_distance = gc.get_float("ApproximationForwardDistance", c.approximation_forward_distance);
+    // ledger: consumes GameConstants.ApproximationSmoothCosAngle (#713: the approximation's thinning)
+    c.approximation_smooth_cos_angle = gc.get_float("ApproximationSmoothCosAngle", c.approximation_smooth_cos_angle);
     c.should_infantry_teams_split_across_formations =
         gc.get_bool("ShouldInfantryTeamsSplitAcrossFormations", c.should_infantry_teams_split_across_formations);
     // ledger: consumes GameConstants.ShouldSkipLandFormup (#715: the lead-in path and the queued delay gate)
