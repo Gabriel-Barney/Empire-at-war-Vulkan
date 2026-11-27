@@ -443,6 +443,14 @@ struct GalacticDrag {
     uint32_t over_slot_planet = 0, over_slot_fleet = 0;  // that slot's planet / fleet (0 = empty slot)
     int32_t layers = 0;          // map fleet: pancake layers drawn under the dragged icon (Drag_Back)
     Rgba8 tint{};                // map fleet: its pancake's owner tint (GalacticPlanetStack::owner_color)
+    // #763 (docs/re/COMMAND_BAR_DRAG.md "Ctrl-drag of a stack"): the dragged pad's units (an organiser stack's members,
+    // else the one unit), its text (the count), its Stackable and Can_Drag_Stack flags; and +0x7dd, Ctrl held && the
+    // pad's Can_Drag_Stack, set each frame of the drag. The drop reads Ctrl as it is then (HUD +0x21a9).
+    std::vector<uint32_t> stack;
+    std::u32string text;
+    bool stackable = false;
+    bool can_drag_stack = false;
+    bool whole_stack = false;
 };
 
 // [port: Gabriel] #613 the organiser rules both HUD styles use: the Classic organiser (GalacticHud) and the Modern one
@@ -456,6 +464,11 @@ struct GalacticOrganiserDrag {
     uint32_t fleet = 0;       // the source fleet (0: a land unit)
     uint32_t unit = 0;        // the dragged unit (0: the whole fleet)
     uint32_t planet = 0;      // a map fleet's planet; 0: an organiser pad (at the selected planet)
+    // #763 (0x3d0790 [H]): a Ctrl drop of a Stackable pad moves every unit of its stack. The merge, launch and land rows
+    // and the fleet-slot rows onto an own fleet then send their command once per unit here, in stack order; empty =
+    // `unit` alone. [port] The detach, move and new-fleet slot rows keep the one unit (retail's per-unit detach, op 4's
+    // server side, is not traced).
+    std::vector<uint32_t> stack;
 };
 struct GalacticDropTarget {
     enum class Kind : uint8_t {
@@ -566,6 +579,7 @@ struct GalacticHudStats {
     bool planet_map = false, map_picture = false;      // the planet map drawn / its land-map picture resolved
     uint32_t map_pads = 0, map_stacks = 0, map_shields = 0;
     uint32_t ghosts = 0;  // #723 dragged pads drawn as their ghost (Should_Ghost)
+    uint32_t drag_texts = 0;  // #763 the dragged pad's text drawn at the drag position (Should_Render_At_Drag_Pos)
     bool fleet_slots_shown = false;                    // slot ovals shown this build
     uint32_t empty_slots = 0, slot_highlights = 0;     // fleet_empty ovals drawn / mouse-over frames on slots
 };
@@ -712,6 +726,7 @@ private:
     GalacticHudStats stats_;
     int32_t selected_ = -1;
     uint32_t selected_id_ = 0;
+    bool ctrl_ = false;  // #763 Ctrl held (update_input; HUD +0x21a9)
     // Component ids.
     int32_t name_ = -1, value_ = -1, control_ = -1, ground_ = -1, space_ = -1, conflict_ = -1, hero_ = -1, smuggler_ = -1,
             bounty_ = -1, ring_ = -1, credit_filter_ = -1;

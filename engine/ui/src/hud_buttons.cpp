@@ -40,6 +40,16 @@ Rgba8 mul(Rgba8 a, Rgba8 b) {
 
 }  // namespace
 
+HudTextStyle button_text_style(const CommandBarComponent& c, FontCache& fonts, const HudCanvas& canvas) {
+    HudTextStyle st;
+    st.font = fonts.component_font(c.font_name, c.font_point_size, FontUse::Button, canvas.font_height());
+    st.color = c.has_text_color ? c.text_color : Rgba8{};
+    st.outline = c.text_outline;
+    st.emboss = c.text_emboss;
+    st.align = c.left_justified ? TextAlign::Left : c.right_justified ? TextAlign::Right : TextAlign::Center;
+    return st;
+}
+
 float blink_alpha(const CommandBarComponent& c, double start, double now) {
     if (start < 0.0) return 1.0f;
     const double t = now - start;
@@ -239,12 +249,8 @@ Vec2f HudButtons::draw(HudDrawList& dl, const TextureAtlas& atlas, FontCache* fo
             add_atlas_quad(dl, layer, HudList::Alpha, atlas, *ue, offset_down(center, c.upper_effect_offset), {}, c.scale, base);
     // Text.
     if (fonts && (!r.text.empty() || !r.text2.empty())) {
-        HudTextStyle st;
-        st.font = fonts->component_font(c.font_name, c.font_point_size, FontUse::Button, canvas.font_height());
-        st.color = with_alpha(r.text_color_set ? r.text_color : c.has_text_color ? c.text_color : Rgba8{}, blink);
-        st.outline = c.text_outline;
-        st.emboss = c.text_emboss;
-        st.align = c.left_justified ? TextAlign::Left : c.right_justified ? TextAlign::Right : TextAlign::Center;
+        HudTextStyle st = button_text_style(c, *fonts, canvas);
+        st.color = with_alpha(r.text_color_set ? r.text_color : st.color, blink);
         if (!r.text.empty()) {
             const Vec2f at = offset_down(center, c.text_offset);
             if (c.max_text_width > 0.0f)

@@ -38,28 +38,54 @@ organiser pad (115 rows each).
 
 ## Ctrl-drag of a stack (Stackable, Can_Drag_Stack)
 
-These rows are not ported yet (a follow-up of #722).
-
 **Ctrl state.** HUD +0x21a9 is Ctrl held [H]:
 - it is set each frame from `GetKeyState(VK_CONTROL)` (0x20e2b0, in 0x30c3b0);
 - it is cleared on the Ctrl key-up (0x2f6bc0, key 0x11; Shift 0x10 clears +0x21aa).
 
 **Stackable** [H]. The organiser drop 0x3d0790 takes (HUD, target pad, dragged pad, ...) and logs
 "Item %s dropped in slot %d". It checks `Stackable` on the **dragged** pad:
-- With Ctrl held and that pad Stackable, the whole stack moves. 0x2f6270 gives the stack's units, and 0x3e0eb0 moves
-  them.
+- With Ctrl held and that pad Stackable, the whole stack moves. 0x2f6270 gives the dragged unit's organiser type
+  (0x3973b0), and 0x3e0eb0(hud, fleet, type, slot) moves every unit of that type in the fleet: a slot event
+  (0x5b06b0) where needed, then the unit's organiser slot (0x3a87c0).
 - Otherwise a one-entry list moves (the one unit).
+- Into another fleet's pane, the per-unit fleet commands (0x5afb60) go through the stack's list when the dragged pad is
+  Stackable, else the one unit. Within its own pane the drop re-orders the type into the target slot.
 
 Base FoC: Yes on 142 of 145 rows. The No rows are the header pads `q1_0000`, `q2_0000` and `q3_0000`.
 
-**Can_Drag_Stack** [H for the flag, M for its look]:
+**Can_Drag_Stack** [H]:
 - In 0x2f6c30 and 0x2f6bc0, the dragged pad gets virtual slot +0x190 with (Ctrl held && `Can_Drag_Stack`).
 - That slot does nothing (0x1fa90) for every component class except `TextButtonComponentClass` (vtable 0x864180 →
   0x354760). There it stores the flag at +0x7dd.
-- The TextButton draw 0x34f160 reads +0x7dd in its draw state 5. With +0x7dd clear and the pad Stackable, it skips
-  the state textures. +0x7dd also gates a bone-follow block.
+- 0x34f160 is the TextButton's **text** draw (its two strings, +0x668 and +0x6b8, through the font manager 0x30adb0).
+  In draw state 5 (dragged), with `Should_Render_At_Drag_Pos` set, the text sits at the component's own position
+  (+0x30 / +0x34, through 0x261a70; [M] the drag moves it with the cursor) plus the pad's offsets. In state 5 the text
+  layer is min(layer + 3, 6) either way.
+  - With +0x7dd clear and the pad `Stackable`, the text is skipped. This is the look only: the drop moves the stack on
+    Ctrl && `Stackable` alone, so a Ctrl drop of a pad without `Can_Drag_Stack` moves the stack with no count shown.
+  - Otherwise the text is drawn there.
+  - Without `Should_Render_At_Drag_Pos` the text stays on the pad. (The drag-position path is also taken in any state
+    when data +0x3e2 bit 0x80 is set; not ported.)
+- The ghost (below) is drawn only while +0x7dd is clear.
+- This corrects an earlier reading of this section ("skips the state textures"): what is skipped is the text.
 - Base FoC sets `Can_Drag_Stack` only on the tactical reinforcement slots `r_0000`..`r_0403`, all No. The galactic
-  pads leave it absent (false), so with base data +0x7dd is never set.
+  pads leave it absent (false), so with base data +0x7dd is never set; and no organiser pad has
+  `Should_Render_At_Drag_Pos`, so the text rule shows only with mod data.
+
+**Port** (#763):
+- `GalacticHud::drop`: with Ctrl held at the drop (`update_input`'s `ctrl`, as +0x21a9) and the dragged pad
+  `Stackable`, `GalacticOrganiserDrag::stack` holds the pad's units (`PadSlot::select`). The merge, launch and land rows
+  of `galactic_organiser_drop`, and the fleet-slot rows onto an own fleet (`galactic_slot_drop`), then send their command
+  once per unit, in stack order.
+- [port] The port's organiser has no per-unit slots (its pads are type stacks), so the in-pane re-order has nothing to
+  apply to. The detach, planet-move and fleet-slot rows keep the one unit: retail's per-unit detach goes through op 4,
+  whose server side is not traced.
+- [port] The Modern organiser (`ModernGalacticHud`) has no CommandBarComponent pads, so it sends the one unit.
+- [port] Retail drags a group of icons (+0x2170, see "Snapping"); the port draws the lead icon only, a whole-stack drag
+  included. Not ported.
+- `GalacticDrag::whole_stack` is +0x7dd. The drag icon draws the pad's text by the rule above, and a
+  `Should_Render_At_Drag_Pos` pad's own text leaves the pad while it is dragged. [port] It is drawn on the drag icon's
+  layer, not the pad's layer + 3, on one line. `ghost_dragged_pad` makes no ghost while +0x7dd is set.
 
 ## Ghosting (Should_Ghost, Ghost_Base_Only) [H]
 
@@ -93,5 +119,5 @@ clear).
 **Port:** `GalacticHud::ghost_dragged_pad`.
 - It covers the organiser pads, the land-force pads and the planet-map pads. While such a pad is dragged it shows its
   ghost.
-- Where retail makes no ghost, the pad draws as before. Retail's state-5 draw of a `Stackable` pad belongs to the
-  Stackable row (#763).
+- Where retail makes no ghost, the pad draws as before. The text at the drag position is the Can_Drag_Stack rule
+  above (#763).

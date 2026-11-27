@@ -126,6 +126,9 @@ private:
 
 // Blink alpha factor 0..1 for a component's Blink_* fields started at `start` (legacy docs/re/UI.md §2.1 animation, [port]).
 float blink_alpha(const CommandBarComponent& c, double start, double now);
+// A TextButton's text style: its font, Text_Color (else white), outline, emboss and justification (HudButtons::draw;
+// #763 the dragged pad's text).
+HudTextStyle button_text_style(const CommandBarComponent& c, FontCache& fonts, const HudCanvas& canvas);
 
 // Can_Animate frame animation (legacy docs/re/UI.md §2.1 "animation"; [port] rules): the frames are the component's
 // Icon_Alternate_Texture_Name list played at Anim_FPS (<= 0: 10) from `start`; Animate_Back plays forward then back
