@@ -4623,6 +4623,7 @@ void test_flagship_contents() {
     g_temp_prefix = "alamo_sim_battle_tests_flagship";
     {
         auto d = make_data();
+        CHECK(galactic::ConflictConfig{}.attach_to_flagship);  // #759: on by default (the runs below set it either way)
         const FlagshipRun off = flagship_run(*d, {}), on = flagship_run(*d, {.on = true});
         std::printf("  attach to flagship off: battle %d, contained %zu, hero objects %u, objects %u\n", off.battle ? 1 : 0, off.contained,
                     off.hero_objects, off.objects);

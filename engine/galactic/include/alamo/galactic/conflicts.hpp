@@ -261,9 +261,10 @@ struct ConflictConfig {
     // 0x2b8222): a conflict the local player is in goes straight to the auto-resolve state, without the prompt. Retail's
     // test ignores the story lock; the port keeps the lock as a guard [port] until a playtest settles it (#467 "open").
     bool always_auto_resolve = false;
-    // #754 (#710 slice 1): space battles carry each side's Attach_To_Flagship_During_Space_Battle fleet contents
-    // (BattleForces::flagship_contents). Off until #710's last slice turns it on with the golden refresh [port].
-    bool attach_to_flagship = false;
+    // #754 (#710): space battles carry each side's Attach_To_Flagship_During_Space_Battle fleet contents
+    // (BattleForces::flagship_contents) inside the fleet lead. On since #759 (retail's behaviour); off keeps them out of
+    // the battle (the port's behaviour before #710).
+    bool attach_to_flagship = true;
 };
 
 class ConflictManager final : public ConflictHooks {
