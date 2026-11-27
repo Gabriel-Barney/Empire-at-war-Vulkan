@@ -428,8 +428,9 @@ void ModernGalacticHud::build_map(const GalacticHudFrame& f) {
 
 // #613 the organiser above the deck (the planet close-up), the panel growing up from `bottom_left`:
 //   - a row per own fleet in orbit, in the Classic panes' order (galactic_organiser_panes: q1, q2, q3, each pane's fleets
-//     in feed order), then the own fleets no pane holds: its header (the whole fleet), its unit stacks, and the row's back
-//     (a drop there merges into that fleet, as a Classic pane's empty pads do);
+//     in feed order), then the own fleets no pane holds: its header (the whole fleet), its lead tile (#669: the lead out
+//     of its stack, as the Classic header pad; empty when it has none, a drop there sets one), its unit stacks, and the
+//     row's back (a drop there merges into that fleet, as a Classic pane's empty pads do);
 //   - with an empty pane (a free orbit slot), the "New fleet" row: while something is dragged, a tile per free slot k (a
 //     drop there makes a new fleet in slot k, as on the Classic empty pane);
 //   - the land-forces row: a tile per unit; its back takes drops (land) with or without units.
@@ -458,13 +459,16 @@ void ModernGalacticHud::build_organiser(const GalacticHudFrame& f, const Galacti
     const float side = std::max(2.6f * th, px_units(48.0f)), gap = 0.5f * kPad, header_w = 7.0f * th;
     const float inner = max_width - 2.0f * kPad;
     const auto per_row = static_cast<size_t>(std::max(0.0f, std::floor((inner - header_w) / (side + gap))));
+    const size_t stack_cols = per_row > 0 ? per_row - 1 : 0;  // #669: the lead tile takes the first column
     // The panel is as wide as its longest row.
     std::vector<std::vector<GalacticUnitStack>> stacks(own.size());
+    std::vector<const GalacticFleetSlot*> leads(own.size());
     size_t longest = std::max(std::min(land.size(), per_row), std::min(free_slots.size(), per_row));
     for (size_t i = 0; i < own.size(); ++i) {
-        galactic_unit_stacks(own[i]->units, stacks[i]);
-        if (stacks[i].size() > per_row) stacks[i].resize(per_row);  // further stacks are not drawn, as a full Classic pane's
-        longest = std::max(longest, stacks[i].size());
+        leads[i] = galactic_fleet_lead(own[i]->units);
+        galactic_unit_stacks(own[i]->units, leads[i], stacks[i]);
+        if (stacks[i].size() > stack_cols) stacks[i].resize(stack_cols);  // further stacks are not drawn, as a full Classic pane's
+        longest = std::max(longest, stacks[i].size() + (per_row > 0 ? 1 : 0));
     }
     const size_t rows = own.size() + (free_slots.empty() ? 0 : 1) + 1;
     const Vec2f size{std::min(max_width, header_w + static_cast<float>(longest) * (side + gap) + 2.0f * kPad),
@@ -517,6 +521,30 @@ void ModernGalacticHud::build_organiser(const GalacticHudFrame& f, const Galacti
         pad(std::move(hp), std::move(ht));
         ++stats_.organiser_fleets;
         float x = left + header_w;
+        if (per_row > 0) {  // #669 the lead tile
+            const GalacticFleetSlot* ld = leads[i];
+            Tile t;
+            t.size = {side, side};
+            t.c = {x + 0.5f * side, y};
+            t.text = text_or_port(text_, nullptr, U"Lead");
+            ModernOrganiserPad lp;
+            lp.fleet = g.fleet;
+            lp.lead = true;
+            for (const GalacticFleetSlot& u : g.units)
+                if (u.lead && u.object != 0) lp.leads.push_back(u.object);
+            if (ld) {
+                t.icon = ld->icon;
+                t.selected = ld->selected;
+                lp.unit = ld->object;
+                lp.select = {ld->object};
+                lp.icon = ld->icon;
+                lp.name = ld->name;
+                lp.no_lead = ld->no_lead;
+                ++stats_.organiser_leads;
+            }
+            pad(std::move(lp), std::move(t));
+            x += side + gap;
+        }
         for (GalacticUnitStack& s : stacks[i]) {
             Tile t;
             t.size = {side, side};
@@ -531,6 +559,7 @@ void ModernGalacticHud::build_organiser(const GalacticHudFrame& f, const Galacti
             sp.icon = s.slot.icon;
             sp.name = s.slot.name;
             sp.count = s.slot.count;
+            sp.no_lead = s.slot.no_lead;
             pad(std::move(sp), std::move(t));
             ++stats_.organiser_stacks;
             x += side + gap;
@@ -599,8 +628,11 @@ const ModernOrganiserPad* ModernGalacticHud::org_pad(int32_t id) const {
 GalacticDropTarget ModernGalacticHud::drop_target(int32_t component, Vec2f px) const {
     using Target = GalacticDropTarget;
     if (component >= 0) {
-        if (const ModernOrganiserPad* p = org_pad(component))  // a fleet's row (header or stack), or a land unit
+        if (const ModernOrganiserPad* p = org_pad(component)) {  // a fleet's row (header or stack), or a land unit
+            // #669 a lead tile takes only a lead drop (lead_drop), as the Classic header pad: no organiser drop.
+            if (p->lead) return Target{Target::Kind::Other};
             return p->land ? Target{Target::Kind::LandForces} : Target{Target::Kind::Fleet, p->fleet, false};
+        }
         if (component == kModernGalacticLandRowHit && land_row_) return Target{Target::Kind::LandForces};
         if (const size_t r = static_cast<size_t>(component - kModernGalacticRowBase);  // a fleet row's back
             component >= kModernGalacticRowBase && r < rows_.size())
@@ -624,10 +656,23 @@ GalacticDropTarget ModernGalacticHud::drop_target(int32_t component, Vec2f px) c
 bool ModernGalacticHud::organiser_target(int32_t component, GalacticDropTarget& out) const {
     if (component < 0) return false;
     out = drop_target(component, {});
+    // #669: a Classic drag (the map fleet buttons) released on a lead tile is this HUD's and does nothing, as on the
+    // Classic header pad (GalacticHud::lead_drop refuses a fleet).
+    if (const ModernOrganiserPad* p = org_pad(component); p && p->lead) return true;
     return out.kind != GalacticDropTarget::Kind::Other;
 }
 
+// #669 (GalacticHud::lead_drop): a fleet unit that may lead, not the lead already, onto an own fleet's lead tile. The
+// fleet's other leads are cleared; a unit of another fleet joins it first.
+bool ModernGalacticHud::lead_drop(const ModernOrganiserPad& over, std::vector<commands::EventData>* out) const {
+    if (over.fleet == 0 || drag_.fleet_index < 0 || drag_.unit == 0 || drag_.no_lead || drag_.unit == over.unit) return false;
+    if (!out) return true;
+    galactic_lead_events(drag_.fleet, drag_.unit, over.fleet, drag_.fleet != over.fleet, over.leads, *out);
+    return true;
+}
+
 bool ModernGalacticHud::drop(std::vector<commands::EventData>* out) const {
+    if (const ModernOrganiserPad* p = org_pad(drag_.over_component); p && p->lead) return lead_drop(*p, out);
     const GalacticOrganiserDrag source{drag_.fleet_index >= 0, drag_.fleet, drag_.unit, 0};
     return galactic_organiser_drop(source, drop_target(drag_.over_component, drag_.cursor_px), selected_id_, out);
 }
@@ -645,7 +690,8 @@ void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool
     for (const HudPointerEvent& e : routed.hud) {
         if (e.button != Button::Left) continue;
         if (e.kind == HudPointerEvent::Kind::Press) {
-            press_pad_ = org_pad(e.component) ? e.component : -1;
+            const ModernOrganiserPad* pp = org_pad(e.component);
+            press_pad_ = pp && !(pp->lead && pp->unit == 0) ? e.component : -1;  // #669 an empty lead tile holds nothing
             press_px_ = {static_cast<float>(e.x), static_cast<float>(e.y)};
         } else if (e.kind == HudPointerEvent::Kind::Release) {
             if (drag_.active) {
@@ -670,6 +716,7 @@ void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool
             drag_.fleet_index = p->land ? -1 : 0;
             drag_.fleet = p->fleet;
             drag_.unit = p->unit;
+            drag_.no_lead = p->no_lead;
             drag_.icon = p->icon;
         }
     if (drag_.active) {
@@ -677,6 +724,8 @@ void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool
         drag_.over_component = routed.hover_component;
         const GalacticDropTarget t = drop_target(drag_.over_component, cur);
         drag_.over_fleet = t.kind == GalacticDropTarget::Kind::Fleet && t.fleet != drag_.fleet;
+        if (const ModernOrganiserPad* lp = org_pad(drag_.over_component); lp && lp->lead)  // #669 a lead drop that sets one
+            drag_.over_fleet = lp->fleet != drag_.fleet && lead_drop(*lp, nullptr);
         drag_.over_planet = -1;
         if (t.kind == GalacticDropTarget::Kind::World && t.on_planet)
             for (const GalacticPlanetScreen& s : planet_px_)
@@ -701,6 +750,7 @@ void ModernGalacticHud::update_input(const RoutedInput& routed, bool shift, bool
         // #613 an organiser tile: the Classic pad's click (GalacticHud::update_input): GalacticSelect of the pad, and a second
         // plain left click on the same tile within 0.5 s and 4 px asks for a rename of the fleet (header) or the unit.
         if (const ModernOrganiserPad* p = org_pad(e.component)) {
+            if (p->lead && p->unit == 0) continue;  // #669 an empty lead tile: nothing to select
             act(galactic_select_action(e.component, p->select, e.button, shift, ctrl));
             if (e.button == Button::Left && !shift && !ctrl) {
                 const bool dbl = last_pad_click_ == e.component && now - last_pad_time_ <= 0.5 && std::abs(e.x - last_pad_x_) <= 4 &&

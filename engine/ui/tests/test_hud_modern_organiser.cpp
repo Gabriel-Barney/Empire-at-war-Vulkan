@@ -141,7 +141,8 @@ struct Env {
         modern.build(f);
     }
     int32_t id(const std::string& name) const { return t.find(name); }
-    // The Modern organiser tile of `fleet`'s header (unit 0) or stack starting with `unit`, or of land unit `unit`.
+    // The Modern organiser tile of `fleet`'s header (unit 0; it comes before an empty lead tile) or stack starting with
+    // `unit`, or of land unit `unit`.
     int32_t pad(uint32_t fleet, uint32_t unit, bool is_land = false) const {
         for (const ModernOrganiserPad& p : modern.organiser_pads())
             if (p.land == is_land && p.fleet == fleet && p.unit == unit) return p.id;
@@ -657,8 +658,81 @@ void test_classic_unchanged() {
 
 }  // namespace
 
+// #669 (the Classic header pad, #515): a fleet's lead shows on its own tile after the header and leaves its type stack;
+// a drop there sets the lead with the Classic header-pad drop's commands; a unit that may not lead is refused.
+void test_lead_parity() {
+    Env e;
+    e.fleets[0].units[0].lead = true;  // 9001 leads fleet 900; 9002 (its type) stays a stack of one
+    e.fleets[0].units[2].no_lead = true;  // 9003 may not lead
+    e.build();
+    int32_t lead_tile = -1, empty_tile = -1;
+    for (const ModernOrganiserPad& p : e.modern.organiser_pads()) {
+        if (p.lead && p.fleet == 900) lead_tile = p.id;
+        if (p.lead && p.fleet == 901) empty_tile = p.id;
+        if (p.lead && p.fleet == 900) CHECK(p.unit == 9001 && p.leads == std::vector<uint32_t>{9001});
+        if (p.lead && p.fleet == 901) CHECK(p.unit == 0 && p.leads.empty());
+        if (!p.lead && p.fleet == 900 && p.unit == 9002) CHECK(p.count == 1);  // the lead left the stack: one lower
+    }
+    CHECK(lead_tile >= 0 && empty_tile >= 0 && e.modern.stats().organiser_leads == 1 && e.modern.stats().organiser_stacks == 3);
+    CHECK(e.pad(900, 9001) == lead_tile);  // no stack holds the lead
+    struct Case {
+        const char* what;
+        std::string classic_from, classic_to;
+        int32_t modern_from, modern_to;
+        std::vector<commands::EventData> want;
+    };
+    const std::vector<Case> cases = {
+        {"another fleet's unit -> the lead pad: merge, clear the old lead, set", "q2_0001", "q1_0000", e.pad(901, 9011), lead_tile,
+         {fleet_management_event(commands::kFleetMerge, 900, 901, 9011), commands::ev::set_gui_index(9001, commands::kNoGuiIndex),
+          commands::ev::set_gui_index(9011, commands::kPathfinderGuiIndex)}},
+        {"own unit -> the lead pad: clear, set", "q1_0001", "q1_0000", e.pad(900, 9002), lead_tile,
+         {commands::ev::set_gui_index(9001, commands::kNoGuiIndex), commands::ev::set_gui_index(9002, commands::kPathfinderGuiIndex)}},
+        {"a unit that may not lead: refused", "q1_0002", "q1_0000", e.pad(900, 9003), lead_tile, {}},
+        {"a unit -> an empty lead pad: merge, set", "q1_0001", "q2_0000", e.pad(900, 9002), empty_tile,
+         {fleet_management_event(commands::kFleetMerge, 901, 900, 9002), commands::ev::set_gui_index(9002, commands::kPathfinderGuiIndex)}},
+        {"a land unit -> the lead pad: refused", "land_fleet_00", "q1_0000", e.pad(0, 8001, true), lead_tile, {}},
+        {"a whole fleet -> the lead pad: refused", "q2_fleet", "q1_0000", e.pad(901, 0), lead_tile, {}},
+    };
+    for (const Case& c : cases) {
+        const Out co = e.classic_drag(c.classic_from, c.classic_to);
+        const Out mo = e.modern_drag(c.modern_from, c.modern_to);
+        const bool ok = co.cmds == c.want && co.valid == !c.want.empty() && same(co, mo);
+        if (!ok) std::printf("  lead drop: %s\n", c.what);
+        CHECK(ok);
+    }
+    // The lead tile drags its unit like a stack (onto the other fleet: Classic's merge from the header pad).
+    const Out co = e.classic_drag("q1_0000", "q2_0001");
+    const Out mo = e.modern_drag(lead_tile, e.pad(901, 9011));
+    CHECK(co.cmds == std::vector<commands::EventData>{fleet_management_event(commands::kFleetMerge, 901, 900, 9001)} && same(co, mo));
+    // An empty lead tile neither drags nor selects.
+    const Out click = e.click(e.modern, empty_tile, 50.0);
+    CHECK(click.acts.empty() && click.cmds.empty());
+    {
+        RoutedInput r;
+        const Vec2f px = e.modern_px(empty_tile);
+        r.world.mouse_x = static_cast<int32_t>(px.x);
+        r.world.mouse_y = static_cast<int32_t>(px.y);
+        r.hover_component = empty_tile;
+        r.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+        r.hud = {{HudPointerEvent::Kind::Press, Button::Left, empty_tile, r.world.mouse_x, r.world.mouse_y}};
+        std::vector<commands::EventData> cmds;
+        e.modern.update_input(r, false, false, 60.0, cmds);
+        r.hud.clear();
+        r.world.mouse_x += 30;
+        e.modern.update_input(r, false, false, 60.05, cmds);
+        CHECK(!e.modern.drag().active);
+        r.owner = {};
+        e.modern.update_input(r, false, false, 60.1, cmds);
+    }
+    // A lead tile is no organiser drop target for a Classic drag (the map fleet buttons): it takes the drop and does
+    // nothing, as the Classic header pad refuses a fleet.
+    GalacticDropTarget t;
+    CHECK(e.modern.organiser_target(lead_tile, t) && t.kind == GalacticDropTarget::Kind::Other);
+}
+
 int main() {
     test_organiser_view();
+    test_lead_parity();
     test_drop_parity();
     test_slot_parity();
     test_stale_drag();
