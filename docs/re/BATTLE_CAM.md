@@ -316,7 +316,7 @@ End_Cinematic_Mode zeroes it. The hero clash sets none, so a clash chained after
 - **Land flying `0x4a23d0`** (a flying locomotor; needs a model): n = rand(60, 90), s = ±1. The eye holds on the world
   point M·(s Ex, −Ey, Ez) beside the craft, and the look holds on it (ease out 0.25). Length n, no noise.
 
-The look filter flag +0x1bd that the push-in and the land flying shot set selects the filtered look (`0x4a96d0`):
+The look filter flag +0x1bd that the push-in, the land flying shot, the attack run and the fly-past set selects the filtered look (`0x4a96d0`):
 `0x49cd00` passes `+0x1bd == 0` as the filter's "raw" argument (`0x49d17f`), and the filter is seeded on every
 shot's first look key (`0x499dd0` → `0x49ff50`) [H, lane-c 2026-11-26; this corrects an earlier "only after a glory
 shot"]. A glory shot, the fighter chase and the bombing run set 0 (raw); the other templates do not write it, so it
@@ -353,7 +353,7 @@ id in `BattleCamShot::second`; the host resolves both objects each frame (`KeyAn
 ### The look filter `0x4a96d0(ctrl, out, frame, look, raw)` [H] (#671)
 `0x49cd00` calls it after the eye smoothing, with frame = the shot frame and raw = (+0x1bd == 0).
 - **The parameters:** T_lag = +0x1d0 = 0.7 s and T_avg = +0x1d4 = 0.5 s (from the constructor). N = +0x1d8 = FPS + 1.
-  A = (int)(FPS · T_avg) and L = (int)(FPS · T_lag).
+  A = (int)(FPS · T_avg) and L = (int)(FPS · T_lag), both float products (`0x4a96d0`: (float)FPS × the float fields), so A = 15 and L = 21 at FPS 30.
 - **The seed `0x49ff50(p)`:** `0x499dd0` calls it when a shot's first look key goes in (unless the state is 4), with that
   key resolved. It sets:
   - every slot of the history H and the averages S to p, and the velocities V and accelerations Acc to 0;

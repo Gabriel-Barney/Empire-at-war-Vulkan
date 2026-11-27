@@ -60,7 +60,6 @@ public:
     void seed(const tactical::Vec3& p, int32_t fps = kCinematicFps);  // 0x49ff50
     tactical::Vec3 step(int32_t frame, const tactical::Vec3& look, bool raw);  // 0x4a96d0
     void clear() { on_ = false; }  // End_Cinematic_Mode (+0x1bc)
-    bool seeded() const { return on_; }
 
 private:
     bool on_ = false;  // +0x1bc
