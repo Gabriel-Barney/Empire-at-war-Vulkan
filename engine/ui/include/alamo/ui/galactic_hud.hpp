@@ -727,6 +727,14 @@ private:
     int32_t selected_ = -1;
     uint32_t selected_id_ = 0;
     bool ctrl_ = false;  // #763 Ctrl held (update_input; HUD +0x21a9)
+    // #767 (0x3095c0 / 0x350df0 [H]): units an organiser drop moved (their GUI record +0x30). The first pad that shows one
+    // away from its source fleet scales up (Scale_Duration) and drops it. [port] An entry left unseen for 5 s goes.
+    struct PadPop {
+        uint32_t unit = 0, from_fleet = 0;
+        double since = 0.0;
+    };
+    std::vector<PadPop> pops_;
+    double now_ = 0.0;
     // Component ids.
     int32_t name_ = -1, value_ = -1, control_ = -1, ground_ = -1, space_ = -1, conflict_ = -1, hero_ = -1, smuggler_ = -1,
             bounty_ = -1, ring_ = -1, credit_filter_ = -1;

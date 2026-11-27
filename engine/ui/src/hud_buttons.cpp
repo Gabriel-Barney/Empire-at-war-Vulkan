@@ -160,6 +160,11 @@ Vec2f HudButtons::draw(HudDrawList& dl, const TextureAtlas& atlas, FontCache* fo
     const ButtonVisual vis = visual(component);
     const float blink = blink_alpha(c, r.blink_start, now);
     const Rgba8 base = mul(c.has_color ? c.color : Rgba8{}, with_alpha(r.tint, blink));
+    // #767 Scale_Duration (0x34ff70 [H]): a running scale-up draws at Scale x elapsed / Scale_Duration (FoC 0.125 s).
+    float sc = c.scale;
+    if (r.scale_up_start >= 0.0)
+        if (const float dur = data::parse_float_or(c.raw_value("SCALE_DURATION"), 0.0f); dur > 0.0f)
+            sc *= static_cast<float>(std::clamp((now - r.scale_up_start) / static_cast<double>(dur), 0.0, 1.0));
 
     const std::string* blank = r.no_blank ? nullptr : pick(c.blank_texture, alt);
     std::string icon_name = r.icon_override;
@@ -171,15 +176,15 @@ Vec2f HudButtons::draw(HudDrawList& dl, const TextureAtlas& atlas, FontCache* fo
     if (box.x <= 0 || box.y <= 0) box = atlas_size(atlas, blank);
     if (box.x <= 0 || box.y <= 0) box = atlas_size(atlas, icon_name.empty() ? nullptr : &icon_name);
     if (box.x <= 0 || box.y <= 0) box = kFallbackButton;
-    box = {box.x * (size.x > 0 ? 1.0f : c.scale), box.y * (size.y > 0 ? 1.0f : c.scale)};
+    box = {box.x * (size.x > 0 ? 1.0f : sc), box.y * (size.y > 0 ? 1.0f : sc)};
 
     // Lower effect.
     if (r.lower_effect)
         if (const std::string* le = pick(c.lower_effect_texture, 0))
             add_atlas_quad(dl, layer, c.lower_effect_additive ? HudList::Additive : HudList::Alpha, atlas, *le,
-                           offset_down(center, c.lower_effect_offset), {}, c.scale, base);
+                           offset_down(center, c.lower_effect_offset), {}, sc, base);
     // Background.
-    if (blank) add_atlas_quad(dl, layer, HudList::Alpha, atlas, *blank, center, {}, c.scale, base);
+    if (blank) add_atlas_quad(dl, layer, HudList::Alpha, atlas, *blank, center, {}, sc, base);
     // State texture: replaces the icon when it is a full-art variant (same atlas size), else a frame on top.
     const std::vector<std::string>* state_list = nullptr;
     Vec2f state_off{};
@@ -216,37 +221,61 @@ Vec2f HudButtons::draw(HudDrawList& dl, const TextureAtlas& atlas, FontCache* fo
     const std::string* frame_tex = af >= 0 ? &c.icon_alternate_texture[static_cast<size_t>(af)] : nullptr;
     const bool upper_frame = frame_tex && raw_flag(c, "ANIMATE_UPPER_EFFECT");
     if (frame_tex && !upper_frame && r.icon_override.empty()) icon_name = *frame_tex;
+    // #767 Cross_Fade (0x352d80 / 0x350360 [H]): when the icon changes, the old one fades out and the new one in over
+    // 0.1 s. [M] on the alpha byte (retail fades the alpha or the colour channels).
+    float icon_fade = 1.0f;
+    if (raw_flag(c, "CROSS_FADE")) {
+        IconFade& fd = fades_[component];
+        if (fd.last != icon_name) {
+            if (!fd.last.empty()) {
+                fd.from = fd.last;
+                fd.start = now;
+            }
+            fd.last = icon_name;
+        }
+        if (fd.start >= 0.0) {
+            const double t = (now - fd.start) / kCrossFadeSeconds;
+            if (t >= 1.0 || t < 0.0) {
+                fd.start = -1.0;
+            } else {
+                icon_fade = static_cast<float>(t);
+                if (!fd.from.empty())
+                    add_atlas_quad(dl, layer, HudList::Alpha, atlas, fd.from, icon_at, {}, sc * r.icon_scale,
+                                   with_alpha(icon_col, 1.0f - icon_fade));
+            }
+        }
+    }
     if (!icon_name.empty() && !replaces)
-        add_atlas_quad(dl, layer, HudList::Alpha, atlas, icon_name, icon_at, {}, c.scale * r.icon_scale, icon_col);
-    if (frame_tex && upper_frame) add_atlas_quad(dl, layer, HudList::Alpha, atlas, *frame_tex, icon_at, {}, c.scale, base);
+        add_atlas_quad(dl, layer, HudList::Alpha, atlas, icon_name, icon_at, {}, sc * r.icon_scale, with_alpha(icon_col, icon_fade));
+    if (frame_tex && upper_frame) add_atlas_quad(dl, layer, HudList::Alpha, atlas, *frame_tex, icon_at, {}, sc, base);
     if (state_tex)
         add_atlas_quad(dl, layer, state_opaque && !replaces ? HudList::Additive : HudList::Alpha, atlas, *state_tex,
-                       replaces ? icon_at : offset_down(center, state_off), {}, c.scale, base);
+                       replaces ? icon_at : offset_down(center, state_off), {}, sc, base);
     // Flash.
     if (r.flash)
         if (const std::string* fl = pick(c.flash_texture, alt))
             if ((static_cast<int64_t>(std::floor(now / 0.25)) % 2) == 0)
-                add_atlas_quad(dl, layer, HudList::Alpha, atlas, *fl, center, {}, c.scale, base);
+                add_atlas_quad(dl, layer, HudList::Alpha, atlas, *fl, center, {}, sc, base);
     // Build / recharge dials (radial wipe lists). cu9h t03 (CU9H_T02_BOMBING_HUD_RUN item 1b): a dial at value v leaves the
     // first v % clockwise from 12 o'clock uncovered and draws the texture over the rest, so the wipe gets 100 - v (v = 100:
     // nothing drawn).
     if (const std::string* bt = pick(c.build_texture, 0)) {
         if (r.build_fill >= 0.0f)
-            add_atlas_quad(dl, layer, HudList::Alpha, atlas, *bt, offset_down(center, c.build_dial_offset), {}, c.scale, base, {},
+            add_atlas_quad(dl, layer, HudList::Alpha, atlas, *bt, offset_down(center, c.build_dial_offset), {}, sc, base, {},
                            100.0f - std::clamp(r.build_fill, 0.0f, 100.0f));
         if (r.build_fill2 >= 0.0f)
-            add_atlas_quad(dl, layer, HudList::Additive, atlas, *bt, offset_down(center, c.build_dial2_offset), {}, c.scale, base, {},
+            add_atlas_quad(dl, layer, HudList::Additive, atlas, *bt, offset_down(center, c.build_dial2_offset), {}, sc, base, {},
                            100.0f - std::clamp(r.build_fill2, 0.0f, 100.0f));
     }
     if (r.overlay)
         if (const std::string* ov = pick(c.overlay_texture, 0))
-            add_atlas_quad(dl, layer, HudList::Alpha, atlas, *ov, offset_down(center, c.overlay_offset), {}, c.scale, base);
+            add_atlas_quad(dl, layer, HudList::Alpha, atlas, *ov, offset_down(center, c.overlay_offset), {}, sc, base);
     if (r.overlay2)
         if (const std::string* ov = pick(c.overlay2_texture, 0))
-            add_atlas_quad(dl, layer, HudList::Alpha, atlas, *ov, offset_down(center, c.overlay2_offset), {}, c.scale, base);
+            add_atlas_quad(dl, layer, HudList::Alpha, atlas, *ov, offset_down(center, c.overlay2_offset), {}, sc, base);
     if (r.upper_effect)
         if (const std::string* ue = pick(c.upper_effect_texture, 0))
-            add_atlas_quad(dl, layer, HudList::Alpha, atlas, *ue, offset_down(center, c.upper_effect_offset), {}, c.scale, base);
+            add_atlas_quad(dl, layer, HudList::Alpha, atlas, *ue, offset_down(center, c.upper_effect_offset), {}, sc, base);
     // Text.
     if (fonts && (!r.text.empty() || !r.text2.empty())) {
         HudTextStyle st = button_text_style(c, *fonts, canvas);

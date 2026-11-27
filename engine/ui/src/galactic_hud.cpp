@@ -869,6 +869,15 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         r.selected = s.selected;
         r.text = s.count > 1 ? num32(s.count) : std::u32string();
         r.tooltip_text = s.name;  // [port] a player-given fleet / ship name
+        // #767 0x3095c0 [H]: a pad that shows a unit a drop moved (away from its source fleet) scales up, once per unit.
+        for (auto it = pops_.begin(); it != pops_.end();) {
+            if (it->from_fleet != fleet && std::find(select.begin(), select.end(), it->unit) != select.end()) {
+                r.scale_up_start = f.time;
+                it = pops_.erase(it);
+            } else {
+                ++it;
+            }
+        }
         ghost_dragged_pad(ci, static_cast<int32_t>(s.count), r);
         const ComponentPlacement& p = layout_.placement(u);
         if (!p.placed) return false;
@@ -899,6 +908,7 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         if (ci >= 0) buttons_.state(static_cast<uint32_t>(ci)).hidden = true;
     };
     for (std::vector<uint32_t>& v : pane_leads_) v.clear();
+    std::erase_if(pops_, [&f](const PadPop& p) { return f.time - p.since > 5.0; });  // #767 [port] unseen moves expire
     if (!stats_.organize_shown) {
         for (size_t fl = 0; fl < fleet_.size(); ++fl) {
             for (const int32_t ci : fleet_[fl]) hide(ci);
@@ -1298,8 +1308,16 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
             if (drag_.active) {
                 drag_.cursor_px = {static_cast<float>(e.x), static_cast<float>(e.y)};
                 drag_.over_component = e.component;
+                const size_t sent = out.size();
                 drop(&out, actions);
                 dropped = true;
+                // #767: every unit the drop moved pops in at its new pad (0x3cf7d0 and the organiser drops set record
+                // +0x30 on each moved unit). Organiser and land-force drags only: a map pad drag is not traced.
+                if (out.size() > sent && drag_.unit != 0 && drag_.fleet_index < kMapFleetIndex) {
+                    const bool stack = ctrl_ && drag_.stackable;
+                    for (const uint32_t u : stack && !drag_.stack.empty() ? drag_.stack : std::vector<uint32_t>{drag_.unit})
+                        pops_.push_back({u, drag_.fleet, now_});
+                }
             }
             press_component_ = -1;
             drag_ = {};
@@ -2015,6 +2033,7 @@ void GalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl,
                                std::vector<commands::EventData>& out, std::vector<HudAction>* actions) {
     if (!table_) return;
     ctrl_ = ctrl;  // #763 HUD +0x21a9
+    now_ = now;
     bool dropped = false;
     drag_update(routed, out, dropped, actions);
     std::vector<ButtonClick> clicks;

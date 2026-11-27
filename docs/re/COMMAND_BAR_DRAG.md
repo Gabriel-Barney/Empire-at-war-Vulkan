@@ -12,6 +12,8 @@ These notes cover retail FoC x64 `StarWarsG.exe`, read in the Ghidra export and 
 | `Snap_Drag` | +0x3e3 bit 0x01 | inline in 0x352650 |
 | `Snap_Location` | +0x3e3 bit 0x02 | inline in 0x352650 |
 | `Can_Drag_Stack` | +0x3e4 bit 0x02 | 0x34b330 (no data: true) |
+| `Scale_Duration` | +0x3a8 (float) | 0x350df0, 0x34ff70 |
+| `Cross_Fade` | +0x3e2 bit 0x10 | 0x352d80, 0x350360 |
 
 ## Snapping (Snap_Drag, Snap_Location) [H]
 
@@ -121,3 +123,40 @@ clear).
   ghost.
 - Where retail makes no ghost, the pad draws as before. The text at the drag position is the Can_Drag_Stack rule
   above (#763).
+
+## The pop-in and the cross-fade (Scale_Duration, Cross_Fade) [H] (#767)
+
+**The scale-up.** `0x350df0` is the component's "activate scale up", a virtual: TextButton vtable 0x864180, slot
++0x118; two more component vtables hold it (pointers at 0x863968 and 0x863c78).
+- It sets the timer +0x244 to `Scale_Duration`, sets +0x270 bit 0x10 and +0x240 = 0.
+- A duration of 0 logs "Tried to activate scale up on component %s which doesn't have duration specified" and does
+  nothing.
+
+**The animation.** The update `0x34ff70` runs while bit 0x10 is set:
+- the timer counts down by the frame time;
+- while it is above 0, the draw scale (+0x178) is (1 − timer / `Scale_Duration`) × `Scale` (+0x398), so the pad grows
+  from nothing to its `Scale`;
+- at 0 the bit clears and the scale is `Scale`. There is no shrink.
+
+**The trigger.** The pad fill `0x3095c0(hud, pad, object, ...)` calls slot +0x118 when the object's GUI record
+(obj +0x1b0) has +0x30 set, then clears +0x30. The drops set +0x30 on each unit they move:
+- `0x3cf7d0` ("drag_land_to_space"), before each unit's fleet command `0x5afb60`;
+- the organiser drop paths around `0x3d0790` [M for which row each writer is].
+
+So a unit a drag moved pops in at its new pad. Base FoC: 115 pads set `Scale_Duration`, all 0.125 s (`Pad_NN`, the
+organiser and map pads).
+
+**Cross_Fade.** When a `Cross_Fade` component's texture changes (`0x352d80`), a 0.1 s timer starts and the old texture
+goes to the second slot. The update `0x350360` fades the old one out and the new one in over that time, on the alpha
+byte or on the colour channels. Base FoC: Yes only on `Text_Allegiance_A` (an Icon: the planet's owner emblem).
+
+**Port:**
+- `ButtonRuntime::scale_up_start`: `HudButtons::draw` scales the pad by elapsed / `Scale_Duration`, clamped to 1.
+  [port] The offsets are not scaled.
+- `GalacticHud` keeps the units an organiser or land-force drop moved (with Ctrl, the stack). The first pad build that
+  shows one away from its source fleet starts its scale-up. [port] The port builds the pads every frame, so "the
+  next fill" is the first one after the sim applied the move; an entry left unseen for 5 s goes; map-pad drags do not
+  pop.
+- `HudButtons::draw` keeps each `Cross_Fade` component's last icon. On a change the old icon fades out and the new one
+  in over `kCrossFadeSeconds` (0.1), on the alpha byte [M: retail picks the alpha or the colour channels]. The port sees
+  the change at the draw, not at the texture set, so the first icon drawn never fades.
