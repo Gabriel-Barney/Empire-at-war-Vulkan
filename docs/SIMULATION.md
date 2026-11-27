@@ -241,14 +241,14 @@ Two ticks (67 ms) is far below retail's AI cadences (goal cycle sleeps, the 90-f
 | Orders, ability and host writes, GlobalValue sets, releases | Commands in the batch; their same-call answer is a prediction from the capture (`BattleAi::predict_order`, dry runs). A predicted rejection is not queued. The job stamps them itself (`BattleAi::lane_command`): issue tick = the job's frame N, scheduled N + k_ai, sequence = the batch's base plus its place in the batch; the shared sequence counter moves on only when the job is collected (#632). |
 | Objects a command will create | Provisional handles that resolve when the batch applies. |
 | Random draws on the AI side | An AI-owned `GameRandom` seeded by `ai_lane_seeds(session seed)`, hashed and saved with the AI world. Host draws inside AI-issued orders stay on the synced stream, made at apply time. |
-| Pushes into the AI (`order_replaced`, fog refog) | Queued with (tick, sequence) into the next snapshot's event list. |
-| Movement reading AI state (threat grid, script locks, Divert) | The version of the last collected job. |
+| Pushes into the AI (`order_replaced`, fog refog, Lua `Prevent_AI_Usage`) | Queued in order (`BattleAi::LanePush`) and delivered at the next AI slot, before its snapshot. `Prevent_AI_Usage` answers at once from the per-player answer published at collect (no AI player, not initialised, done); a delivered push that answers otherwise counts as a mismatch. The queue is saved and hashed (#633). |
+| Movement reading AI state (threat grid, script locks, Divert) | The version of the last collected job: the threat mode reads the danger layers copied when the job is collected (`TacticalAiWorld::danger_layers`, `point_danger_from`; #633). |
 | Story / mission Lua and the AI | Story stays on the critical lane with the live tables; it reaches the AI through the snapshot, and AI GlobalValue sets reach story k_ai ticks later. |
 | Galactic state during a battle | Read-only copy; HIJACK_UNIT fails with the lane on. |
 
 Lane code must never read the live battle: `BattleAi::lane_live_read` counts every such read, and a lane write stamped
-outside an open job counts the same way (debug builds assert), and
-`alamo_headless` exits 3 when the count is not 0, so every `--ai-lane` test checks it.
+outside an open job counts too (debug builds assert on both). `alamo_headless` exits 3 when the count is not 0, so every
+`--ai-lane` test checks it.
 
 ### AI lane save and checksum rules
 
@@ -256,7 +256,9 @@ outside an open job counts the same way (debug builds assert), and
   world while a job may run.
 - A job's queued orders and digest become visible only when the job is collected (the next AI slot, or the due tick when
   k_ai = 1). A save keeps a finished, uncollected job and its queued writes; per-slot captures (ability records, facts) are
-  not saved, because a load recaptures them from the same saved battle state.
+  not saved, because a load recaptures them from the same saved battle state. The queued pushes and the copies published
+  at collect (danger layers, Prevent_AI_Usage answers) are saved, because the saved world may already be a job further on
+  (`battle.ai` lane version 9, #633).
 - A save made with the lane on records `ai_lane` / `k_ai`, and a load rebuilds the session that way. A world saved with the
   lane on loads only into a lane-on world; a lane-off save also loads into a lane-on world.
 - In-flight work in general follows the `LatencyJob` save rule ("AI scheduling"): a save/load round trip equals the

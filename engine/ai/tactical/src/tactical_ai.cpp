@@ -4523,9 +4523,8 @@ void TacticalAiWorld::order_replaced(int32_t object_id) { impl_->order_signal(ob
 void TacticalAiWorld::refog(int32_t player, float x, float y) { impl_->perc.grid().refog_at(player, x, y, impl_->mode_frame); }
 lua::PreventAiResult TacticalAiWorld::prevent_ai_usage(int32_t id, int32_t owner, bool on) {
     Impl& m = *impl_;
+    if (const lua::PreventAiResult r = prevent_ai_answer(owner); r != lua::PreventAiResult::Done) return r;
     PlayerAi* pa = m.player_ai(owner);
-    if (!pa) return lua::PreventAiResult::NoAiPlayer;
-    if (!pa->ctx.initialised()) return lua::PreventAiResult::NotInitialised;
     const PerceptionObject* o = m.object(id);
     auto& pend = m.unadmit_pending;
     const auto it = std::lower_bound(pend.begin(), pend.end(), id);
@@ -4620,6 +4619,15 @@ const std::map<std::string, uint32_t>& TacticalAiWorld::stats() const {
 const PlanLibrary& TacticalAiWorld::plans() const { return impl_->library; }
 const PerceptionWorld& TacticalAiWorld::world() const { return impl_->w; }
 float TacticalAiWorld::point_danger(int32_t player, float x, float y) const { return impl_->perc.grid().point_danger(impl_->w, player, x, y); }
+void TacticalAiWorld::danger_layers(std::vector<std::pair<uint32_t, float>>& out) const { impl_->perc.grid().danger_layers(impl_->w, out); }
+float TacticalAiWorld::point_danger_from(std::span<const std::pair<uint32_t, float>> layers, int32_t player, float x, float y) const {
+    return impl_->perc.grid().point_danger_from(layers, player, x, y);
+}
+lua::PreventAiResult TacticalAiWorld::prevent_ai_answer(int32_t player) const {  // as prevent_ai_usage
+    const PlayerAi* pa = impl_->player_ai(player);
+    if (!pa) return lua::PreventAiResult::NoAiPlayer;
+    return pa->ctx.initialised() ? lua::PreventAiResult::Done : lua::PreventAiResult::NotInitialised;
+}
 
 bool TacticalAiWorld::diagnostic_value(int32_t player, std::string_view equation, int32_t target_object, double& out) const {
     const Impl& w = *impl_;

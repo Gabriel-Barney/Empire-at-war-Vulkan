@@ -149,6 +149,11 @@ public:
     // job has finished (saves; inline until t03), without collecting it: the save keeps it as the pending job.
     void lane_sync() {}
     size_t lane_pending() const { return lane_batch_.size(); }
+    // #633: Lua Prevent_AI_Usage on object `id` (CampaignBattles' object-script hook). Lane off: TacticalAiWorld's answer
+    // at once. Lane on: the owner's answer published at collect (no AI player / not initialised / done), and on done
+    // queued for the next AI slot like the other pushes; a delivered push answering otherwise counts in lane_mismatches().
+    lua::PreventAiResult prevent_ai_usage(objects::ObjectId id, int32_t owner, bool on);
+    size_t lane_pushes_pending() const { return lane_pushes_.size(); }  // #633 (tests)
     uint32_t lane_mismatches() const { return lane_mismatch_; }  // applied with another result than predicted [diagnostic]
     // ref5 t06 (host tests): captures the lane view now and runs `f` as lane code, so the host answers `f` asks for come from
     // the view (what think() sees). Lane on only (TacticalAiSetup::ai_lane); otherwise `f` runs live.
@@ -522,6 +527,23 @@ private:
     LaneJob lane_job_;
     uint64_t lane_digest_ = 0;  // digest of the last collected job (hashed and saved)
     void lane_collect();
+    // #633 (docs/SIMULATION.md "AI lane"): what the critical lane pushes into the AI (order replaced, a fog refog,
+    // Prevent_AI_Usage) is queued in order and delivered at the next AI slot, before the job starts; movement's threat
+    // mode and Prevent_AI_Usage's answer read copies published as of the last collected job. Saved and hashed.
+    enum class LanePushKind : uint8_t { OrderReplaced = 1, Refog = 2, PreventAi = 3 };
+    struct LanePush {
+        LanePushKind kind = LanePushKind::OrderReplaced;
+        int32_t id = 0;     // OrderReplaced / PreventAi: the object; Refog: the player
+        int32_t owner = 0;  // PreventAi
+        bool on = false;    // PreventAi
+        float x = 0.0f;     // Refog: the point
+        float y = 0.0f;
+    };
+    std::vector<LanePush> lane_pushes_;
+    std::vector<std::pair<uint32_t, float>> lane_danger_;  // TacticalAiWorld::danger_layers of the last collected job
+    std::vector<lua::PreventAiResult> lane_prevent_answer_;  // per player: TacticalAiWorld::prevent_ai_answer, likewise
+    void lane_publish_copies();
+    void lane_deliver_pushes();
     // #632: a lane write's command header (player, AI source, the job's sequence and frames), appended to the job's batch
     // by the caller. Outside an open job it counts a live read (lane code must not stamp from the live battle).
     commands::Command lane_command(uint16_t player);

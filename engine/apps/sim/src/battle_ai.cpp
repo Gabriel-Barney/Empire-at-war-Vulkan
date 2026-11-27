@@ -273,8 +273,10 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
         if (owner_mode->primary().alive(o)) bt->script_opportunity_fire(owner_mode->primary().id(o), on);
     };
     // REMAINING_GAPS §4.2: movement threat mode reads the AI threat grid (point danger 0x653ff0) for the order's owner.
-    const at::TacticalAiWorld* threat_world = world_.get();
-    bt->movement_->set_threat_fn([threat_world](int32_t owner, mv::V2 p) { return threat_world->point_danger(owner, p.x, p.y); });
+    // #633: with the AI lane on, the copy published as of the last collected job (the live grid changes inside think()).
+    bt->movement_->set_threat_fn([this](int32_t owner, mv::V2 p) {
+        return world_->ai_lane() ? world_->point_danger_from(lane_danger_, owner, p.x, p.y) : world_->point_danger(owner, p.x, p.y);
+    });
     // --- L1 bindings (script_remaining.hpp): Divert / Is_On_Diversion of the AI scripts (L1_S4_REMAINING §2.3) ---
     objects::ObjectStore* ast = &mode.primary();
     remaining_.move_to = [this, ast](objects::ObjectHandle u, Vec3 p) {
@@ -401,14 +403,20 @@ BattleAi::BattleAi(TacticalBattle& battle, TacticalMode& mode, SimHost& host, co
     // --- end L1 bindings ---
     // --- fog of war (owner: fog agent): FOW refog (a cell of a player's grid regrew to 0) -> threat-grid refog at
     // the FOW cell centre (FOG_OF_WAR §4.3, AI_TACTICAL_PERCEPTION §4.7). Cleared in the destructor. ---
-    at::TacticalAiWorld* aw = world_.get();
-    b_->set_fog_refog([aw](int32_t player, uint32_t, float x, float y) { aw->refog(player, x, y); });
+    // #633: with the AI lane on, queued for the next AI slot.
+    b_->set_fog_refog([this](int32_t player, uint32_t, float x, float y) {
+        if (world_->ai_lane()) lane_pushes_.push_back({LanePushKind::Refog, player, 0, false, x, y});
+        else world_->refog(player, x, y);
+    });
     // #539: DEPLOY's leave ends the unit's object follow (TacticalBattle::set_formation_leave). Cleared in the destructor.
     b_->set_formation_leave([this](objects::ObjectId id) { follow_drop({id}); });
     // S7 t31 (AI_TACTICAL §7.3.3 items 1-2): signal 0xb from every host (AI orders, human commands, story orders, Activate_Ability
     // of any VM) reaches this world's ability / movement blocks; this world's Activate_Ability raises it through the battle.
-    at::TacticalAiWorld* ow = world_.get();
-    order_listener_ = b_->add_order_replaced_listener([ow](objects::ObjectId id) { ow->order_replaced(static_cast<int32_t>(id)); });
+    // #633: with the AI lane on, the signal reaches the world at the next AI slot (one snapshot later).
+    order_listener_ = b_->add_order_replaced_listener([this](objects::ObjectId id) {
+        if (world_->ai_lane()) lane_pushes_.push_back({LanePushKind::OrderReplaced, static_cast<int32_t>(id), 0, false, 0.0f, 0.0f});
+        else world_->order_replaced(static_cast<int32_t>(id));
+    });
     br.raise_order_replaced = [bt](objects::ObjectId id) { bt->raise_order_replaced(id); };
     // S7 t32 (AI_TACTICAL §7.3.3 part 6): Activate_Ability of ids 50 67 71 73 74 (and the port's JET_PACK point) on a
     // Dummy_Barrage_Target, as the story VMs (CampaignBattles::story_begin); before, the AI VMs sent the event instead.
@@ -831,6 +839,7 @@ bool BattleAi::start(std::vector<std::string>* diag) {
     set_build_time_multipliers();
     queue_global_writes();  // slice 4e (part 3)
     lane_job_.open = false;
+    lane_publish_copies();  // #633: what movement and Prevent_AI_Usage read until the first job is collected
     lane_seq_ += static_cast<uint32_t>(lane_job_.batch.size());
     for (cmd::Command& c : lane_job_.batch) lane_batch_.push_back(std::move(c));
     lane_job_.batch.clear();
@@ -857,6 +866,7 @@ void BattleAi::update() {
     follow_service();
     if (world_->ai_lane()) {  // sp3 t02
         lane_collect();
+        lane_deliver_pushes();  // #633: before the snapshot the job reads
         capture_lane_view();
         world_->set_lane_global_overlay(global_overlay());  // slice 4e (part 3)
         world_->publish(static_cast<int64_t>(host_->frame()), b_->frame_);
@@ -1099,6 +1109,38 @@ void BattleAi::lane_collect() {
     lane_digest_ = lane_job_.digest;
     lane_locks_ = std::move(lane_job_.locks);  // slice 4e
     lane_job_.locks.clear();
+    lane_publish_copies();  // #633
+}
+
+void BattleAi::lane_publish_copies() {
+    ALAMO_PROFILE_SCOPE("ai.lane.publish_copies");
+    world_->danger_layers(lane_danger_);
+    lane_prevent_answer_.resize(host_->players());
+    for (uint32_t p = 0; p < host_->players(); ++p) lane_prevent_answer_[p] = world_->prevent_ai_answer(static_cast<int32_t>(p));
+}
+
+void BattleAi::lane_deliver_pushes() {
+    for (const LanePush& p : lane_pushes_) {
+        switch (p.kind) {
+            case LanePushKind::OrderReplaced: world_->order_replaced(p.id); break;
+            case LanePushKind::Refog: world_->refog(p.id, p.x, p.y); break;
+            case LanePushKind::PreventAi:  // answered Done when queued
+                if (world_->prevent_ai_usage(p.id, p.owner, p.on) != lua::PreventAiResult::Done) ++lane_mismatch_;
+                break;
+            default: break;  // a loaded save's unknown kind
+        }
+    }
+    lane_pushes_.clear();
+}
+
+lua::PreventAiResult BattleAi::prevent_ai_usage(objects::ObjectId id, int32_t owner, bool on) {
+    if (!world_->ai_lane()) return world_->prevent_ai_usage(static_cast<int32_t>(id), owner, on);
+    const lua::PreventAiResult r = owner >= 0 && static_cast<size_t>(owner) < lane_prevent_answer_.size()
+                                       ? lane_prevent_answer_[static_cast<size_t>(owner)]
+                                       : lua::PreventAiResult::NoAiPlayer;
+    if (r != lua::PreventAiResult::Done) return r;
+    lane_pushes_.push_back({LanePushKind::PreventAi, static_cast<int32_t>(id), owner, on, 0.0f, 0.0f});
+    return lua::PreventAiResult::Done;
 }
 
 void BattleAi::end() { world_->end_battle(); }
@@ -1129,7 +1171,8 @@ constexpr uint32_t kBattleAiSaveVersion4 = 4;
 constexpr uint32_t kBattleAiLaneSaveVersion5 = 5;  // version 4 + the AI lane's queued orders (lane on only)
 constexpr uint32_t kBattleAiLaneSaveVersion6 = 6;  // sp3 slice 4e: version 5 + the movement-lock facts (published, job)
 constexpr uint32_t kBattleAiSaveVersion = 7;
-constexpr uint32_t kBattleAiLaneSaveVersion = 8;
+constexpr uint32_t kBattleAiLaneSaveVersion8 = 8;
+constexpr uint32_t kBattleAiLaneSaveVersion = 9;  // #633: version 8 + the queued pushes, the published danger copy and Prevent_AI_Usage answers
 bool get_locks(ByteReader& r, std::vector<lua::ScriptLockFact>& v) {
     uint32_t n = 0;
     if (!r.count(n, 18)) return false;
@@ -1147,6 +1190,10 @@ bool get_locks(ByteReader& r, std::vector<lua::ScriptLockFact>& v) {
 template <class A, class F>
 void follow_fields(A& a, F& f) {
     a(f.units, f.target, f.gx, f.gy, f.r, f.threat, f.next, f.guard);
+}
+template <class A, class P>
+void push_fields(A& a, P& p) {  // BattleAi::LanePush (#633)
+    a(p.kind, p.id, p.owner, p.on, p.x, p.y);
 }
 }
 
@@ -1170,6 +1217,8 @@ void BattleAi::visit_saved(A& a) const {
     a.save_only_seq(lane_job_.batch, command);
     a.seq(lane_locks_, lock);  // version 6
     a.save_only_seq(lane_job_.locks, lock);
+    a.seq(lane_pushes_, [](A& x, const LanePush& p) { push_fields(x, p); });  // version 9 (#633)
+    a.save_only(lane_danger_, lane_prevent_answer_);  // copies of the world state its digest covers
 }
 
 void BattleAi::write(ByteWriter& w) const {
@@ -1190,8 +1239,11 @@ bool BattleAi::read(ByteReader& r) {
     // version 5 (lane block) only into an AI-lane world; version 4 into either (an AI-lane world then starts with
     // an empty batch)
     const uint32_t version = r.u32();
-    const bool lane_version = version == kBattleAiLaneSaveVersion5 || version == kBattleAiLaneSaveVersion6 || version == kBattleAiLaneSaveVersion;
-    const bool has_second = version == kBattleAiSaveVersion || version == kBattleAiLaneSaveVersion;  // mcx6 t06
+    const bool lane_version = version == kBattleAiLaneSaveVersion5 || version == kBattleAiLaneSaveVersion6 ||
+                              version == kBattleAiLaneSaveVersion8 || version == kBattleAiLaneSaveVersion;
+    const bool has_second = version == kBattleAiSaveVersion || version == kBattleAiLaneSaveVersion8 || version == kBattleAiLaneSaveVersion;  // mcx6 t06
+    const bool has_locks = version == kBattleAiLaneSaveVersion6 || version == kBattleAiLaneSaveVersion8 || version == kBattleAiLaneSaveVersion;
+    const bool has_pushes = version == kBattleAiLaneSaveVersion;  // #633
     if (!r.ok() || !(version == kBattleAiSaveVersion || version == kBattleAiSaveVersion4 || (lane_version && world_->ai_lane())))
         return false;
     const std::span<const uint8_t> world = r.raw(r.u32());
@@ -1211,6 +1263,9 @@ bool BattleAi::read(ByteReader& r) {
     std::vector<cmd::Command> lane_batch;
     LaneJob job;
     std::vector<lua::ScriptLockFact> lane_locks;
+    std::vector<LanePush> pushes;
+    std::vector<std::pair<uint32_t, float>> danger;
+    std::vector<lua::PreventAiResult> prevent_answer;
     if (lane_version) {
         const auto get_batch = [&r](std::vector<cmd::Command>& out) {
             uint32_t n = 0;
@@ -1231,8 +1286,12 @@ bool BattleAi::read(ByteReader& r) {
         job.frame = r.u64();
         job.digest = r.u64();
         if (!get_batch(job.batch)) return false;
-        const bool has_locks = version == kBattleAiLaneSaveVersion6 || version == kBattleAiLaneSaveVersion;
         if (has_locks && (!get_locks(r, lane_locks) || !get_locks(r, job.locks))) return false;
+        if (has_pushes) {
+            save_io::In pin(r);
+            pin.seq(pushes, [](save_io::In& x, LanePush& p) { push_fields(x, p); });
+            pin(danger, prevent_answer);
+        }
     }
     if (!r.ok() || !r.done() || side != ai_side_) return false;  // the AI players are rebuilt by start()
     const std::map<objects::ObjectId, int32_t> stamps_before = unit_ai_stamps_, seconds_before = unit_ai_second_;
@@ -1264,8 +1323,13 @@ bool BattleAi::read(ByteReader& r) {
     lane_job_.seq0 = lane_seq_;  // #632: lane_seq_ does not move while a job is pending
     lane_job_.open = lane_job_.pending;
     // slice 4e: a version-5 save (no facts) takes the loaded bridge's (its world was saved after the job)
-    lane_locks_ = version == kBattleAiLaneSaveVersion6 || version == kBattleAiLaneSaveVersion ? std::move(lane_locks)
-                                                                                                : world_->object_bridge().script_lock_facts();
+    lane_locks_ = has_locks ? std::move(lane_locks) : world_->object_bridge().script_lock_facts();
+    lane_pushes_ = std::move(pushes);
+    lane_danger_ = std::move(danger);
+    lane_prevent_answer_ = std::move(prevent_answer);
+    // #633: any other save loaded into a lane-on world (lane 5..8, or a lane-off 4 / 7) takes the loaded world's copies
+    // (a 5..8 save with a pending job: its world is that job's, one ahead of the last collected one [port])
+    if (world_->ai_lane() && !has_pushes) lane_publish_copies();
     view_.valid = false;  // captured again at the next AI slot
     view_.grid_valid = false;  // the grid copy too (a loaded grid may have another state at the same version)
     world_->object_bridge().lane_abilities = nullptr;  // sp3 slice 4b: likewise the ability records
