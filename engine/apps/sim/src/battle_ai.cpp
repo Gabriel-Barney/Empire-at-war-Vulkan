@@ -60,6 +60,13 @@ AiLaneDefaults& ai_lane_defaults() {
 namespace {
 std::atomic<uint64_t> g_lane_live_reads{0};       // ref5 t06 [diagnostic]
 std::atomic<const char*> g_lane_live_first{nullptr};
+// a crossing of the lane boundary: counted (headless exits 3 on any) and, in a debug build, an assert
+void count_lane_crossing(const char* what) {
+    const char* none = nullptr;
+    g_lane_live_first.compare_exchange_strong(none, what);
+    g_lane_live_reads.fetch_add(1);
+    assert(!"AI lane code crossed the lane boundary (BattleAi::lane_live_read / lane_command)");
+}
 }  // namespace
 
 uint64_t ai_lane_live_reads(const char** first) {
@@ -68,11 +75,7 @@ uint64_t ai_lane_live_reads(const char** first) {
 }
 
 void BattleAi::lane_live_read(const char* what) const {
-    if (!lane_thinking_) return;
-    const char* none = nullptr;
-    g_lane_live_first.compare_exchange_strong(none, what);
-    g_lane_live_reads.fetch_add(1);
-    assert(!"AI lane code read the live battle (BattleAi::lane_live_read)");
+    if (lane_thinking_) count_lane_crossing(what);
 }
 
 std::string default_tactical_ai_type(int32_t player, const galactic::GalacticSim& g) {
@@ -819,11 +822,16 @@ bool BattleAi::start(std::vector<std::string>* diag) {
     // sp3 slice 4c: the start scripts (critical lane, before the first AI slot) read a view captured now, and what they
     // queue is collected at once (no job is pending yet: the first update would otherwise drop it).
     capture_lane_view();
+    lane_job_.frame = host_->frame();  // #632: the start scripts' writes are stamped like a job's
+    lane_job_.seq0 = lane_seq_;
+    lane_job_.open = true;
     set_thinking(true);  // the start scripts read only the view
     const bool ok = world_->start(diag);
     set_thinking(false);
     set_build_time_multipliers();
     queue_global_writes();  // slice 4e (part 3)
+    lane_job_.open = false;
+    lane_seq_ += static_cast<uint32_t>(lane_job_.batch.size());
     for (cmd::Command& c : lane_job_.batch) lane_batch_.push_back(std::move(c));
     lane_job_.batch.clear();
     lane_locks_ = world_->object_bridge().script_lock_facts();  // slice 4e
@@ -854,6 +862,8 @@ void BattleAi::update() {
         world_->publish(static_cast<int64_t>(host_->frame()), b_->frame_);
         lane_job_.pending = true;
         lane_job_.frame = host_->frame();
+        lane_job_.seq0 = lane_seq_;  // #632: the job's own sequence base (lane_seq_ moves at collect)
+        lane_job_.open = true;
         lane_job_.batch.clear();
         set_thinking(true);  // from here to the end of think() no host answer reads the battle
         world_->think();  // inline: the AI lane's job (t03: on the AI thread)
@@ -997,14 +1007,20 @@ void BattleAi::capture_lane_abilities() {
     br.lane_write = [this](const lua::LaneWrite& w) { queue_lane_write(w); };
 }
 
-void BattleAi::queue_lane_write(const lua::LaneWrite& w) {
+cmd::Command BattleAi::lane_command(uint16_t player) {
+    if (!lane_job_.open) count_lane_crossing("lane write outside an AI job (its tick and sequence)");
     cmd::Command c;
-    // the batch's player (drain order; a decodable slot): the write's owner, else 0
-    c.header.player = static_cast<uint16_t>(w.owner >= 0 && w.owner < static_cast<int32_t>(kMaxPlayers) ? w.owner : 0);  // uint8_t sim ids
+    c.header.player = player;
     c.header.source = cmd::CommandSource::AI;
-    c.header.sequence = lane_seq_++;
-    c.header.issue_tick = host_->frame();
-    c.header.scheduled_tick = host_->frame() + world_->k_ai();
+    c.header.sequence = lane_job_.seq0 + static_cast<uint32_t>(lane_job_.batch.size());  // every lane write joins the batch
+    c.header.issue_tick = lane_job_.frame;
+    c.header.scheduled_tick = lane_job_.frame + world_->k_ai();
+    return c;
+}
+
+void BattleAi::queue_lane_write(const lua::LaneWrite& w) {
+    // the batch's player (drain order; a decodable slot): the write's owner, else 0
+    cmd::Command c = lane_command(static_cast<uint16_t>(w.owner >= 0 && w.owner < static_cast<int32_t>(kMaxPlayers) ? w.owner : 0));  // uint8_t sim ids
     c.payload = cmd::ev::port_extension(lua::kLaneWriteSubtype, lua::encode_lane_write(w));
     lane_job_.batch.push_back(std::move(c));  // visible when the job is collected
 }
@@ -1044,12 +1060,7 @@ void BattleAi::queue_global_writes() {
         ByteWriter w;
         w.str(name);
         put_global(w, v);
-        cmd::Command c;
-        c.header.player = 0;  // no player of its own (a decodable slot)
-        c.header.source = cmd::CommandSource::AI;
-        c.header.sequence = lane_seq_++;
-        c.header.issue_tick = host_->frame();
-        c.header.scheduled_tick = host_->frame() + world_->k_ai();
+        cmd::Command c = lane_command(0);  // no player of its own (a decodable slot)
         c.payload = cmd::ev::port_extension(kLaneGlobalSubtype, w.bytes());
         lane_job_.batch.push_back(std::move(c));
     }
@@ -1081,6 +1092,8 @@ void BattleAi::apply_lane_write(const cmd::Command& c) {
 void BattleAi::lane_collect() {
     if (!lane_job_.pending) return;
     lane_job_.pending = false;
+    lane_job_.open = false;
+    lane_seq_ = lane_job_.seq0 + static_cast<uint32_t>(lane_job_.batch.size());  // #632: published with the batch
     for (cmd::Command& c : lane_job_.batch) lane_batch_.push_back(std::move(c));
     lane_job_.batch.clear();
     lane_digest_ = lane_job_.digest;
@@ -1248,6 +1261,8 @@ bool BattleAi::read(ByteReader& r) {
     lane_batch_ = std::move(lane_batch);
     lane_digest_ = lane_digest;
     lane_job_ = std::move(job);
+    lane_job_.seq0 = lane_seq_;  // #632: lane_seq_ does not move while a job is pending
+    lane_job_.open = lane_job_.pending;
     // slice 4e: a version-5 save (no facts) takes the loaded bridge's (its world was saved after the job)
     lane_locks_ = version == kBattleAiLaneSaveVersion6 || version == kBattleAiLaneSaveVersion ? std::move(lane_locks)
                                                                                                 : world_->object_bridge().script_lock_facts();
@@ -2093,12 +2108,7 @@ constexpr uint8_t kHostUnitReleased = 1, kHostUnitLeftTaskForce = 2, kHostAddCre
 void BattleAi::queue_host_release(uint8_t op, int32_t player, int32_t object_id, uint8_t path) {
     ByteWriter w;
     w.u8(op).i32(player).i32(object_id).u8(path);
-    cmd::Command c;
-    c.header.player = static_cast<uint16_t>(player >= 0 && player < static_cast<int32_t>(kMaxPlayers) ? player : 0);
-    c.header.source = cmd::CommandSource::AI;
-    c.header.sequence = lane_seq_++;
-    c.header.issue_tick = host_->frame();
-    c.header.scheduled_tick = host_->frame() + world_->k_ai();
+    cmd::Command c = lane_command(static_cast<uint16_t>(player >= 0 && player < static_cast<int32_t>(kMaxPlayers) ? player : 0));
     c.payload = cmd::ev::port_extension(kLaneHostSubtype, w.bytes());
     lane_job_.batch.push_back(std::move(c));
 }
@@ -2361,12 +2371,7 @@ cmd::RejectReason BattleAi::execute(uint8_t player, const cmd::EventData& ev) {
         if (!lane_batched(ev)) return cmd::RejectReason::Unhandled;
         const cmd::RejectReason p = predict_order(player, ev);
         if (p == cmd::RejectReason::None) {
-            cmd::Command c;
-            c.header.player = player;
-            c.header.source = cmd::CommandSource::AI;
-            c.header.sequence = lane_seq_++;
-            c.header.issue_tick = host_->frame();
-            c.header.scheduled_tick = host_->frame() + world_->k_ai();
+            cmd::Command c = lane_command(player);
             c.payload = ev;
             lane_job_.batch.push_back(std::move(c));  // visible when the job is collected
         }
