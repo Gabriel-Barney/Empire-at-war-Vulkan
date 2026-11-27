@@ -695,8 +695,7 @@ void test_lead_parity() {
         const Out co = e.classic_drag(c.classic_from, c.classic_to);
         const Out mo = e.modern_drag(c.modern_from, c.modern_to);
         const bool ok = co.cmds == c.want && co.valid == !c.want.empty() && same(co, mo);
-        if (!ok) std::printf("  lead drop: %s
-", c.what);
+        if (!ok) std::printf("  lead drop: %s\n", c.what);
         CHECK(ok);
     }
     // The lead tile drags its unit like a stack (onto the other fleet: Classic's merge from the header pad).
