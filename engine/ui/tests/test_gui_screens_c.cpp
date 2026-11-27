@@ -891,6 +891,110 @@ void test_anim_hack_drag() {
         CHECK(ghosts == 1 && ghost_text.empty() && ghost_icon == "i_frame.tga");
         gf = saved;
     }
+    // ledger: verifies CommandBarComponent.Stackable
+    // ledger: verifies CommandBarComponent.Can_Drag_Stack
+    {  // #763 (docs/re/COMMAND_BAR_DRAG.md "Ctrl-drag of a stack"): with Ctrl held, a Stackable pad's drop moves its whole
+       // stack; Can_Drag_Stack (+0x7dd) decides whether its text follows the drag and whether it ghosts.
+        std::string xml = kFleetXml;
+        const auto add_tag = [&xml](std::string_view name, std::string_view tag) {
+            const std::string open = "<CommandBarComponent Name=\"" + std::string(name) + "\">";
+            const size_t at = xml.find(open);
+            CHECK(at != std::string::npos);
+            xml.insert(at + open.size(), "<" + std::string(tag) + ">Yes</" + std::string(tag) + ">");
+        };
+        add_tag("q1_0001", "Stackable");  // q1_0002 is not Stackable
+        add_tag("q1_0001", "Should_Render_At_Drag_Pos");
+        add_tag("q1_0001", "Should_Ghost");
+        add_tag("q1_0002", "Should_Render_At_Drag_Pos");
+        ComponentTable st;
+        const data::XmlDocument sd = data::XmlDocument::parse(std::string_view(xml), "s.xml");
+        st.parse(sd.root());
+        GalacticHudFrame g = gf;
+        // Fleet 900: two units of type 5 (pad q1_0001, "2") and two of type 6 (q1_0002, "2"); fleet 950 in pane 2.
+        g.providers.fleets = [](uint32_t, std::vector<GalacticFleet>& out) {
+            GalacticFleetSlot a{901, "i_frame.tga", 1, false}, b{903, "i_frame.tga", 1, false};
+            GalacticFleetSlot c{902, "i_big.tga", 1, false}, d{904, "i_big.tga", 1, false};
+            a.type = b.type = 5;
+            c.type = d.type = 6;
+            out.push_back({900, {a, c, b, d}});
+            out.push_back({950, {{951, "i_frame.tga", 1, false}}});
+        };
+        const auto run = [&](const ComponentTable& table, std::string_view from, std::string_view onto, bool ctrl,
+                             uint32_t* texts = nullptr, uint32_t* ghosts = nullptr, bool* whole = nullptr) {
+            GalacticHud h;
+            h.init(table, fa, env.fonts);
+            h.resize(1024, 768);
+            h.build(g);
+            const auto px = [&](std::string_view name) {
+                for (const HudHitBox& hb : h.hit_boxes())
+                    if (hb.component == table.find(name))
+                        return h.canvas().canvas_to_pixel(0.5f * (hb.min.x + hb.max.x), 0.5f * (hb.min.y + hb.max.y));
+                return Vec2f{1000.0f, 10.0f};  // empty space
+            };
+            const int32_t fc = table.find(from);
+            const int32_t oc = onto.empty() ? -1 : table.find(onto);
+            const Vec2f p = px(from), q = onto.empty() ? Vec2f{1000.0f, 10.0f} : px(onto);
+            std::vector<commands::EventData> out;
+            RoutedInput r;
+            r.world.mouse_x = static_cast<int32_t>(p.x);
+            r.world.mouse_y = static_cast<int32_t>(p.y);
+            r.hover_component = fc;
+            r.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+            r.hud = {{HudPointerEvent::Kind::Press, Button::Left, fc, r.world.mouse_x, r.world.mouse_y}};
+            h.update_input(r, false, ctrl, 1.0, out);
+            r.hud.clear();
+            r.world.mouse_x = static_cast<int32_t>(q.x);
+            r.world.mouse_y = static_cast<int32_t>(q.y);
+            r.hover_component = oc;
+            h.update_input(r, false, ctrl, 1.1, out);
+            CHECK(h.drag().active && h.drag().component == fc);
+            const bool valid = h.drag().valid;
+            h.build(g);
+            if (texts) *texts = h.stats().drag_texts;
+            if (ghosts) *ghosts = h.stats().ghosts;
+            if (whole) *whole = h.drag().whole_stack;
+            r.owner = {};
+            r.hud = {{HudPointerEvent::Kind::Release, Button::Left, oc, r.world.mouse_x, r.world.mouse_y}};
+            h.update_input(r, false, ctrl, 1.2, out);
+            CHECK(valid == !out.empty());
+            return out;
+        };
+        using commands::kFleetMerge;
+        // The Stackable pad onto fleet 950: with Ctrl both units merge, in stack order; without, the first only.
+        o = run(st, "q1_0001", "q2_0001", true);
+        CHECK(o.size() == 2 && o[0] == fleet_management_event(kFleetMerge, 950, 900, 901) &&
+              o[1] == fleet_management_event(kFleetMerge, 950, 900, 903));
+        o = run(st, "q1_0001", "q2_0001", false);
+        CHECK(o.size() == 1 && o[0] == fleet_management_event(kFleetMerge, 950, 900, 901));
+        // A pad that is not Stackable moves one unit, Ctrl or not.
+        o = run(st, "q1_0002", "q2_0001", true);
+        CHECK(o.size() == 1 && o[0] == fleet_management_event(kFleetMerge, 950, 900, 902));
+        // Onto the land forces at the selected planet: a land command per unit.
+        o = run(st, "q1_0001", "land_fleet_00", true);
+        CHECK(o.size() == 2 && o[0] == fleet_management_event(commands::kFleetLand, 100, 900, 901) &&
+              o[1] == fleet_management_event(commands::kFleetLand, 100, 900, 903));
+        // [port] Into empty space (a detach) the one unit still goes.
+        o = run(st, "q1_0001", "", true);
+        CHECK(o.size() == 1 && o[0] == fleet_management_event(commands::kFleetDetach, 100, commands::kNoObject, 901));
+        // The text at the drag position (Should_Render_At_Drag_Pos): a Stackable pad without Can_Drag_Stack never shows it
+        // (one unit moves), Ctrl or not; a pad that is not Stackable shows its count; +0x7dd stays clear.
+        uint32_t texts = 99, ghosts = 99;
+        bool whole = true;
+        (void)run(st, "q1_0001", "", true, &texts, &ghosts, &whole);
+        CHECK(texts == 0 && ghosts == 1 && !whole);  // Should_Ghost + Should_Render_At_Drag_Pos, a stack of 2: the ghost
+        (void)run(st, "q1_0002", "", false, &texts, &ghosts, &whole);
+        CHECK(texts == 1 && ghosts == 0 && !whole);
+        // Can_Drag_Stack on the Stackable pad: with Ctrl, +0x7dd is set, the count follows the drag and there is no ghost;
+        // without Ctrl, as before.
+        add_tag("q1_0001", "Can_Drag_Stack");
+        ComponentTable ct;
+        const data::XmlDocument cd = data::XmlDocument::parse(std::string_view(xml), "c.xml");
+        ct.parse(cd.root());
+        (void)run(ct, "q1_0001", "", true, &texts, &ghosts, &whole);
+        CHECK(texts == 1 && ghosts == 0 && whole);
+        (void)run(ct, "q1_0001", "", false, &texts, &ghosts, &whole);
+        CHECK(texts == 0 && ghosts == 1 && !whole);
+    }
 }
 
 // #623 GalacticDrag::over_planet is an index into the frame's planets (the host looks the planet up in its own list of the

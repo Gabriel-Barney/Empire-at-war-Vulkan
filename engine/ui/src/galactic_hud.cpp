@@ -1135,10 +1135,11 @@ bool GalacticHud::takes_button(int32_t component, Button b) const {
 // #723 (docs/re/COMMAND_BAR_DRAG.md "Ghosting" [H]: the TextButton's drag start 0x352880): while a pad with Should_Ghost
 // and Should_Render_At_Drag_Pos is dragged, a ghost of it stays in its place. Ghost_Base_Only: the ghost is the pad's
 // base without the unit's icon or count. Otherwise a ghost only for a stack of two or more: the stack less the dragged
-// unit, its count as "x%d" (0x804eb0) while above one. Without a ghost the pad draws as before [port: retail's
-// state-5 draw belongs to #763]. Base FoC sets Should_Render_At_Drag_Pos on no ghosting pad, so it never ghosts.
+// unit, its count as "x%d" (0x804eb0) while above one. Without a ghost the pad draws as before. Base FoC sets
+// Should_Render_At_Drag_Pos on no ghosting pad, so it never ghosts. #763: a whole-stack drag (+0x7dd) shows no ghost.
 void GalacticHud::ghost_dragged_pad(int32_t component, int32_t count, ButtonRuntime& r) {
     if (!drag_.active || component < 0 || drag_.component != component) return;
+    if (drag_.whole_stack) return;  // #763 0x34f160 [H]: the ghost draws only while +0x7dd is clear
     const CommandBarComponent& c = (*table_)[static_cast<size_t>(component)];
     if (!data::parse_flag_char(c.raw_value("SHOULD_GHOST")) || !data::parse_flag_char(c.raw_value("SHOULD_RENDER_AT_DRAG_POS")))
         return;
@@ -1241,15 +1242,21 @@ bool galactic_organiser_drop(const GalacticOrganiserDrag& d, const GalacticDropT
         return true;
     };
     const uint32_t unit = d.unit != 0 ? d.unit : kNone;
+    // #763: a Ctrl drop of a Stackable pad sends the row's command for every unit of the stack.
+    const auto each_unit = [&](decltype(commands::kFleetMerge) op, uint32_t target, uint32_t fleet) {
+        if (d.unit == 0 || d.stack.empty()) return emit(commands::fleet_management_event(op, target, fleet, unit));
+        for (const uint32_t u : d.stack) emit(commands::fleet_management_event(op, target, fleet, u));
+        return true;
+    };
     switch (t.kind) {
         case GalacticDropTarget::Kind::Fleet:  // onto a fleet pad
             if (t.foreign) return false;       // a foreign pad is no drop target (legacy docs/re/UI.md §7.2)
             if (t.fleet == d.fleet) return false;
-            if (d.from_fleet) return emit(fleet_management_event(commands::kFleetMerge, t.fleet, d.fleet, unit));
-            return emit(fleet_management_event(commands::kFleetLaunch, t.fleet, kNone, unit));
+            if (d.from_fleet) return each_unit(commands::kFleetMerge, t.fleet, d.fleet);
+            return each_unit(commands::kFleetLaunch, t.fleet, kNone);
         case GalacticDropTarget::Kind::LandForces:  // onto the land forces (a map fleet: only at the selected planet)
             if (d.from_fleet && selected != 0 && (d.planet == 0 || d.planet == selected))
-                return emit(fleet_management_event(commands::kFleetLand, selected, d.fleet, unit));
+                return each_unit(commands::kFleetLand, selected, d.fleet);
             return false;
         case GalacticDropTarget::Kind::World:
             if (!d.from_fleet) return false;  // a land unit into the world
@@ -1284,6 +1291,7 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
             if (drag_.active) {
                 drag_.cursor_px = {static_cast<float>(e.x), static_cast<float>(e.y)};
                 drag_.over_component = e.component;
+                drag_.ctrl = ctrl_;  // #763: the drop reads Ctrl as it is now (+0x21a9)
                 drop(&out, actions);
                 dropped = true;
             }
@@ -1301,6 +1309,10 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
             drag_.unit = p->unit;
             drag_.no_lead = p->no_lead;
             drag_.icon = p->icon;
+            // #763: the pad's units and its text (its count, as last drawn), and its Stackable flag (+0x3e1 bit 0x10).
+            drag_.stack = p->select;
+            if (const ButtonRuntime* br = buttons_.find_state(static_cast<uint32_t>(p->component))) drag_.text = br->text;
+            drag_.stackable = data::parse_flag_char((*table_)[static_cast<size_t>(p->component)].raw_value("STACKABLE"));
         } else if (press_stack_.component == press_component_) {
             drag_.active = true;
             drag_.component = press_stack_.component;
@@ -1316,6 +1328,11 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
     if (!drag_.active) return;
     drag_.cursor_px = cur;
     drag_.over_component = routed.hover_component;
+    // #763 0x2f6c30 / 0x2f6bc0 [H]: +0x7dd = Ctrl held && the dragged pad's Can_Drag_Stack (+0x3e4 bit 0x02).
+    drag_.ctrl = ctrl_;
+    drag_.whole_stack =
+        ctrl_ && drag_.component >= 0 &&
+        data::parse_flag_char((*table_)[static_cast<size_t>(drag_.component)].raw_value("CAN_DRAG_STACK"));
     const PadSlot* over = pad_of(drag_.over_component);
     drag_.over_fleet = over && over->fleet_index >= 0 && !over->foreign && over->fleet != drag_.fleet;  // never merge into a foreign fleet
     if (GalacticDropTarget t; !over && drag_.over_component >= 0 && drop_targets_ && drop_targets_(drag_.over_component, t))
@@ -1352,8 +1369,10 @@ bool GalacticHud::drop(std::vector<commands::EventData>* out, std::vector<HudAct
     if (drag_.fleet_index >= kMapOrbitIndex) return map_drop(out);  // a planet-map drag
     const PadSlot* over = pad_of(drag_.over_component);
     const bool from_fleet = drag_.fleet_index >= 0;
-    // #613 the rules the Modern organiser shares (galactic_organiser_drop).
-    const GalacticOrganiserDrag source{from_fleet, drag_.fleet, drag_.unit, drag_.planet};
+    // #613 the rules the Modern organiser shares (galactic_organiser_drop). #763 0x3d0790 [H]: with Ctrl held and the
+    // dragged pad Stackable, the whole stack moves; otherwise the one unit.
+    GalacticOrganiserDrag source{from_fleet, drag_.fleet, drag_.unit, drag_.planet, {}};
+    if (drag_.ctrl && drag_.stackable && drag_.unit != 0) source.stack = drag_.stack;
     using Target = GalacticDropTarget;
     if (over && over->fleet_index >= 0) {  // onto a fleet pad
         if (over->lead_pad) return lead_drop(over->component, out);  // #515
@@ -1886,6 +1905,16 @@ void GalacticHud::build(const GalacticHudFrame& f) {
             if (const std::string* a = pick(c.icon_alternate_texture, f.faction_alt)) icon = *a;
         if (!icon.empty())
             add_atlas_quad(dl_, kHudLayers - 1, HudList::Alpha, *atlas_, icon, at, {}, c.scale, Rgba8{255, 255, 255, 200}, {32, 32});
+        // #763 (docs/re/COMMAND_BAR_DRAG.md "Ctrl-drag of a stack", 0x34f160 draw state 5 [H]): a Should_Render_At_Drag_Pos
+        // pad draws its text (its count) at the drag position, plus its Text_Offset; a Stackable one only while +0x7dd is
+        // set (Ctrl && Can_Drag_Stack: the whole stack moves), since otherwise one unit moves. [port] On the drag icon's
+        // layer, where retail draws it at the pad's layer + 3 (at most 6).
+        if (fonts_ && !drag_.text.empty() && data::parse_flag_char(c.raw_value("SHOULD_RENDER_AT_DRAG_POS")) &&
+            (!drag_.stackable || drag_.whole_stack)) {
+            add_text(dl_, kHudLayers - 1, HudList::Text, *fonts_, canvas_, drag_.text, {at.x + c.text_offset.x, at.y - c.text_offset.y},
+                     button_text_style(c, *fonts_, canvas_));
+            ++stats_.drag_texts;
+        }
     }
     // #71 t06 (legacy docs/re/HUD_GAPS.md §2.1 [H]): no component tooltip while a HUD modal is up (HUD +0x26a0 > 0: the
     // battle-pending shells).
@@ -1980,6 +2009,7 @@ HudAction galactic_select_action(int32_t component, std::vector<uint32_t> ids, B
 void GalacticHud::update_input(const RoutedInput& routed, bool shift, bool ctrl, double now,
                                std::vector<commands::EventData>& out, std::vector<HudAction>* actions) {
     if (!table_) return;
+    ctrl_ = ctrl;  // #763 HUD +0x21a9
     bool dropped = false;
     drag_update(routed, out, dropped, actions);
     std::vector<ButtonClick> clicks;
