@@ -2484,9 +2484,9 @@ void StorySession::notify_tactical(const TacticalStoryNotification& n) {
     if (!tactical_ || !tactical_->set || tactical_story_event_type(n.kind).empty()) return;
     const objects::ObjectStore* st = tactical_->store;
     const objects::ObjectHandle h = (st && n.object != 0) ? st->find(n.object) : objects::ObjectHandle{};
-    const bool live = h && st->exists(h);
+    const bool live = st && h && st->exists(h);  // #21 (C6011): h is set only with st
     const objects::ObjectHandle oh = (st && n.other != 0) ? st->find(n.other) : objects::ObjectHandle{};
-    const bool other_live = oh && st->exists(oh);
+    const bool other_live = st && oh && st->exists(oh);
     Tactical::Pending p;
     p.kind = n.kind;
     std::string name = n.name;

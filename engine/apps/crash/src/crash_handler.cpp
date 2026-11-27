@@ -200,6 +200,10 @@ int recurse(int depth) {
 
 void null_write() {
     int* volatile p = nullptr;
+    // #21: the deliberate access violation this crash kind exists to raise (C6011 is the point, not a bug).
+#if defined(_MSC_VER)
+#pragma warning(suppress : 6011)
+#endif
     *p = 1;
 }
 

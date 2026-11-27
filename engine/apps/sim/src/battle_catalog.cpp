@@ -975,7 +975,10 @@ ta::AbilityObjectDesc BattleCatalog::ability_desc(uint32_t t, BuildState& s) con
         const objects::TypeIndex x = types->resolve_name(ascii_trim(name));
         return x != objects::kNone && types->has_behavior(x, objects::BehaviorSet::Union, objects::behavior_type_id("PROJECTILE"));
     };
-    std::vector<std::string>* diag = s.full ? &s.full->diagnostics : nullptr;
+    // #21 (C6011): the ability lists index the full build's tables; only build_units' full path calls this, so a plain
+    // build() (s.full null) gets the fields above and no abilities.
+    if (!s.full) return d;
+    std::vector<std::string>* diag = &s.full->diagnostics;
     // Sub-object lists through the type loader (variants inherit / replace them, OBJECT_TYPES 3.3).
     for (objects::FieldIndex f : ty.sub_objects(t, objects::tags::Unit_Abilities_Data)) {
         data::XmlNode e;
