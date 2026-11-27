@@ -4447,6 +4447,7 @@ struct FlagshipRun {
     bool hero_alive = false;      // the Underworld hero team after the battle (the galactic object)
     bool hero_in_fleet = false;   // ... in an Underworld fleet
     uint32_t record_state_end = 0;  // the Underworld record's state on the battle's last frame
+    bool retreat_done = false;      // the battle's post-retreat ran (retreat_completed)
 };
 // kill_lead: #755 (the Underworld lead dies at frame 20; without `retreat` its released hero then dies too).
 // retreat: #756 (the Underworld retreats).
@@ -4463,7 +4464,7 @@ FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false, bool re
     CampaignBattleOptions opt;
     opt.conflict.human_choice = galactic::BattleChoice::Fight;
     opt.conflict.attach_to_flagship = on;
-    opt.battle.max_frames = 600;
+    opt.battle.max_frames = retreat ? 6000 : 600;  // a retreat runs to its jump-out
     CampaignBattles battles(host, d.crules, *d.catalog,
                             [](const std::string& name, terrain::MapData& m) {
                                 if (name != "S10_Space_B") return false;
@@ -4571,6 +4572,7 @@ FlagshipRun flagship_run(const Data& d, bool on, bool kill_lead = false, bool re
                 if (b->contained()[i].owner != 1) continue;
                 out.record_state_end = static_cast<uint32_t>(b->contained()[i].state);
             }
+            out.retreat_done = out.retreat_done || b->retreat_completed();
             continue;
         }
         if (b->frame() >= 300 || b->finished()) break;
@@ -4609,16 +4611,17 @@ void test_flagship_contents() {
         CHECK(rel.pending && rel.released_frame == 21 && rel.release_offset >= 0.0f && rel.release_offset < 1.0f && rel.facing_ok &&
               rel.targetable && rel.killed && rel.record_state == 2);
         // #756: a hero inside its retreating flagship leaves with it and is alive in its fleet after the battle. One released
-        // by the flagship's death before the retreat is an ordinary battle unit: a mover, it jumps out with the side and
-        // its galactic team stays in the fleet [M: retail's jump-out test for a released ground unit was not read].
+        // by the flagship's death before the retreat is an ordinary battle unit that cannot jump out (no space locomotor),
+        // so the retreat kills it and its galactic team is a battle loss.
         const FlagshipRun ret = flagship_run(*d, true, false, true), ret_rel = flagship_run(*d, true, true, true);
-        std::printf("  retreat with the hero inside: retreat at frame %d, back %d, record state %u, hero alive %d, in a fleet %d\n",
-                    ret.retreat_frame, ret.back ? 1 : 0, ret.record_state_end, ret.hero_alive ? 1 : 0, ret.hero_in_fleet ? 1 : 0);
-        std::printf("  retreat after the release: released at frame %d, retreat at frame %d, back %d, hero alive %d, in a fleet %d\n",
-                    ret_rel.released_frame, ret_rel.retreat_frame, ret_rel.back ? 1 : 0, ret_rel.hero_alive ? 1 : 0,
+        std::printf("  retreat with the hero inside: retreat at frame %d, back %d, retreat done %d, record state %u, hero alive %d, in a fleet %d\n",
+                    ret.retreat_frame, ret.back ? 1 : 0, ret.retreat_done ? 1 : 0, ret.record_state_end, ret.hero_alive ? 1 : 0, ret.hero_in_fleet ? 1 : 0);
+        std::printf("  retreat after the release: released at frame %d, retreat at frame %d, back %d, retreat done %d, hero alive %d, in a fleet %d\n",
+                    ret_rel.released_frame, ret_rel.retreat_frame, ret_rel.back ? 1 : 0, ret_rel.retreat_done ? 1 : 0, ret_rel.hero_alive ? 1 : 0,
                     ret_rel.hero_in_fleet ? 1 : 0);
-        CHECK(ret.retreat_frame >= 30 && ret.back && ret.record_state_end == 0 && ret.hero_alive && ret.hero_in_fleet);
-        CHECK(ret_rel.released_frame == 21 && ret_rel.retreat_frame >= 30 && ret_rel.back && ret_rel.hero_alive && ret_rel.hero_in_fleet);
+        CHECK(ret.retreat_frame >= 30 && ret.back && ret.retreat_done && ret.record_state_end == 0 && ret.hero_alive && ret.hero_in_fleet);
+        CHECK(ret_rel.released_frame == 21 && ret_rel.retreat_frame >= 30 && ret_rel.back && ret_rel.retreat_done && !ret_rel.hero_alive &&
+              !ret_rel.hero_in_fleet);
     }
     g_types_patch = nullptr;
     g_constants_extra = constants;
