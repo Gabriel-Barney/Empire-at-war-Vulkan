@@ -191,6 +191,15 @@ struct BattleForces {
     int32_t player = kNoPlayer;
     std::vector<ObjectHandle> start;    // GOM+0x498: placed at battle start
     std::vector<ObjectHandle> reserve;  // GOM+0x4d8: reinforcement pool
+    // #754 (legacy MCX4_T11_T12_RE_ANSWERS B2 note steps 1 / 3 [H], ConflictConfig::attach_to_flagship): space - each
+    // fleet content whose type has Attach_To_Flagship_During_Space_Battle, with its fleet's flagship (the fleet lead,
+    // BATTLE_TRANSITIONS §2.3 rule 3) when that ship starts the battle; the battle keeps it inside the flagship.
+    // Not in the galactic save's pending request yet (#758; empty while the flag is off).
+    struct FlagshipContent {
+        ObjectHandle unit;      // the fleet content (FoC: a hero team)
+        ObjectHandle flagship;  // its fleet's lead, in `start`
+    };
+    std::vector<FlagshipContent> flagship_contents;
 };
 struct BattleRequest {
     ConflictInfo info;
@@ -252,6 +261,9 @@ struct ConflictConfig {
     // 0x2b8222): a conflict the local player is in goes straight to the auto-resolve state, without the prompt. Retail's
     // test ignores the story lock; the port keeps the lock as a guard [port] until a playtest settles it (#467 "open").
     bool always_auto_resolve = false;
+    // #754 (#710 slice 1): space battles carry each side's Attach_To_Flagship_During_Space_Battle fleet contents
+    // (BattleForces::flagship_contents). Off until #710's last slice turns it on with the golden refresh [port].
+    bool attach_to_flagship = false;
 };
 
 class ConflictManager final : public ConflictHooks {
@@ -446,6 +458,7 @@ private:
     // participants
     // The live contents of `player`'s idle (non-moving) fleets in orbit whose type kind passes `keep` (fleet order).
     std::vector<ObjectHandle> orbit_contents(PlanetIndex planet, int32_t player, bool (*keep)(UnitKind)) const;
+    void add_flagship_contents(PlanetIndex planet, BattleForces& f) const;  // #754
     std::vector<ObjectHandle> orbit_units(PlanetIndex planet, int32_t player) const;  // space kinds
     std::vector<ObjectHandle> orbit_cargo(PlanetIndex planet, int32_t player) const;  // ground units
     std::vector<ObjectHandle> surface_units(PlanetIndex planet, int32_t player) const;

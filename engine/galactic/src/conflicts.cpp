@@ -354,6 +354,40 @@ void ConflictManager::release_pause() {
 
 // ---- participants ----
 
+// #754 (legacy MCX4_T11_T12_RE_ANSWERS B2 note [H]: 0x2a00b0 queues a flagged unit of an arriving fleet entry and creates
+// it inside the fleet's flagship). Per fleet in orbit of the side's player: the flagship is the fleet lead (#515's
+// pathfinder mark, BATTLE_TRANSITIONS §2.3 rule 3 [M: that this lead is 0x2a00b0's flagship id was not read]); each
+// content that is not a space unit and whose type, or a company member's type, has Attach_To_Flagship_During_Space_Battle
+// rides in it (FoC: the hero teams). [M] a fleet without a flagship in the start forces: none (retail creates the unit
+// normally for the "no flagship id" value 0x3fffff and not at all without the 0x390740 container; not modelled). A lead
+// that split_space_forces put in the reserve is not a flagship here either, so its fleet's contents stay out [M: whether
+// retail creates them with the lead when it arrives; #759 decides with the goldens].
+void ConflictManager::add_flagship_contents(PlanetIndex planet, BattleForces& f) const {
+    if (planet >= sim_->planets().size()) return;
+    const auto& store = sim_->store();
+    const auto& types = sim_->rules().types;
+    for (uint32_t fi : sim_->planets()[planet].orbit) {
+        const FleetState& fl = sim_->fleets()[fi];
+        if (!fl.alive || fl.moving || fl.owner != f.player) continue;
+        ObjectHandle lead;
+        for (ObjectHandle m : fl.contents)
+            if (store.alive(m) && sim_->pathfinder(m) && std::find(f.start.begin(), f.start.end(), m) != f.start.end()) {
+                lead = m;
+                break;
+            }
+        if (!store.alive(lead)) continue;
+        for (ObjectHandle m : fl.contents) {
+            if (!store.alive(m)) continue;
+            const auto t = static_cast<uint32_t>(store.type(m));
+            if (t >= types.size() || space_kind(types[t].kind)) continue;
+            // the flag is read per created unit: the content's own type, or a member of a company (a hero team)
+            bool flagged = types[t].attach_to_flagship;
+            for (const auto& [mt, n] : rules_->type(t).members) flagged = flagged || (mt < types.size() && types[mt].attach_to_flagship);
+            if (flagged) f.flagship_contents.push_back({m, lead});
+        }
+    }
+}
+
 std::vector<ObjectHandle> ConflictManager::orbit_contents(PlanetIndex planet, int32_t player, bool (*keep)(UnitKind)) const {
     std::vector<ObjectHandle> out;
     if (planet >= sim_->planets().size()) return out;
@@ -1391,6 +1425,7 @@ bool ConflictManager::begin_battle(const ConflictInfo& head, Linked linked, uint
             } else {
                 split_space_forces(pl, orbit_units(head.planet, pl), f);
             }
+            if (cfg_.attach_to_flagship) add_flagship_contents(head.planet, f);  // #754
             req.forces.push_back(std::move(f));
         }
     } else {  // OI galactic: TACTICAL_GAPS 4.2 land split (sandbox, BT §2.9.5: humanOnly = 1)

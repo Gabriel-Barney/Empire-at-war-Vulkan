@@ -149,6 +149,7 @@ struct SubObjectsTag {
     X(Bool, Is_Super_Weapon_Killer, false)                                                                            \
     X(Bool, Is_Named_Hero, false)                                                                                     \
     X(Bool, Is_Generic_Hero, false)                                                                                   \
+    X(Bool, Attach_To_Flagship_During_Space_Battle, false)                                                            \
     X(Bool, Build_Requires_Initial_Placement, false)                                                                  \
     X(List, Required_Special_Structures, 0)                                                                           \
     X(List, Required_Orbiting_Units, 0)                                                                               \
