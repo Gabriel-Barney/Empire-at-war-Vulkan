@@ -379,6 +379,7 @@ InterestingObject object(V3 e, bool model = true, std::string_view name = "Corve
     o.model = model;
     o.type_name = name;
     o.frame = frame_at({100.0f, 50.0f, 0.0f});
+    o.locomotor = true;  // a unit; #570's structure shot takes the objects without one
     return o;
 }
 
@@ -588,11 +589,11 @@ void test_ground_dispatch() {
         if (s.eye.size() == 1 && s.eye[0].segment == ShotKey::Segment::Hold && s.length != 60) space_fly = true;
     }
     CHECK(space_fly);
-    // No locomotor (the structure shot is #570's): the static shot or step 12, never the ground templates.
+    // No locomotor: the static shot or (#570, step 10) the structure shot, never the ground templates.
     for (int i = 0; i < 40; ++i) {
         BattleCamShot s;
         CHECK(interesting_shot(ground({4.0f, 2.0f, 10.0f}, false), false, c, rng, s));
-        CHECK(s.length == 60 || (!s.eye.empty() && (s.eye[0].segment == ShotKey::Segment::Orbit || s.eye[0].translate_only)));
+        CHECK(s.length == 60 || (s.eye.size() == 2 && s.eye[0].attached && near(s.eye[0].ease_in, 0.25f) && !s.smoothing));
     }
     // Without a model the push-in and the fly-past fail: the static shot or the orbit, else no shot at all.
     bool failed = false, found = false;
@@ -608,6 +609,198 @@ void test_ground_dispatch() {
         }
     }
     CHECK(failed && found);
+}
+
+constexpr float kDegToRad = 3.14159265358979f / 180.0f;
+
+// #570: keys on a second object. The shot's object at (100, 50, 0), its target at (200, 50, 0) facing +Y.
+InterestingObject with_target(bool model = true, V3 at = {200.0f, 50.0f, 0.0f}, V3 facing = {0.0f, 1.0f, 0.0f}) {
+    InterestingObject o = object({10.0f, 4.0f, 6.0f});
+    o.combat_target.id = 77;
+    o.combat_target.model = model;
+    o.combat_target.half_extents = {8.0f, 2.0f, 3.0f};
+    o.combat_target.frame = frame_at(at);
+    o.combat_target.frame.axis[0] = facing;
+    o.combat_target.frame.axis[1] = {-facing.y, facing.x, 0.0f};
+    return o;
+}
+
+void test_second_anchor() {
+    ShotKey a;
+    a.attached = true;
+    a.where = {1.0f, 0.0f, 0.0f};
+    ShotKey b = a;
+    b.on_second = true;
+    KeyAnchors an{frame_at({10.0f, 0.0f, 0.0f}), 1.0f, frame_at({50.0f, 0.0f, 0.0f}), 2.0f};
+    CHECK(near(shot_key_position(a, an), V3{11.0f, 0.0f, 1.0f}) && near(shot_key_position(b, an), V3{51.0f, 0.0f, 2.0f}));
+    // The look moves from the first object to the second over the segment.
+    a.frame = 0;
+    b.frame = 10;
+    a.segment = ShotKey::Segment::Linear;
+    const std::vector<ShotKey> look{a, b};
+    CHECK(near(shot_keys_look(look, 10, an), V3{51.0f, 0.0f, 2.0f}) && near(shot_keys_look(look, 5, an), V3{31.0f, 0.0f, 1.5f}));
+    // The one-frame form puts every key on that frame.
+    CHECK(near(shot_keys_look(look, 10, frame_at({10.0f, 0.0f, 0.0f}), 1.0f), V3{11.0f, 0.0f, 1.0f}));
+}
+
+void test_structure_shot() {
+    UnsyncedRandom rng(3);
+    for (int i = 0; i < 20; ++i) {
+        UnsyncedRandom replay = rng;  // n, then sx and sy (zero = +1)
+        const int32_t n = replay.range(60, 90);
+        const float sx = replay.range(0, 1) == 0 ? 1.0f : -1.0f, sy = replay.range(0, 1) == 0 ? 1.0f : -1.0f;
+        const bool target = i % 2 == 0;
+        InterestingObject o = target ? with_target() : object({10.0f, 4.0f, 6.0f});
+        o.locomotor = false;
+        const BattleCamShot s = structure_shot(o, rng);
+        CHECK(s.interesting && !s.handheld && !s.smoothing && s.length == (target ? 2 * n : n));
+        CHECK(s.look.size() == (target ? 2u : 1u) && s.second == (target ? 77u : 0u));
+        if (s.eye.size() != 2 || s.look.empty()) {
+            CHECK(false);
+            continue;
+        }
+        CHECK(near(s.eye[0].where, V3{10.0f * sx, 4.0f * sy, 12.0f}) && near(s.eye[1].where, V3{20.0f * sx, 8.0f * sy, 18.0f}));
+        CHECK(s.eye[1].frame == n && s.eye[0].attached && near(s.eye[0].ease_out, 0.25f) && near(s.eye[1].ease_in, 0.25f));
+        CHECK(s.look[0].attached && !s.look[0].on_second && near(s.look[0].ease_out, 0.25f));
+        if (target) CHECK(s.look[1].on_second && s.look[1].frame == n && near(s.look[1].ease_out, 0.25f) && near(s.look[1].ease_in, 0.0f));
+        CHECK(s.eye[0].frame == 0 && near(s.eye[0].ease_in, 0.25f) && near(s.eye[1].ease_out, 0.25f));
+        CHECK(rng.range(0, 1000000) == replay.range(0, 1000000));  // no other draw
+    }
+}
+
+void test_attack_run() {
+    UnsyncedRandom rng(4);
+    const auto replay_draws = [](UnsyncedRandom& r, int32_t& t, float& y1, float& y2, float (&a)[3], int32_t& rz, int32_t& rx) {
+        t = r.range(90, 120);
+        y1 = static_cast<float>(r.range(5, 10)) * 4.0f;
+        y2 = -static_cast<float>(r.range(5, 10)) * 4.0f;
+        for (float& v : a) v = static_cast<float>(r.range(0, 360)) * kDegToRad * kDegToRad;  // retail's double conversion
+        rz = r.range(1, 7);
+        rx = r.range(1, 7);
+    };
+    for (int i = 0; i < 10; ++i) {
+        UnsyncedRandom replay = rng;
+        int32_t t, rz, rx;
+        float y1, y2, a[3];
+        replay_draws(replay, t, y1, y2, a, rz, rx);
+        BattleCamShot s;
+        CHECK(attack_run_shot(with_target(), rng, s));  // dead ahead, heading 90 degrees apart
+        CHECK(rng.range(0, 1000000) == replay.range(0, 1000000));  // no other draw
+        CHECK(s.length == 2 * t && s.handheld && s.handheld_frames == 2 * t && s.smoothing && near(*s.smoothing, 0.9f));
+        CHECK(s.second == 77 && s.eye.size() == 3 && s.look.size() == 2);
+        if (s.eye.size() != 3 || s.look.size() != 2) continue;
+        const float m = 10.0f;  // max(Ex, Ez)
+        CHECK(near(s.eye[0].where, V3{static_cast<float>(rx) * m * std::sin(a[0]), y1, static_cast<float>(rz) * m * std::cos(a[0])}) && near(s.eye[0].ease_out, 0.25f));
+        CHECK(s.eye[1].frame == t && near(s.eye[1].where, V3{std::sin(a[1]) * 10.0f, (y1 + y2) * 0.5f, std::cos(a[1]) * 6.0f}));
+        CHECK(!s.eye[1].on_second && near(s.eye[1].ease_out, 0.0f) && near(s.eye[1].ease_in, 0.0f));
+        CHECK(s.eye[2].on_second && s.eye[2].frame == 2 * t && near(s.eye[2].where, V3{0.0f, -3.0f, 6.0f}) && near(s.eye[2].ease_in, 0.5f));
+        CHECK(!s.look[0].on_second && near(s.look[0].ease_out, 0.25f) && s.look[1].on_second && s.look[1].frame == 2 * t);
+        CHECK(near(s.look[1].ease_in, 0.25f) && near(s.look[1].where, V3{}));
+        CHECK(a[0] <= 6.3f * kDegToRad + 1e-4f);  // the angles stay within 6.3 degrees
+    }
+    // Failures still make every draw: no target, no model, a similar heading, outside the cone.
+    const InterestingObject fails[] = {object({10.0f, 4.0f, 6.0f}), with_target(false),
+                                       with_target(true, {200.0f, 50.0f, 0.0f}, {1.0f, 0.0f, 0.0f}),  // 0 degrees apart
+                                       with_target(true, {100.0f, 150.0f, 0.0f})};                    // 90 off the nose
+    for (const InterestingObject& o : fails) {
+        UnsyncedRandom replay = rng;
+        int32_t t, rz, rx;
+        float y1, y2, a[3];
+        replay_draws(replay, t, y1, y2, a, rz, rx);
+        BattleCamShot s;
+        CHECK(!attack_run_shot(o, rng, s) && rng.range(0, 1000000) == replay.range(0, 1000000));
+    }
+    // The object facing +Y (yaw 90) with the target ahead of it, heading -X: 180 degrees apart.
+    InterestingObject north = with_target(true, {100.0f, 150.0f, 0.0f}, {-1.0f, 0.0f, 0.0f});
+    north.frame.axis[0] = {0.0f, 1.0f, 0.0f};
+    north.frame.axis[1] = {-1.0f, 0.0f, 0.0f};
+    BattleCamShot ns;
+    CHECK(attack_run_shot(north, rng, ns));
+    north.combat_target.frame.position = {100.0f, -50.0f, 0.0f};  // behind it: outside the cone
+    CHECK(!attack_run_shot(north, rng, ns));
+    // The 30-degree cone off the nose: 29 degrees is inside, 31 outside.
+    const float c29 = 29.0f * kDegToRad, c31 = 31.0f * kDegToRad;
+    CHECK(attack_run_shot(with_target(true, {100.0f + 100.0f * std::cos(c29), 50.0f + 100.0f * std::sin(c29), 0.0f}), rng, ns));
+    CHECK(!attack_run_shot(with_target(true, {100.0f + 100.0f * std::cos(c31), 50.0f + 100.0f * std::sin(c31), 0.0f}), rng, ns));
+    BattleCamShot s;  // up to 80 degrees apart is a similar heading
+    const float r80 = 79.5f * kDegToRad, r81 = 80.5f * kDegToRad;
+    CHECK(!attack_run_shot(with_target(true, {200.0f, 50.0f, 0.0f}, {std::cos(r80), std::sin(r80), 0.0f}), rng, s));
+    CHECK(attack_run_shot(with_target(true, {200.0f, 50.0f, 0.0f}, {std::cos(r81), std::sin(r81), 0.0f}), rng, s));
+}
+
+void test_fighter_chase() {
+    UnsyncedRandom rng(6);
+    bool saw_a = false, saw_b = false;
+    for (int i = 0; i < 40; ++i) {
+        UnsyncedRandom replay = rng;  // the side (zero: behind), the angle, the variant, then its draws
+        const int32_t deg = replay.range(0, 1) == 0 ? replay.range(135, 225) : replay.range(-45, 45);
+        const float c = std::cos(static_cast<float>(deg) * kDegToRad), sn = std::sin(static_cast<float>(deg) * kDegToRad);
+        const bool a = replay.range(0, 1) == 0;
+        const float e = std::sqrt(100.0f + 16.0f + 36.0f);
+        const BattleCamShot s = fighter_chase_shot(object({10.0f, 4.0f, 6.0f}), rng);
+        CHECK(s.smoothing && near(*s.smoothing, 0.99f) && s.handheld && s.handheld_frames == s.length && s.interesting);
+        CHECK(s.look.size() == 1 && s.look[0].segment == ShotKey::Segment::Hold && s.look[0].attached && s.eye.size() == 2);
+        CHECK(!s.look.empty() && near(s.look[0].ease_out, 0.1f));
+        if (s.eye.size() != 2) continue;
+        if (a) {
+            saw_a = true;
+            const int32_t n = replay.range(2 * kCinematicFps, 4 * kCinematicFps);
+            const float sgn = replay.range(0, 1) != 0 ? -1.0f : 1.0f;
+            const float y1 = replay.rangef(3.0f, 7.0f) * sgn * e, y2 = replay.rangef(2.0f, 9.0f) * sgn * e;
+            CHECK(s.length == n && near(s.eye[0].where, V3{6.0f * e * c, y1, 6.0f * e * sn}) && near(s.eye[1].where, V3{6.0f * e * c, y2, 6.0f * e * sn}));
+        } else {
+            saw_b = true;
+            const float y1 = -replay.rangef(6.0f, 8.0f) * e, y2 = replay.rangef(2.0f, 4.0f) * e;
+            CHECK(s.length == 4 * kCinematicFps && near(s.eye[0].where, V3{3.0f * e * c, y1, 3.0f * e * sn}));
+            CHECK(near(s.eye[1].where, V3{3.0f * e * c, y2, 3.0f * e * sn}));
+        }
+        CHECK(s.eye[1].frame == s.length && near(s.eye[0].ease_out, 0.1f) && near(s.eye[1].ease_out, 0.1f));
+        CHECK(rng.range(0, 1000000) == replay.range(0, 1000000));
+    }
+    CHECK(saw_a && saw_b);
+}
+
+void test_follow_dispatch() {
+    UnsyncedRandom rng(8);
+    InterestingCategories c;
+    const auto cat = [](InterestingObject o, uint64_t m) {
+        o.category = m;
+        return o;
+    };
+    for (int i = 0; i < 20; ++i) {  // step 4: a fighter always gets the chase
+        BattleCamShot s;
+        CHECK(interesting_shot(cat(object({10.0f, 4.0f, 6.0f}), c.fighter), true, c, rng, s) && s.smoothing && near(*s.smoothing, 0.99f));
+    }
+    // A frigate with a target in its cone: the static shot (1/4) or the attack run; never the orbit / fly-past.
+    bool run = false;
+    for (int i = 0; i < 40; ++i) {
+        BattleCamShot s;
+        CHECK(interesting_shot(cat(with_target(), c.frigate), true, c, rng, s));
+        if (s.length == 60) continue;
+        CHECK(s.eye.size() == 3 && s.second == 77);
+        run = true;
+    }
+    CHECK(run);
+    // A corvette: the static shot, the attack run or the chase; with no target the run fails and the chase is not
+    // tried again, so it falls to the orbit / fly-past.
+    bool chase = false, attack = false, fell = false;
+    for (int i = 0; i < 80; ++i) {
+        BattleCamShot s;
+        UnsyncedRandom replay = rng;  // step 6's draw, then step 7's coin: zero is the attack run, one the chase
+        const bool static_shot_drawn = replay.range(0, 3) == 0;
+        const bool coin_attack = !static_shot_drawn && replay.range(0, 1) == 0;
+        CHECK(interesting_shot(cat(with_target(), c.corvette), true, c, rng, s));
+        if (static_shot_drawn) CHECK(s.length == 60);
+        else if (coin_attack) CHECK(s.eye.size() == 3 && s.second == 77);
+        else CHECK(s.smoothing && near(*s.smoothing, 0.99f));
+        if (s.smoothing && near(*s.smoothing, 0.99f)) chase = true;
+        if (s.eye.size() == 3) attack = true;
+        CHECK(interesting_shot(cat(object({10.0f, 4.0f, 6.0f}), c.corvette), true, c, rng, s));
+        if (!s.eye.empty() && (s.eye[0].segment == ShotKey::Segment::Orbit || s.eye[0].translate_only ||
+                               (s.eye.size() == 2 && !s.eye[0].attached)))
+            fell = true;
+    }
+    CHECK(chase && attack && fell);
 }
 
 BattleCamShot timed(uint32_t id, int32_t length, std::optional<float> smoothing = std::nullopt) {
@@ -706,6 +899,11 @@ int main() {
     test_interesting_templates();
     test_ground_templates();
     test_ground_dispatch();
+    test_second_anchor();
+    test_structure_shot();
+    test_attack_run();
+    test_fighter_chase();
+    test_follow_dispatch();
     test_interesting_chain();
     test_toggle_and_smoothing();
     std::printf(g_fail == 0 ? "game battle cam tests passed\n" : "%d game battle cam check(s) FAILED\n", g_fail);

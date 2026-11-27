@@ -365,8 +365,20 @@ bool App::interesting_object_shot(bool first, BattleCamShot& out) {
     io.half_extents = shot_half_extents(o->type);
     io.frame = frame;
     io.type_name = data_.types.name(o->type);
+    // #570 0x397a40(obj, 0): the current target, any drawn object (the attack run and the structure shot read it).
+    if (const objects::ObjectId t = b->combat().current_target(o->id); t != objects::kNoObjectId) {
+        ObjectFrame tf;
+        if (const render::SnapshotObject* to = drawn_object(t, &tf)) {
+            io.combat_target.id = static_cast<uint32_t>(t);
+            io.combat_target.model = (to->flags & render::kSnapDrawable) != 0;
+            io.combat_target.half_extents = shot_half_extents(to->type);
+            io.combat_target.frame = tf;
+        }
+    }
     InterestingCategories c;
+    c.fighter = static_cast<uint64_t>(cats.lookup("Fighter").value_or(0x1));
     c.bomber = static_cast<uint64_t>(cats.lookup("Bomber").value_or(0x2));
+    c.frigate = static_cast<uint64_t>(cats.lookup("Frigate").value_or(0x10));
     c.corvette = static_cast<uint64_t>(cats.lookup("Corvette").value_or(0x8));
     c.infantry = static_cast<uint64_t>(cats.lookup("Infantry").value_or(0x80));
     c.vehicle = static_cast<uint64_t>(cats.lookup("Vehicle").value_or(0x100));
@@ -516,8 +528,16 @@ bool App::battle_cam_camera(ui::CameraParams& cp) {
     const BattleCamShot& s = cine_.cam.shot();
     const float z = shot_z_adjust(o->type);
     const int32_t c = cine_.cam_clock;
-    const ui::Vec3 look = shot_keys_look(s.look, c, f, z);
-    ui::Vec3 keyed = shot_keys_eye(s.eye, s.look, c, f, z);
+    // #570: keys with `on_second` sit on the shot's second object (the target). [port] When it is no longer drawn they
+    // fall back to the framed object.
+    KeyAnchors an{f, z, f, z};
+    if (ObjectFrame f2; s.second != 0)
+        if (const render::SnapshotObject* o2 = drawn_object(static_cast<objects::ObjectId>(s.second), &f2)) {
+            an.second = f2;
+            an.z_second = shot_z_adjust(o2->type);
+        }
+    const ui::Vec3 look = shot_keys_look(s.look, c, an);
+    ui::Vec3 keyed = shot_keys_eye(s.eye, s.look, c, an);
     // #564 (+0x315 [H]): on land, with the sticky clamp set, the eye keeps over the ground; before the smoothing.
     if (!bview_.space() && cine_.cam.terrain_clamp() && bview_.scene()) {
         const terrain::MapData* m = &bview_.scene()->map();
