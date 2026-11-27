@@ -4403,10 +4403,11 @@ void test_corruption_upgrade_spawns() {
 }
 
 // #754 (#710 slice 1): a hero team whose member has Attach_To_Flagship_During_Space_Battle rides in the Underworld
-// fleet that attacks S10_B. With ConflictConfig::attach_to_flagship on, the space battle's request carries it with the
-// fleet lead (a corvette, set by set_gui_index 999) and the battle holds it as a contained record whose host is that
-// corvette's battle unit; no battle object of the hero or its team exists, so nothing can target it. Off: no record,
-// and the battle's objects are the same.
+// fleet that attacks S10_B, and one in the Empire's defending fleet there. With ConflictConfig::attach_to_flagship on,
+// the space battle's request carries each with its fleet's lead (a corvette, set by set_gui_index 999, not the fleet's
+// first content) and the battle holds them as contained records whose hosts are those corvettes' battle units. No
+// battle object of the hero or its team exists on any frame to 300, so nothing can see, select, target or move it.
+// Off: no record, and the battle's objects are the same.
 namespace {
 std::string flagship_hero_types(std::string t) {
     const std::string end = "</S10>";
@@ -4422,10 +4423,10 @@ std::string flagship_hero_types(std::string t) {
 struct FlagshipRun {
     bool battle = false;
     size_t contained = 0;
-    bool record_ok = false;      // the record names the hero team, its owner and the lead's galactic id
-    bool host_is_lead = false;   // contained_host(0) is a live Underworld corvette of the battle
-    uint32_t hero_objects = 0;   // battle objects of the hero or its team type
-    uint32_t objects = 0;        // live battle objects at frame 1
+    bool record_ok[2] = {false, false};     // per player: a record names the hero team, its owner and its lead's id
+    bool host_is_lead[2] = {false, false};  // per player: that record's host is a live corvette of the player
+    uint32_t hero_objects = 0;  // battle objects of the hero or its team type, summed over frames 1..300
+    uint32_t objects = 0;       // live battle objects at frame 1
 };
 FlagshipRun flagship_run(const Data& d, bool on) {
     FlagshipRun out;
@@ -4451,41 +4452,53 @@ FlagshipRun flagship_run(const Data& d, bool on) {
     std::vector<std::string> diag;
     CHECK(battles.attach(&diag));
     const uint32_t team = type_of(d, "S10_Hero_Team"), hero = type_of(d, "S10_Hero"), co = type_of(d, "S10_Corvette");
-    const objects::ObjectHandle h = gs->spawn_unit(1, 2, team);
-    CHECK(gs->store().alive(h));
-    const std::vector<objects::ObjectHandle> up{h};
-    CHECK(gs->launch_units(1, 2, up) == commands::RejectReason::None);
-    const std::vector<uint32_t> uf = gs->fleets_at(2, 1);
-    CHECK(uf.size() == 1);
-    if (uf.size() != 1) return out;
-    // the lead: the fleet's last corvette (not its first content, so the test sees the mark and not the order)
-    objects::ObjectHandle lead;
-    for (objects::ObjectHandle m : gs->fleets()[uf[0]].contents)
-        if (static_cast<uint32_t>(gs->store().type(m)) == co) lead = m;
-    CHECK(gs->store().alive(lead) && gs->fleets()[uf[0]].contents.front() != lead);
-    CHECK(gs->set_gui_index(1, lead, commands::kPathfinderGuiIndex) == commands::RejectReason::None);
-    const objects::ObjectId hero_id = gs->store().id(h), lead_id = gs->store().id(lead);
-    CHECK(gs->move_fleet(1, uf[0], 1) == commands::RejectReason::None);
-    for (uint64_t t = 0; t < 4000 && !out.battle; ++t) {
+    // per player (0 the Empire defending at S10_B = planet 1, 1 the Underworld at planet 2): a hero team launched into
+    // the player's fleet there, whose lead is the fleet's last corvette (not its first content, so the test sees the
+    // mark and not the order)
+    objects::ObjectId hero_id[2] = {objects::kNoObjectId, objects::kNoObjectId}, lead_id[2] = {objects::kNoObjectId, objects::kNoObjectId};
+    uint32_t attacker_fleet = 0;
+    for (int32_t p = 0; p < 2; ++p) {
+        const PlanetIndex planet = p == 0 ? 1 : 2;
+        const objects::ObjectHandle h = gs->spawn_unit(p, planet, team);
+        CHECK(gs->store().alive(h));
+        const std::vector<objects::ObjectHandle> up{h};
+        CHECK(gs->launch_units(p, planet, up) == commands::RejectReason::None);
+        const std::vector<uint32_t> fl = gs->fleets_at(planet, p);
+        CHECK(fl.size() == 1);
+        if (fl.size() != 1) return out;
+        objects::ObjectHandle lead;
+        for (objects::ObjectHandle m : gs->fleets()[fl[0]].contents)
+            if (static_cast<uint32_t>(gs->store().type(m)) == co) lead = m;
+        CHECK(gs->store().alive(lead) && gs->fleets()[fl[0]].contents.front() != lead);
+        CHECK(gs->set_gui_index(p, lead, commands::kPathfinderGuiIndex) == commands::RejectReason::None);
+        hero_id[p] = gs->store().id(h);
+        lead_id[p] = gs->store().id(lead);
+        if (p == 1) attacker_fleet = fl[0];
+    }
+    CHECK(gs->move_fleet(1, attacker_fleet, 1) == commands::RejectReason::None);
+    for (uint64_t t = 0; t < 8000; ++t) {
         host.tick_once();
         TacticalBattle* b = battles.battle();
         TacticalMode* tm = host.tactical();
         if (!b || !tm || b->frame() < 1) continue;
-        out.battle = true;
-        out.contained = b->contained().size();
-        if (!b->contained().empty()) {
-            const TacticalBattle::ContainedUnit& c = b->contained()[0];
-            out.record_ok = c.galactic == hero_id && c.flagship == lead_id && c.owner == 1 && c.type == team;
-        }
         const objects::ObjectStore& st = tm->primary();
-        const objects::ObjectHandle hh = st.find(b->contained_host(0));
-        out.host_is_lead = st.alive(hh) && st.owner(hh) == 1 && static_cast<uint32_t>(st.type(hh)) == co;
-        for (const objects::ObjectHandle o : st.all_objects()) {
-            if (!st.alive(o)) continue;
-            ++out.objects;
-            const auto ty = static_cast<uint32_t>(st.type(o));
-            out.hero_objects += ty == hero || ty == team ? 1u : 0u;
+        if (!out.battle) {
+            out.battle = true;
+            out.contained = b->contained().size();
+            for (size_t i = 0; i < b->contained().size(); ++i) {
+                const TacticalBattle::ContainedUnit& c = b->contained()[i];
+                if (c.owner != 0 && c.owner != 1) continue;
+                out.record_ok[c.owner] = c.galactic == hero_id[c.owner] && c.flagship == lead_id[c.owner] && c.type == team;
+                const objects::ObjectHandle hh = st.find(b->contained_host(i));
+                out.host_is_lead[c.owner] = st.alive(hh) && st.owner(hh) == c.owner && static_cast<uint32_t>(st.type(hh)) == co;
+            }
+            for (const objects::ObjectHandle o : st.all_objects()) out.objects += st.alive(o) ? 1u : 0u;
         }
+        for (const objects::ObjectHandle o : st.all_objects()) {
+            const auto ty = static_cast<uint32_t>(st.type(o));
+            out.hero_objects += st.alive(o) && (ty == hero || ty == team) ? 1u : 0u;
+        }
+        if (b->frame() >= 300 || b->finished()) break;
     }
     return out;
 }
@@ -4500,10 +4513,12 @@ void test_flagship_contents() {
         const FlagshipRun off = flagship_run(*d, false), on = flagship_run(*d, true);
         std::printf("  attach to flagship off: battle %d, contained %zu, hero objects %u, objects %u\n", off.battle ? 1 : 0, off.contained,
                     off.hero_objects, off.objects);
-        std::printf("  attach to flagship on: battle %d, contained %zu (record %d, host the lead %d), hero objects %u, objects %u\n",
-                    on.battle ? 1 : 0, on.contained, on.record_ok ? 1 : 0, on.host_is_lead ? 1 : 0, on.hero_objects, on.objects);
-        CHECK(off.battle && off.contained == 0 && !off.host_is_lead && off.hero_objects == 0);
-        CHECK(on.battle && on.contained == 1 && on.record_ok && on.host_is_lead && on.hero_objects == 0);
+        std::printf("  attach to flagship on: battle %d, contained %zu (records %d %d, hosts the leads %d %d), hero objects %u, objects %u\n",
+                    on.battle ? 1 : 0, on.contained, on.record_ok[0] ? 1 : 0, on.record_ok[1] ? 1 : 0, on.host_is_lead[0] ? 1 : 0,
+                    on.host_is_lead[1] ? 1 : 0, on.hero_objects, on.objects);
+        CHECK(off.battle && off.contained == 0 && off.hero_objects == 0);
+        CHECK(on.battle && on.contained == 2 && on.record_ok[0] && on.record_ok[1] && on.host_is_lead[0] && on.host_is_lead[1] &&
+              on.hero_objects == 0);
         CHECK(on.objects == off.objects);
     }
     g_types_patch = nullptr;

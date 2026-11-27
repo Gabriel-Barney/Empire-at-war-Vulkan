@@ -359,7 +359,9 @@ void ConflictManager::release_pause() {
 // pathfinder mark, BATTLE_TRANSITIONS §2.3 rule 3 [M: that this lead is 0x2a00b0's flagship id was not read]); each
 // content that is not a space unit and whose type, or a company member's type, has Attach_To_Flagship_During_Space_Battle
 // rides in it (FoC: the hero teams). [M] a fleet without a flagship in the start forces: none (retail creates the unit
-// normally for the "no flagship id" value 0x3fffff and not at all without the 0x390740 container; not modelled).
+// normally for the "no flagship id" value 0x3fffff and not at all without the 0x390740 container; not modelled). A lead
+// that split_space_forces put in the reserve is not a flagship here either, so its fleet's contents stay out [M: whether
+// retail creates them with the lead when it arrives; #759 decides with the goldens].
 void ConflictManager::add_flagship_contents(PlanetIndex planet, BattleForces& f) const {
     if (planet >= sim_->planets().size()) return;
     const auto& store = sim_->store();
@@ -381,7 +383,7 @@ void ConflictManager::add_flagship_contents(PlanetIndex planet, BattleForces& f)
             // the flag is read per created unit: the content's own type, or a member of a company (a hero team)
             bool flagged = types[t].attach_to_flagship;
             for (const auto& [mt, n] : rules_->type(t).members) flagged = flagged || (mt < types.size() && types[mt].attach_to_flagship);
-            if (flagged) f.flagship_contents.emplace_back(m, lead);
+            if (flagged) f.flagship_contents.push_back({m, lead});
         }
     }
 }

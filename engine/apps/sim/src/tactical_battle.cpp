@@ -53,9 +53,9 @@ TacticalBattle::TacticalBattle(const BattleCatalog& catalog, const galactic::Gal
     const objects::ObjectStore& gs = galaxy.store();
     if (space_)  // #754: the units inside a flagship (a record each; no battle object while inside)
         for (const galactic::BattleForces& f : req_.forces)
-            for (const auto& [u, host] : f.flagship_contents)
-                if (gs.alive(u) && gs.alive(host))
-                    contained_.push_back({gs.id(u), gs.id(host), f.player, static_cast<uint32_t>(gs.type(u))});
+            for (const galactic::BattleForces::FlagshipContent& c : f.flagship_contents)
+                if (gs.alive(c.unit) && gs.alive(c.flagship))
+                    contained_.push_back({gs.id(c.unit), gs.id(c.flagship), f.player, static_cast<uint32_t>(gs.type(c.unit))});
     if (gs.alive(req_.starbase)) {
         const int32_t o = gs.owner(req_.starbase);
         add_participant(req_.starbase, o, owner_side(o), false, true, false);
