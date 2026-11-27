@@ -565,6 +565,7 @@ struct GalacticHudStats {
     bool organize_shown = false;                       // §4 organiser shell active this build
     bool planet_map = false, map_picture = false;      // the planet map drawn / its land-map picture resolved
     uint32_t map_pads = 0, map_stacks = 0, map_shields = 0;
+    uint32_t ghosts = 0;  // #723 dragged pads drawn as their ghost (Should_Ghost)
     bool fleet_slots_shown = false;                    // slot ovals shown this build
     uint32_t empty_slots = 0, slot_highlights = 0;     // fleet_empty ovals drawn / mouse-over frames on slots
 };
@@ -649,6 +650,7 @@ public:
     const GalacticDrag& drag() const { return drag_; }
     // A draggable pad of the last build (cursor CAN_GRAB).
     bool draggable(int32_t component) const;
+    const HudButtons& buttons() const { return buttons_; }
     // #722 where the dragged pad's icon is drawn (canvas units): the cursor, or the Snap_Location component under it.
     Vec2f drag_icon_position() const;
     // the g_planet_fleet / g_planet_land_forces button under pixel (px, py) of the last build: its fleet id (0 =
@@ -676,6 +678,8 @@ private:
     int32_t planet_at(float px, float py) const;
     void build_labels(const GalacticHudFrame& f);
     void build_planet_stacks(const GalacticPlanetInfo& p, Vec2f at, uint8_t alpha, Vec2f cursor);
+    // #723 the dragged pad's ghost (docs/re/COMMAND_BAR_DRAG.md "Ghosting"): `count` = the pad's stack count.
+    void ghost_dragged_pad(int32_t component, int32_t count, ButtonRuntime& r);
     void build_bar(const GalacticHudFrame& f);
     void build_radar(const GalacticHudFrame& f);
     void build_fleets(const GalacticHudFrame& f);

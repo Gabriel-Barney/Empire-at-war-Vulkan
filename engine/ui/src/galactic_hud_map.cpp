@@ -123,6 +123,7 @@ void GalacticHud::build_planet_map(const GalacticHudFrame& f) {
         r.hidden = false;
         r.icon_override = gp.icon;
         r.alt = gp.alt;
+        ghost_dragged_pad(ci, gp.object != 0 ? 1 : 0, r);  // #723 a pad holds one object
         // §4.6: disabled when empty (or holding a structure type) or in foreign view.
         r.disabled = m.foreign || gp.object == 0;
         r.tint = gp.dimmed ? Rgba8{255, 255, 255, 192} : Rgba8{255, 255, 255, 255};
@@ -164,6 +165,7 @@ void GalacticHud::build_planet_map(const GalacticHudFrame& f) {
         r.hidden = false;
         r.icon_override = st.icon;
         r.text = st.count > 1 ? num32(st.count) : std::u32string();
+        ghost_dragged_pad(land_[k], static_cast<int32_t>(st.count), r);  // #723
         r.disabled = m.foreign || m.surface_full;
         r.selected = false;
         const uint32_t layer = layer_of(c, p);

@@ -869,6 +869,7 @@ void GalacticHud::build_fleets(const GalacticHudFrame& f) {
         r.selected = s.selected;
         r.text = s.count > 1 ? num32(s.count) : std::u32string();
         r.tooltip_text = s.name;  // [port] a player-given fleet / ship name
+        ghost_dragged_pad(ci, static_cast<int32_t>(s.count), r);
         const ComponentPlacement& p = layout_.placement(u);
         if (!p.placed) return false;
         const CommandBarComponent& c = (*table_)[u];
@@ -1135,6 +1136,25 @@ bool GalacticHud::takes_button(int32_t component, Button b) const {
 // 0x2f6c30 calls with the component under the cursor): the icon sits at the cursor, or on the component under it when the
 // dragged pad has Snap_Drag and that component has Snap_Location. Retail puts it on that component's bone; the port's
 // placement centre is that bone's position. Base FoC: Pad_00..09 and every q1 / q2 / q3 pad have both.
+// #723 (docs/re/COMMAND_BAR_DRAG.md "Ghosting" [H]: the TextButton's drag start 0x352880): while a Should_Ghost pad is
+// dragged, a ghost of it stays in its place. Ghost_Base_Only: the ghost is the pad's base without the unit's icon or count.
+// Otherwise a ghost only for a stack of two or more: the stack less the dragged unit, its count as "x%d" (0x804eb0) while
+// above one. Without a ghost the pad draws as before [port: retail's state-5 draw is #763's Stackable rule].
+void GalacticHud::ghost_dragged_pad(int32_t component, int32_t count, ButtonRuntime& r) {
+    if (!drag_.active || component < 0 || drag_.component != component) return;
+    const CommandBarComponent& c = (*table_)[static_cast<size_t>(component)];
+    if (!data::parse_flag_char(c.raw_value("SHOULD_GHOST"))) return;
+    if (data::parse_flag_char(c.raw_value("GHOST_BASE_ONLY"))) {
+        r.icon_override.clear();
+        r.text.clear();
+    } else if (count >= 2) {
+        r.text = count - 1 > 1 ? U"x" + num32(static_cast<uint32_t>(count - 1)) : std::u32string();
+    } else {
+        return;
+    }
+    ++stats_.ghosts;
+}
+
 Vec2f GalacticHud::drag_icon_position() const {
     const Vec2f cursor = canvas_.pixel_to_canvas(drag_.cursor_px.x, drag_.cursor_px.y);
     if (drag_.component < 0 || drag_.over_component < 0 || static_cast<size_t>(drag_.over_component) >= table_->size()) return cursor;

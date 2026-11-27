@@ -60,3 +60,32 @@ Base FoC: Yes on 142 of 145 rows. The No rows are the header pads `q1_0000`, `q2
   the state textures. +0x7dd also gates a bone-follow block.
 - Base FoC sets `Can_Drag_Stack` only on the tactical reinforcement slots `r_0000`..`r_0403`, all No. The galactic
   pads leave it absent (false), so with base data +0x7dd is never set.
+
+## Ghosting (Should_Ghost, Ghost_Base_Only) [H]
+
+The TextButton's drag start 0x352880 puts the pad in draw state 5 (+0x5f0). It then makes a ghost of the pad
+(+0x600, a new TextButton) when all of these hold:
+- the pad's data has `Should_Ghost` (+0x3e2 bit 0x08);
+- +0x3e5 is negative;
+- the pad's stack count (+0x7d8) is at least 2, or the data has `Ghost_Base_Only` (+0x3e3 bit 0x08).
+
+The ghost copies the pad's textures and colours, and its count is the pad's count - 1.
+- **`Ghost_Base_Only`:** the ghost's +0x270 bit 1 is cleared, so it draws without the unit's icon and with no count
+  [M for which texture slot that bit is]. The ghost flag +0x7de is set.
+- **Otherwise:** the ghost's text is `x%d` (0x804eb0) of its count when that count is above 1, else a blank. The ghost
+  flag +0x7de is set.
+- **No ghost** (a single unit without `Ghost_Base_Only`): +0x7de stays 0.
+
+The TextButton draw 0x34f160 draws the ghost in the pad's place while +0x7de is set (with `Should_Ghost`, and +0x7dd
+clear).
+
+**Base FoC:**
+- `Should_Ghost` is True on 198 TextButtons: `Pad_NN`, `build_padNN`, `land_fleet_NN`, the `qN_NNNN` organiser pads,
+  `r_NNNN` and `unit_padNN`.
+- `Ghost_Base_Only` is True on 56 of them: `Pad_NN`, `build_padNN`, `unit_padNN` and the header pads `qN_0000`.
+
+**Port:** `GalacticHud::ghost_dragged_pad`.
+- It covers the organiser pads, the land-force pads and the planet-map pads. While such a pad is dragged it shows its
+  ghost.
+- Where retail makes no ghost, the pad draws as before. Retail's state-5 draw of a `Stackable` pad belongs to the
+  Stackable row (#763).
