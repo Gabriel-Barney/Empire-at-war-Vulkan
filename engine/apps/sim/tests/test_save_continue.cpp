@@ -3,7 +3,9 @@
 // battle whose map carries placement records - hints, a company with a hint, a marker name, a build pad with a base
 // level on a planet with a ground structure - roadmap map3, and #146 a space battle whose ships turn POWER_TO_WEAPONS
 // on, so checkpoints fall in its active time and then in its recharge; #418 a land battle given a BOMBARD_DELAY story
-// reward, TacticalBattle::reward_bombard_delay, at a battle frame) runs twice from the same start:
+// reward, TacticalBattle::reward_bombard_delay, at a battle frame; #419 a space battle with a fighter carrier whose
+// launched squadron is killed at a battle frame, so the bay launches it again; #419 a land battle whose defenders are
+// ordered into a bunker, GARRISON_STRUCTURE, at a battle frame) runs twice from the same start:
 //   continuous   ticked straight through;
 //   reloaded     at every 64-tick checkpoint (the CRC golden checkpoints, ALAMO_CRC 2) the session is saved, a fresh
 //                session is built like a new game, the save is loaded into it (a battle is rebuilt, then its parts are
@@ -14,7 +16,10 @@
 // pads' base levels, for every object of the battle; no object created after the battle start (after a load included)
 // answers a map hint. #146: every ship's POWER_TO_WEAPONS state (active, ready) after a load equals the continuous run's
 // at that checkpoint, and the ability fixture reaches both an active and a recharging checkpoint. #418: the battle's
-// BOMBARD_DELAY override after a load equals the continuous run's at that checkpoint, and is set at some. On every running
+// BOMBARD_DELAY override after a load equals the continuous run's at that checkpoint, and is set at some. #419: every
+// carrier's hangar state (state, entries, live / remaining, next spawn) after a load equals the continuous run's, and the
+// hangar fixture checkpoints both a launched squadron and the re-launch wait; every holder's occupants and walking-in
+// count after a load equal the continuous run's, and the garrison fixture checkpoints a garrisoned bunker. On every running
 // battle the save ledger self-check holds too
 // (TacticalBattle::check_save_ledger: state_io walks exactly the SAVED members of tactical_battle_ledger.hpp).
 // Modes:
@@ -38,6 +43,8 @@ struct Fixture {
     uint64_t ability_frame = 0;  // #146: the battle frame at which every ship with POWER_TO_WEAPONS turns it on (0: never)
     uint64_t reward_frame = 0;   // #418: the battle frame of the BOMBARD_DELAY reward (0: never)
     float bombard_delay = 0.0f;  // its seconds
+    uint64_t hangar_kill_frame = 0;  // #419: fighter data with a carrier; the battle frame its launched units are killed (0: no carrier)
+    uint64_t garrison_frame = 0;     // #419: S4 data and a bunker; the battle frame the defenders are ordered into it (0: none)
 };
 
 const Fixture kFixtures[] = {
@@ -47,6 +54,8 @@ const Fixture kFixtures[] = {
     {"land_records", true, 0.0f, true, 3000},
     {"space_ability", false, 0.0f, false, 2500, 30},
     {"land_bombard_delay", true, 0.0f, false, 3000, 0, 40, 7.5f},
+    {"space_hangar", false, 0.0f, false, 2500, 0, 0, 0.0f, 200},
+    {"land_garrison", true, 0.0f, false, 3000, 0, 0, 0.0f, 0, 30},
 };
 
 constexpr auto kPowerToWeapons = static_cast<uint8_t>(tactical::abilities::kPowerToWeapons);
@@ -89,6 +98,13 @@ terrain::MapData records_map() {
     return m;
 }
 
+// #419: the land map with a bunker (S4_Bunker, GARRISON_STRUCTURE) of the defender (player 0).
+terrain::MapData garrison_map() {
+    terrain::MapData m = land_map();
+    m.objects.push_back(placement("S4_Bunker", 900.0f, 700.0f, 0));
+    return m;
+}
+
 // map3: the records fixture's extra types - a ground structure (its galactic copy at S10_B gives the land battle base
 // level 1) and a build pad.
 std::string records_types(std::string t) {
@@ -98,6 +114,16 @@ std::string records_types(std::string t) {
     t.insert(at, " <GroundStructure Name=\"S10_Barracks\"><Tactical_Health>500</Tactical_Health><Behavior>DUMMY_GROUND_STRUCTURE</Behavior>"
                  "</GroundStructure>\n <SpecialStructure Name=\"S10_Build_Pad\"><Behavior>TACTICAL_BUILD_OBJECTS</Behavior>"
                  "<Tactical_Health>500</Tactical_Health></SpecialStructure>\n");
+    return t;
+}
+
+// #419: the hangar fixture's carrier waits 5 s before it launches again (150 frames: checkpoints fall in the wait) and
+// holds two squadrons in reserve (so a killed squadron is launched again).
+std::string hangar_types(std::string t) {
+    const std::string from = "<Spawned_Squadron_Delay_Seconds>1.0</Spawned_Squadron_Delay_Seconds>";
+    if (const size_t at = t.find(from); at != std::string::npos)
+        t.replace(at, from.size(), "<Spawned_Squadron_Delay_Seconds>5.0</Spawned_Squadron_Delay_Seconds>"
+                                   "<Reserve_Spawned_Units_Tech_0>S10_TIE_Squadron, 2</Reserve_Spawned_Units_Tech_0>");
     return t;
 }
 
@@ -112,14 +138,18 @@ struct Session {
     std::vector<ai::tactical::TacticalBudgetCategory> budget = std::vector<ai::tactical::TacticalBudgetCategory>(1);
 #endif
     bool land = false, invaded = false;
-    uint64_t ability_frame = 0, reward_frame = 0;
+    uint64_t ability_frame = 0, reward_frame = 0, hangar_kill_frame = 0, garrison_frame = 0;
     float bombard_delay = 0.0f;
     bool ability_sent = false;  // #146: the fixture's POWER_TO_WEAPONS order was given (a loaded session carries it over)
     bool reward_sent = false;   // #418: the BOMBARD_DELAY reward was given (likewise)
+    bool hangar_killed = false; // #419: the carrier's launched units were killed (likewise)
+    bool garrison_sent = false; // #419: the garrison orders were given (likewise)
+    objects::TypeIndex tie_type = objects::kNone;  // #419: S10_TIE (the hangar fixture's data)
     size_t crc_seen = 0;  // records of crc_log() already collected
 
     Session(const Data& d, const Fixture& f, uint32_t workers, bool launch)
-        : land(f.land), ability_frame(f.ability_frame), reward_frame(f.reward_frame), bombard_delay(f.bombard_delay) {
+        : land(f.land), ability_frame(f.ability_frame), reward_frame(f.reward_frame), hangar_kill_frame(f.hangar_kill_frame),
+          garrison_frame(f.garrison_frame), bombard_delay(f.bombard_delay) {
         js = std::make_unique<jobs::JobSystem>(jobs::JobSystemConfig{static_cast<int32_t>(workers)});
         SimConfig cfg;
         cfg.seed = 2026;
@@ -127,6 +157,10 @@ struct Session {
         host = std::make_unique<SimHost>(d.types, *js, cfg);
         galactic::GalacticSetup setup = make_setup(d, f.land);
         if (f.records) setup.forces.push_back({0, 1, type_of(d, "S10_Barracks")});  // map3: battle base level 1
+        if (f.hangar_kill_frame > 0) {  // #419: the fighter carrier
+            setup.forces.push_back({0, 1, type_of(d, "S10_Carrier")});
+            tie_type = static_cast<objects::TypeIndex>(type_of(d, "S10_TIE"));
+        }
         gs = host->start_galactic(d.rules, setup);
         CHECK(gs != nullptr);
         if (!gs) return;
@@ -139,11 +173,11 @@ struct Session {
 #ifdef ALAMO_SIM_HAVE_AI_TACTICAL
         battles_budget_hook(opt, budget, *gs);
 #endif
-        const bool records = f.records;
+        const bool records = f.records, bunker = f.garrison_frame > 0;
         battles = std::make_unique<CampaignBattles>(*host, d.crules, *d.catalog,
-                                                    [records](const std::string& name, terrain::MapData& m) {
+                                                    [records, bunker](const std::string& name, terrain::MapData& m) {
                                                         if (name == "S10_Space_B") m = space_map();
-                                                        else if (name == "S10_Land_B") m = records ? records_map() : land_map();
+                                                        else if (name == "S10_Land_B") m = records ? records_map() : bunker ? garrison_map() : land_map();
                                                         else return false;
                                                         return true;
                                                     },
@@ -191,6 +225,39 @@ struct Session {
             if (TacticalBattle* b = battle(); b && b->frame() >= reward_frame) {
                 b->reward_bombard_delay(bombard_delay);  // #418: as the STY1 t06 BOMBARD_DELAY reward sets it
                 reward_sent = true;
+            }
+        if (hangar_kill_frame > 0 && !hangar_killed)
+            if (TacticalBattle* b = battle(); b && b->frame() >= hangar_kill_frame && b->hangars()) {
+                // #419: the launched squadron's fighters die (ascending id; the counted unit is the squadron's TEAM container,
+                // which goes with its members), so the bay waits to launch again. Every S10_TIE here is a carrier launch.
+                const objects::ObjectStore& st = host->tactical()->primary();
+                std::vector<objects::ObjectId> fighters;
+                for (const objects::ObjectHandle h : st.all_objects())
+                    if (st.alive(h) && st.type(h) == tie_type) fighters.push_back(st.id(h));
+                std::sort(fighters.begin(), fighters.end());
+                CHECK(!fighters.empty());
+                for (const objects::ObjectId id : fighters) CHECK(b->script_damage(*host->tactical(), id, 1.0e9f, false));
+                hangar_killed = true;
+            }
+        if (garrison_frame > 0 && !garrison_sent)
+            if (TacticalBattle* b = battle(); b && b->frame() >= garrison_frame) {
+                // #419: every GARRISON_UNIT of the defender (player 0, ascending id) is ordered into its bunker
+                const objects::ObjectStore& st = host->tactical()->primary();
+                objects::ObjectId holder = objects::kNoObjectId;
+                std::vector<objects::ObjectId> units;
+                for (const objects::ObjectHandle h : st.all_objects()) {
+                    if (!st.alive(h) || st.owner(h) != 0) continue;
+                    if (b->garrison().is_holder(st.id(h))) holder = st.id(h);
+                    else if (b->garrison().is_unit(st.id(h))) units.push_back(st.id(h));
+                }
+                std::sort(units.begin(), units.end());
+                CHECK(holder != objects::kNoObjectId && !units.empty());
+                for (const objects::ObjectId u : units) {
+                    commands::EventData ev(commands::EventType::Garrison);
+                    ev.set("unit", static_cast<uint32_t>(u)).set("garrison", static_cast<uint32_t>(holder));
+                    (void)host->execute_direct(0, commands::CommandSource::Player, ev);  // a full bunker refuses the rest
+                }
+                garrison_sent = true;
             }
     }
 
@@ -264,12 +331,57 @@ AbilityReadout ability_readout(TacticalBattle& b, const TacticalMode& tm) {
     return out;
 }
 
+// #419: every carrier's hangar state ("id state s entries n [type live remaining]... next f"); `live` / `wait`: some entry
+// has a launched unit alive / has fewer live than its start count with launches left (the bay waits to launch again).
+std::vector<std::string> hangar_readout(const TacticalBattle& b, const TacticalMode& tm, bool& live, bool& wait) {
+    std::vector<std::string> out;
+    const tactical::hangar::HangarSystem* hs = b.hangars();
+    if (!hs) return out;
+    const objects::ObjectStore& st = tm.primary();
+    for (const objects::ObjectHandle h : st.all_objects()) {
+        if (!st.exists(h) || !hs->has_carrier(st.id(h))) continue;
+        const objects::ObjectId id = st.id(h);
+        std::string line = std::to_string(id) + " state " + std::to_string(hs->state(id)) + " entries " + std::to_string(hs->entry_count(id));
+        for (uint32_t e = 0; e < hs->entry_count(id); ++e) {
+            const int32_t n = hs->live(id, e), rem = hs->remaining(id, e);
+            line += " [" + std::to_string(hs->entry_type(id, e)) + " " + std::to_string(n) + " " + std::to_string(rem) + "]";
+            live = live || n > 0;
+            wait = wait || (n < hs->max_alive(id, e) && rem != 0);
+        }
+        line += " next " + std::to_string(hs->next_spawn_frame(id));
+        out.push_back(std::move(line));
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+// #419: every garrison holder's state ("id walking-in n: occupant ids in entry order"); `occupied`: some holder has one.
+std::vector<std::string> garrison_readout(const TacticalBattle& b, const TacticalMode& tm, bool& occupied) {
+    std::vector<std::string> out;
+    const tactical::garrison::GarrisonSystem& g = b.garrison();
+    const objects::ObjectStore& st = tm.primary();
+    for (const objects::ObjectHandle h : st.all_objects()) {
+        if (!st.exists(h) || !g.is_holder(st.id(h))) continue;
+        const objects::ObjectId id = st.id(h);
+        std::string line = std::to_string(id) + " walking-in " + std::to_string(g.reserved(id)) + ":";
+        for (const tactical::garrison::ObjectId o : g.occupants(id)) line += " " + std::to_string(o);
+        occupied = occupied || !g.occupants(id).empty();
+        out.push_back(std::move(line));
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
 struct RunResult {
     std::vector<Checkpoint> checkpoints;
     std::map<uint64_t, std::vector<std::string>> answers;  // checkpoint tick -> lookup answers (the reloaded run: after the load)
     std::map<uint64_t, std::vector<std::string>> abilities;  // #146: checkpoint tick -> POWER_TO_WEAPONS states (likewise)
     std::map<uint64_t, float> bombard_delays;                 // #418: checkpoint tick -> the BOMBARD_DELAY override (likewise)
+    std::map<uint64_t, std::vector<std::string>> hangar;      // #419: checkpoint tick -> every carrier's hangar state (likewise)
+    std::map<uint64_t, std::vector<std::string>> garrisons;   // #419: checkpoint tick -> every holder's occupants (likewise)
+    bool garrisoned_seen = false;                             // #419: some holder had an occupant
     bool ability_active_seen = false, ability_recharge_seen = false, bombard_delay_seen = false;
+    bool hangar_live_seen = false, hangar_wait_seen = false;  // #419: a launched unit alive / a launch pending
     uint32_t battle_checkpoints = 0, reloads = 0, battle_reloads = 0, refused = 0;
     uint32_t ledger_checks = 0;
     bool ledger_ok = true, load_ok = true;
@@ -285,6 +397,8 @@ struct RunResult {
         const float bd = TacticalBattleTestAccess::bombard_delay_override(b);
         bombard_delays[tick] = bd;
         bombard_delay_seen = bombard_delay_seen || bd > 0.0f;
+        hangar[tick] = hangar_readout(b, tm, hangar_live_seen, hangar_wait_seen);
+        garrisons[tick] = garrison_readout(b, tm, garrisoned_seen);
     }
 };
 
@@ -330,6 +444,8 @@ RunResult run(const Data& d, const Fixture& f, uint32_t workers, bool reload) {
         fresh->invaded = s->invaded;  // the test's own invasion order, given once (the save holds its effect)
         fresh->ability_sent = s->ability_sent;  // #146: likewise the ability order
         fresh->reward_sent = s->reward_sent;    // #418: and the reward
+        fresh->hangar_killed = s->hangar_killed;  // #419: and the kill
+        fresh->garrison_sent = s->garrison_sent;  // #419: and the garrison orders
         LoadReport rep;
         if (!fresh->host->load(save, &why, &rep)) {
             std::printf("  %s: load at tick %" PRIu64 " failed: %s\n", f.name, tick, rep.text().c_str());
@@ -452,6 +568,33 @@ std::string test_fixture(const Data& d, const Fixture& f, uint32_t workers) {
         CHECK(false);
         break;
     }
+    for (const auto& [tick, want] : a.hangar) {  // #419: the hangar state a load gives back
+        const auto it = b.hangar.find(tick);
+        if (it == b.hangar.end() || it->second == want) continue;
+        std::printf("  %s: hangar states differ after the load at tick %" PRIu64 ":\n", f.name, tick);
+        for (size_t i = 0; i < std::max(want.size(), it->second.size()) && i < 4; ++i)
+            std::printf("    want %-40s got %s\n", i < want.size() ? want[i].c_str() : "-", i < it->second.size() ? it->second[i].c_str() : "-");
+        CHECK(false);
+        break;
+    }
+    for (const auto& [tick, want] : a.garrisons) {  // #419: the garrison state a load gives back
+        const auto it = b.garrisons.find(tick);
+        if (it == b.garrisons.end() || it->second == want) continue;
+        std::printf("  %s: garrisons differ after the load at tick %" PRIu64 ":\n", f.name, tick);
+        for (size_t i = 0; i < std::max(want.size(), it->second.size()) && i < 4; ++i)
+            std::printf("    want %-40s got %s\n", i < want.size() ? want[i].c_str() : "-", i < it->second.size() ? it->second[i].c_str() : "-");
+        CHECK(false);
+        break;
+    }
+    if (f.garrison_frame > 0) {  // the garrison fixture is saved and loaded with the bunker occupied
+        std::printf("  %s: a garrisoned holder seen %d / after a load %d\n", f.name, a.garrisoned_seen ? 1 : 0, b.garrisoned_seen ? 1 : 0);
+        CHECK(a.garrisoned_seen && b.garrisoned_seen);
+    }
+    if (f.hangar_kill_frame > 0) {  // the hangar fixture is saved and loaded with a squadron out and with the bay waiting
+        std::printf("  %s: hangar launched seen %d / %d, re-launch wait seen %d / %d\n", f.name, a.hangar_live_seen ? 1 : 0,
+                    b.hangar_live_seen ? 1 : 0, a.hangar_wait_seen ? 1 : 0, b.hangar_wait_seen ? 1 : 0);
+        CHECK(a.hangar_live_seen && b.hangar_live_seen && a.hangar_wait_seen && b.hangar_wait_seen);
+    }
     if (f.reward_frame > 0) {  // the reward fixture is saved and loaded while the override is set
         std::printf("  %s: BOMBARD_DELAY %.2f s seen at a checkpoint %d / after a load %d\n", f.name, static_cast<double>(f.bombard_delay),
                     a.bombard_delay_seen ? 1 : 0, b.bombard_delay_seen ? 1 : 0);
@@ -485,9 +628,22 @@ int main(int argc, char** argv) {
     g_types_patch = records_types;
     auto dr = make_data();
     g_types_patch = nullptr;
+    // #419: the hangar fixture's data (the fighter types: a TIE squadron and a carrier with one bay)
+    static std::string hangar_prefix;
+    hangar_prefix = prefix + "_hangar";
+    g_temp_prefix = hangar_prefix.c_str();
+    g_types_patch = hangar_types;
+    auto dh = make_data(false, false, false, false, false, false, false, false, true);
+    g_types_patch = nullptr;
+    // #419: the garrison fixture's data (S4: troopers are GARRISON_UNIT, the S4_Bunker type)
+    static std::string garrison_prefix;
+    garrison_prefix = prefix + "_garrison";
+    g_temp_prefix = garrison_prefix.c_str();
+    auto dg = make_data(false, false, true);
     g_temp_prefix = prefix.c_str();
     std::string text;
-    for (const Fixture& f : kFixtures) text += test_fixture(f.records ? *dr : *d, f, workers);
+    for (const Fixture& f : kFixtures)
+        text += test_fixture(f.records ? *dr : f.hangar_kill_frame > 0 ? *dh : f.garrison_frame > 0 ? *dg : *d, f, workers);
     if (!out_path.empty()) {
         std::ofstream o(out_path, std::ios::binary | std::ios::trunc);
         o << text;
@@ -506,6 +662,8 @@ int main(int argc, char** argv) {
     std::error_code ec;
     remove_all_long(d->root, ec);
     remove_all_long(dr->root, ec);
+    remove_all_long(dh->root, ec);
+    remove_all_long(dg->root, ec);
     if (g_fail) {
         std::printf("%d check(s) FAILED\n", g_fail);
         return 1;
