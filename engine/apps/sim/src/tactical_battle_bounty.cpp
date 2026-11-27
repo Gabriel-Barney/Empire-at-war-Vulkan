@@ -102,7 +102,8 @@ void TacticalBattle::pay_kill_bounty(const TacticalMode& mode, const Unit& victi
     // Bounty_Percentage_Amount} per Target_Faction_Names name; the object's removal takes them out again. [port] The
     // holders are read at the kill: the live battle units (the victim included [M]: its abilities go with its removal,
     // after the death handler) and the upgrade objects (DUMMY_UPGRADE: galactic, corruption and produced upgrades), each
-    // with its current owner.
+    // with its current owner; #542: then the corruption upgrades of the players who are not fighting (set_absent_upgrades),
+    // which retail creates as objects and the port does not.
     // [port] Not modelled: the local player's floating "+n" text at the victim (0x2de390) and the log line.
     if (!credits_add_ || killer < 0) return;
     if (!galaxy_->story_gates().bounty_collection) return;
@@ -132,6 +133,7 @@ void TacticalBattle::pay_kill_bounty(const TacticalMode& mode, const Unit& victi
         if (&u == &victim || (u.alive && !u.retreated && st.alive(u.h))) add_holder(u.type, st.owner(u.h));
     for (const HgUpgradeObject& o : hg_upgrade_objs_)
         if (st.alive(o.h)) add_holder(static_cast<uint32_t>(st.type(o.h)), st.owner(o.h));
+    for (const auto& [p, t] : absent_upgrades_) add_holder(t, p);  // #542: a non-fighting player's corruption upgrades
     if (held.empty()) return;
     std::vector<BountyEntry> entries;
     for (int32_t p = 0; p < static_cast<int32_t>(ps.size()); ++p) {

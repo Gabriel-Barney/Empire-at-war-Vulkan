@@ -858,26 +858,28 @@ void CampaignBattles::push_battle(SimHost& host) {
         // #68 (0x2a1eb0 after the 0x2afc10 calls [H]): then, player by player, each type of the player's per-planet list
         // for the battle planet (0x281620 / 0x281760, list order) that is affiliated with the player's faction (0x3751a0)
         // and has DUMMY_UPGRADE (0x65) in the generic behaviours or the battle mode's (0x370320 with -1, then the mode).
-        // [port, open: #542] Retail walks every galactic player; the port spawns for the two battle players only, in
-        // ascending player index, as the pad persistence does: a third player has no place in the port's battle. A tier 1
-        // gap (a non-fighting Underworld loses its Racketeering bounty), tracked by #542.
+        // [port] Retail walks every galactic player; the port spawns for the two battle players only, in ascending player
+        // index, as the pad persistence does: a third player has no place in the port's battle. #542: the other players'
+        // types (same filter, player order) go to the battle as absent upgrades, whose Bounty_On_Faction abilities count in
+        // the kill bounty without an object (the Racketeering salvage of a non-fighting Underworld allied with a fighter).
         std::vector<std::pair<int32_t, uint32_t>> corrupt;
         const objects::BehaviorTypeId dummy = objects::behavior_type_id("DUMMY_UPGRADE");
         const objects::BehaviorSet mode_set = kind == ModeKind::Space ? objects::BehaviorSet::Space : objects::BehaviorSet::Land;
         const PlanetIndex planet = pending_req_.info.planet;
         const int32_t lo = std::min(pending_req_.info.attacker, pending_req_.info.defender);
         const int32_t hi = std::max(pending_req_.info.attacker, pending_req_.info.defender);
-        for (const int32_t p : {lo, hi}) {
-            if (planet == kInvalidPlanet || (p == hi && hi == lo)) continue;  // one player on both sides: once
+        std::vector<std::pair<int32_t, uint32_t>> absent;
+        for (int32_t p = 0; planet != kInvalidPlanet && p < static_cast<int32_t>(gs.players().size()); ++p) {
             for (const uint32_t t : gs.planet_upgrades(p, planet)) {
                 if (!affiliated(p, t)) continue;
                 const auto ti = static_cast<objects::TypeIndex>(t);
                 if (dummy != objects::kNoBehavior &&
                     (types.has_behavior(ti, objects::BehaviorSet::Generic, dummy) || types.has_behavior(ti, mode_set, dummy)))
-                    corrupt.push_back({p, t});
+                    (p == lo || p == hi ? corrupt : absent).push_back({p, t});
             }
         }
         battle_->set_corruption_upgrades(std::move(corrupt));
+        battle_->set_absent_upgrades(std::move(absent));
     }
     {  // battle host: TacticalBuild charges / TacticalSell refunds spend the galactic account.
         // #222 (legacy docs/re/A2K_T10_CREDIT_NOTIFY_RE.md): the second add hook is Add_Credits with the AI notify on
