@@ -444,12 +444,12 @@ struct GalacticDrag {
     int32_t layers = 0;          // map fleet: pancake layers drawn under the dragged icon (Drag_Back)
     Rgba8 tint{};                // map fleet: its pancake's owner tint (GalacticPlanetStack::owner_color)
     // #763 (docs/re/COMMAND_BAR_DRAG.md "Ctrl-drag of a stack"): the dragged pad's units (an organiser stack's members,
-    // else the one unit), its text (the count) and Stackable flag; Ctrl held now (HUD +0x21a9, read at the drop); and
-    // +0x7dd, Ctrl held && the pad's Can_Drag_Stack, set each frame of the drag.
+    // else the one unit), its text (the count), its Stackable and Can_Drag_Stack flags; and +0x7dd, Ctrl held && the
+    // pad's Can_Drag_Stack, set each frame of the drag. The drop reads Ctrl as it is then (HUD +0x21a9).
     std::vector<uint32_t> stack;
     std::u32string text;
     bool stackable = false;
-    bool ctrl = false;
+    bool can_drag_stack = false;
     bool whole_stack = false;
 };
 
@@ -465,8 +465,9 @@ struct GalacticOrganiserDrag {
     uint32_t unit = 0;        // the dragged unit (0: the whole fleet)
     uint32_t planet = 0;      // a map fleet's planet; 0: an organiser pad (at the selected planet)
     // #763 (0x3d0790 [H]): a Ctrl drop of a Stackable pad moves every unit of its stack. The merge, launch and land rows
-    // then send their command once per unit here, in stack order; empty = `unit` alone. [port] The detach, move and
-    // slot rows keep the one unit (retail's per-unit detach, op 4's server side, is not traced).
+    // and the fleet-slot rows onto an own fleet then send their command once per unit here, in stack order; empty =
+    // `unit` alone. [port] The detach, move and new-fleet slot rows keep the one unit (retail's per-unit detach, op 4's
+    // server side, is not traced).
     std::vector<uint32_t> stack;
 };
 struct GalacticDropTarget {

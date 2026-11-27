@@ -920,7 +920,8 @@ void test_anim_hack_drag() {
             out.push_back({950, {{951, "i_frame.tga", 1, false}}});
         };
         const auto run = [&](const ComponentTable& table, std::string_view from, std::string_view onto, bool ctrl,
-                             uint32_t* texts = nullptr, uint32_t* ghosts = nullptr, bool* whole = nullptr) {
+                             uint32_t* texts = nullptr, uint32_t* ghosts = nullptr, bool* whole = nullptr,
+                             std::u32string* pad_text = nullptr) {
             GalacticHud h;
             h.init(table, fa, env.fonts);
             h.resize(1024, 768);
@@ -953,6 +954,8 @@ void test_anim_hack_drag() {
             if (texts) *texts = h.stats().drag_texts;
             if (ghosts) *ghosts = h.stats().ghosts;
             if (whole) *whole = h.drag().whole_stack;
+            if (pad_text)
+                if (const ButtonRuntime* br = h.buttons().find_state(static_cast<uint32_t>(fc))) *pad_text = br->text;
             r.owner = {};
             r.hud = {{HudPointerEvent::Kind::Release, Button::Left, oc, r.world.mouse_x, r.world.mouse_y}};
             h.update_input(r, false, ctrl, 1.2, out);
@@ -982,8 +985,9 @@ void test_anim_hack_drag() {
         bool whole = true;
         (void)run(st, "q1_0001", "", true, &texts, &ghosts, &whole);
         CHECK(texts == 0 && ghosts == 1 && !whole);  // Should_Ghost + Should_Render_At_Drag_Pos, a stack of 2: the ghost
-        (void)run(st, "q1_0002", "", false, &texts, &ghosts, &whole);
-        CHECK(texts == 1 && ghosts == 0 && !whole);
+        std::u32string pad_text = U"?";
+        (void)run(st, "q1_0002", "", false, &texts, &ghosts, &whole, &pad_text);
+        CHECK(texts == 1 && ghosts == 0 && !whole && pad_text.empty());  // the count left the pad for the drag position
         // Can_Drag_Stack on the Stackable pad: with Ctrl, +0x7dd is set, the count follows the drag and there is no ghost;
         // without Ctrl, as before.
         add_tag("q1_0001", "Can_Drag_Stack");
@@ -994,6 +998,16 @@ void test_anim_hack_drag() {
         CHECK(texts == 1 && ghosts == 0 && whole);
         (void)run(ct, "q1_0001", "", false, &texts, &ghosts, &whole);
         CHECK(texts == 0 && ghosts == 1 && !whole);
+        // A fleet slot holding an own fleet at the same planet: the stack merges unit by unit; an empty slot (a new
+        // fleet) keeps the one unit [port].
+        GalacticOrganiserDrag sdrag{true, 900, 901, 0, {901, 903}};
+        GalacticDropTarget slot{GalacticDropTarget::Kind::Slot, 950, false, false, 100, 1};
+        std::vector<commands::EventData> so;
+        CHECK(galactic_slot_drop(sdrag, slot, 100, &so) && so.size() == 2 && so[0] == fleet_management_event(kFleetMerge, 950, 900, 901) &&
+              so[1] == fleet_management_event(kFleetMerge, 950, 900, 903));
+        so.clear();
+        slot.fleet = 0;
+        CHECK(galactic_slot_drop(sdrag, slot, 100, &so) && so.size() == 1);
     }
 }
 

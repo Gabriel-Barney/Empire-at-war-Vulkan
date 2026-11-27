@@ -1004,8 +1004,12 @@ bool galactic_slot_drop(const GalacticOrganiserDrag& d, const GalacticDropTarget
     if (sh.planet == home) {
         if (!empty) {
             if (sh.foreign || sh.fleet == d.fleet) return false;
-            if (out) out->push_back(land ? fleet_management_event(commands::kFleetLaunch, sh.fleet, kNone, unit)
-                                         : fleet_management_event(commands::kFleetMerge, sh.fleet, d.fleet, unit));
+            if (!out) return true;
+            // #763: a Ctrl drop of a Stackable pad merges / launches every unit of its stack (0x3e0eb0 into that fleet).
+            const std::vector<uint32_t> one{unit};
+            for (const uint32_t u : d.unit != 0 && !d.stack.empty() ? d.stack : one)
+                out->push_back(land ? fleet_management_event(commands::kFleetLaunch, sh.fleet, kNone, u)
+                                    : fleet_management_event(commands::kFleetMerge, sh.fleet, d.fleet, u));
             return true;
         }
         if (!land && d.unit == 0) {  // re-slot the whole fleet
@@ -1139,10 +1143,13 @@ bool GalacticHud::takes_button(int32_t component, Button b) const {
 // Should_Render_At_Drag_Pos on no ghosting pad, so it never ghosts. #763: a whole-stack drag (+0x7dd) shows no ghost.
 void GalacticHud::ghost_dragged_pad(int32_t component, int32_t count, ButtonRuntime& r) {
     if (!drag_.active || component < 0 || drag_.component != component) return;
-    if (drag_.whole_stack) return;  // #763 0x34f160 [H]: the ghost draws only while +0x7dd is clear
     const CommandBarComponent& c = (*table_)[static_cast<size_t>(component)];
-    if (!data::parse_flag_char(c.raw_value("SHOULD_GHOST")) || !data::parse_flag_char(c.raw_value("SHOULD_RENDER_AT_DRAG_POS")))
-        return;
+    const bool at_drag_pos = data::parse_flag_char(c.raw_value("SHOULD_RENDER_AT_DRAG_POS"));
+    // #763 0x34f160 [H]: with Should_Render_At_Drag_Pos the dragged pad's own text is drawn at the drag position (or not
+    // at all), never on the pad; the ghost, in its place, draws only while +0x7dd is clear.
+    if (at_drag_pos) r.text.clear();
+    if (drag_.whole_stack) return;
+    if (!data::parse_flag_char(c.raw_value("SHOULD_GHOST")) || !at_drag_pos) return;
     if (data::parse_flag_char(c.raw_value("GHOST_BASE_ONLY"))) {
         r.icon_override.clear();
         r.text.clear();
@@ -1291,7 +1298,6 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
             if (drag_.active) {
                 drag_.cursor_px = {static_cast<float>(e.x), static_cast<float>(e.y)};
                 drag_.over_component = e.component;
-                drag_.ctrl = ctrl_;  // #763: the drop reads Ctrl as it is now (+0x21a9)
                 drop(&out, actions);
                 dropped = true;
             }
@@ -1312,7 +1318,9 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
             // #763: the pad's units and its text (its count, as last drawn), and its Stackable flag (+0x3e1 bit 0x10).
             drag_.stack = p->select;
             if (const ButtonRuntime* br = buttons_.find_state(static_cast<uint32_t>(p->component))) drag_.text = br->text;
-            drag_.stackable = data::parse_flag_char((*table_)[static_cast<size_t>(p->component)].raw_value("STACKABLE"));
+            const CommandBarComponent& pc = (*table_)[static_cast<size_t>(p->component)];
+            drag_.stackable = data::parse_flag_char(pc.raw_value("STACKABLE"));
+            drag_.can_drag_stack = data::parse_flag_char(pc.raw_value("CAN_DRAG_STACK"));  // +0x3e4 bit 0x02
         } else if (press_stack_.component == press_component_) {
             drag_.active = true;
             drag_.component = press_stack_.component;
@@ -1329,10 +1337,7 @@ void GalacticHud::drag_update(const RoutedInput& routed, std::vector<commands::E
     drag_.cursor_px = cur;
     drag_.over_component = routed.hover_component;
     // #763 0x2f6c30 / 0x2f6bc0 [H]: +0x7dd = Ctrl held && the dragged pad's Can_Drag_Stack (+0x3e4 bit 0x02).
-    drag_.ctrl = ctrl_;
-    drag_.whole_stack =
-        ctrl_ && drag_.component >= 0 &&
-        data::parse_flag_char((*table_)[static_cast<size_t>(drag_.component)].raw_value("CAN_DRAG_STACK"));
+    drag_.whole_stack = ctrl_ && drag_.can_drag_stack;
     const PadSlot* over = pad_of(drag_.over_component);
     drag_.over_fleet = over && over->fleet_index >= 0 && !over->foreign && over->fleet != drag_.fleet;  // never merge into a foreign fleet
     if (GalacticDropTarget t; !over && drag_.over_component >= 0 && drop_targets_ && drop_targets_(drag_.over_component, t))
@@ -1370,9 +1375,9 @@ bool GalacticHud::drop(std::vector<commands::EventData>* out, std::vector<HudAct
     const PadSlot* over = pad_of(drag_.over_component);
     const bool from_fleet = drag_.fleet_index >= 0;
     // #613 the rules the Modern organiser shares (galactic_organiser_drop). #763 0x3d0790 [H]: with Ctrl held and the
-    // dragged pad Stackable, the whole stack moves; otherwise the one unit.
+    // dragged pad Stackable, the whole stack moves (Ctrl as it is now, +0x21a9); otherwise the one unit.
     GalacticOrganiserDrag source{from_fleet, drag_.fleet, drag_.unit, drag_.planet, {}};
-    if (drag_.ctrl && drag_.stackable && drag_.unit != 0) source.stack = drag_.stack;
+    if (ctrl_ && drag_.stackable && drag_.unit != 0) source.stack = drag_.stack;
     using Target = GalacticDropTarget;
     if (over && over->fleet_index >= 0) {  // onto a fleet pad
         if (over->lead_pad) return lead_drop(over->component, out);  // #515
@@ -1907,8 +1912,8 @@ void GalacticHud::build(const GalacticHudFrame& f) {
             add_atlas_quad(dl_, kHudLayers - 1, HudList::Alpha, *atlas_, icon, at, {}, c.scale, Rgba8{255, 255, 255, 200}, {32, 32});
         // #763 (docs/re/COMMAND_BAR_DRAG.md "Ctrl-drag of a stack", 0x34f160 draw state 5 [H]): a Should_Render_At_Drag_Pos
         // pad draws its text (its count) at the drag position, plus its Text_Offset; a Stackable one only while +0x7dd is
-        // set (Ctrl && Can_Drag_Stack: the whole stack moves), since otherwise one unit moves. [port] On the drag icon's
-        // layer, where retail draws it at the pad's layer + 3 (at most 6).
+        // set (Ctrl && Can_Drag_Stack). That is the look only: the drop moves the stack on Ctrl && Stackable alone. [port]
+        // On the drag icon's layer, where retail draws it at the pad's layer + 3 (at most 6); one line (no Max_Text_Width).
         if (fonts_ && !drag_.text.empty() && data::parse_flag_char(c.raw_value("SHOULD_RENDER_AT_DRAG_POS")) &&
             (!drag_.stackable || drag_.whole_stack)) {
             add_text(dl_, kHudLayers - 1, HudList::Text, *fonts_, canvas_, drag_.text, {at.x + c.text_offset.x, at.y - c.text_offset.y},
