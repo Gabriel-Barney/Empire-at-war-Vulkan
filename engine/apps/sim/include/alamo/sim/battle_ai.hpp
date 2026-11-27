@@ -530,14 +530,15 @@ private:
     // #633 (docs/SIMULATION.md "AI lane"): what the critical lane pushes into the AI (order replaced, a fog refog,
     // Prevent_AI_Usage) is queued in order and delivered at the next AI slot, before the job starts; movement's threat
     // mode and Prevent_AI_Usage's answer read copies published as of the last collected job. Saved and hashed.
+    enum class LanePushKind : uint8_t { OrderReplaced = 1, Refog = 2, PreventAi = 3 };
     struct LanePush {
-        uint8_t kind = 0;  // kPushOrderReplaced / kPushRefog / kPushPreventAi
-        int32_t a = 0;     // object id, or the refog's player
-        int32_t b = 0;     // Prevent_AI_Usage: the owner
-        float x = 0.0f;    // refog: the point; Prevent_AI_Usage: x = on (1 / 0)
+        LanePushKind kind = LanePushKind::OrderReplaced;
+        int32_t id = 0;     // OrderReplaced / PreventAi: the object; Refog: the player
+        int32_t owner = 0;  // PreventAi
+        bool on = false;    // PreventAi
+        float x = 0.0f;     // Refog: the point
         float y = 0.0f;
     };
-    static constexpr uint8_t kPushOrderReplaced = 1, kPushRefog = 2, kPushPreventAi = 3;
     std::vector<LanePush> lane_pushes_;
     std::vector<std::pair<uint32_t, float>> lane_danger_;  // TacticalAiWorld::danger_layers of the last collected job
     std::vector<lua::PreventAiResult> lane_prevent_answer_;  // per player: TacticalAiWorld::prevent_ai_answer, likewise

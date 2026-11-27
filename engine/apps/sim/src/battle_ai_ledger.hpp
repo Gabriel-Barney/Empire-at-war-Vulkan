@@ -46,7 +46,7 @@
     SAVED(lane_locks_, hashed) \
     SAVED(lane_job_, unhashed) \
     SAVED(lane_digest_, hashed) \
-    SAVED(lane_seq_, hashed) \
+    SAVED(lane_seq_, hashed)     SAVED(lane_pushes_, hashed)     SAVED(lane_danger_, unhashed)     SAVED(lane_prevent_answer_, unhashed) \
     DERIVED(lane_mismatch_, "diagnostic counter") \
     SAVED(executed_, unhashed) \
     SAVED(opp_prev_, hashed) \
