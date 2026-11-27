@@ -757,7 +757,8 @@ void test_synthetic() {
     // #558: conflict save v6 adds the land planet flag; land auto-resolves fight with the planet, not its structures.
     // #191: galactic save v16 adds the paid costs, and the produced objects' paid costs enter the hash ("PDC1").
     // #515: galactic save v17 adds the fleet-lead count (0 here) to the save part.
-    sc.pin = 0xcc07b8eb523f065aull;
+    // #758: conflict save v7 adds each pending request force's flagship contents (none here) to the save part.
+    sc.pin = 0x5cecd8b6da7217f5ull;
     run_scenario(sc);
 }
 
@@ -1303,7 +1304,8 @@ void test_foc() {
     // #558: conflict save v6 (the land planet flag) and the land planet combatant.
     // #191: galactic save v16 (the paid costs) and their hash.
     // #515: galactic save v17 (the fleet-lead count) in the save part.
-    sc.pin = 0x1c3e7a6b0fdbfe5bull;  // FoC data
+    // #758: conflict save v7 (the pending request's flagship contents, none) in the save part.
+    sc.pin = 0x4a6e470d9195ae88ull;  // FoC data
     run_scenario(sc);
 }
 

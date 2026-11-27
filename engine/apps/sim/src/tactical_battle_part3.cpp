@@ -1915,6 +1915,24 @@ void TacticalBattle::hash(StateHasher& h) const {
             h.i32(player);
         }
     }
+    if (!contained_.empty()) {  // #758: the contained units (absent without any: battles hash as before)
+        h.u8(0x46);
+        h.u32(static_cast<uint32_t>(contained_.size()));
+        for (const ContainedUnit& c : contained_) {
+            h.u32(static_cast<uint32_t>(c.galactic));
+            h.u32(static_cast<uint32_t>(c.flagship));
+            h.i32(c.owner);
+            h.u32(c.type);
+            h.u8(static_cast<uint8_t>(c.state));
+            h.f32(c.at.x);
+            h.f32(c.at.y);
+            h.f32(c.at.z);
+            h.f32(c.face.x);
+            h.f32(c.face.y);
+            h.f32(c.face.z);
+            h.u32(c.participant);
+        }
+    }
     for (size_t p = 0; p < fleet_cohesion_.size(); ++p)  // [port] fleet cohesion: only tight players (none: as before)
         if (fleet_cohesion_[p] != 0) {
             h.u8(0x43);

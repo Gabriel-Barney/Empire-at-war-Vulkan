@@ -194,7 +194,7 @@ struct BattleForces {
     // #754 (legacy MCX4_T11_T12_RE_ANSWERS B2 note steps 1 / 3 [H], ConflictConfig::attach_to_flagship): space - each
     // fleet content whose type has Attach_To_Flagship_During_Space_Battle, with its fleet's flagship (the fleet lead,
     // BATTLE_TRANSITIONS §2.3 rule 3) when that ship starts the battle; the battle keeps it inside the flagship.
-    // Not in the galactic save's pending request yet (#758; empty while the flag is off).
+    // Saved with the pending request (conflict save v7, #758).
     struct FlagshipContent {
         ObjectHandle unit;      // the fleet content (FoC: a hero team)
         ObjectHandle flagship;  // its fleet's lead, in `start`

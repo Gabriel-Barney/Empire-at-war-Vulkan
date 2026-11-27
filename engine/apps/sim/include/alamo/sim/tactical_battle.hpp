@@ -2896,7 +2896,7 @@ private:
     SimAnimation* anim_ = nullptr;
     int32_t dummy_type_ = -1;           // Dummy_Barrage_Target
     std::vector<Participant> parts_;
-    std::vector<ContainedUnit> contained_;  // #754: from the request (not saved yet: #758)
+    std::vector<ContainedUnit> contained_;  // #754: from the request; saved and hashed (#758)
     std::vector<Unit> units_;  // ascending object id
     bool despawning_ = false;  // ref2 t04 review: inside script_despawn (a TEAM container leaving with it is no loss)
     std::vector<Container> containers_;
