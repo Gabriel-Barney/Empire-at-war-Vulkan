@@ -861,6 +861,7 @@ void BattleAi::apply_host_write(const lua::LaneWrite& w) {
 }
 
 BattleAi::~BattleAi() {
+    lane_join();  // #636: never destroy the world under a running job
     b_->remove_order_replaced_listener(order_listener_);
     if (b_->movement_) b_->movement_->set_threat_fn({});  // the battle outlives its AI
     b_->set_script_movement_lock(this, {});
@@ -951,14 +952,18 @@ void BattleAi::update() {
         lane_job_.seq0 = lane_seq_;  // #632: the job's own sequence base (lane_seq_ moves at collect)
         lane_job_.open = true;
         lane_job_.batch.clear();
-        set_thinking(true);  // from here to the end of think() no host answer reads the battle
-        world_->think();  // inline: the AI lane's job (t03: on the AI thread)
-        set_thinking(false);
-        lane_job_.locks = world_->object_bridge().script_lock_facts();  // slice 4e: published at collect
-        queue_global_writes();
-        StateHasher h;
-        world_->hash(h);
-        lane_job_.digest = h.digest();
+        // #636: on the job system at AI priority while the critical lane runs on (inline with 0 workers: a critical
+        // waiter never runs AI work); joined at collect, lane_sync, the end of the battle and the destructor
+        jobs::JobSystem& js = host_->jobs();
+        if (js.serial()) {
+            lane_job_body();
+        } else {
+            auto counter = std::make_shared<jobs::JobCounter>();
+            js.spawn(*counter, [this] { lane_job_body(); }, jobs::Priority::Ai);
+            lane_wait_ = [&js, counter] {
+                if (!counter->done()) js.wait(*counter);
+            };
+        }
     } else {
         world_->update(static_cast<int64_t>(host_->frame()), b_->frame_);
     }
@@ -1181,7 +1186,49 @@ void BattleAi::apply_lane_write(const cmd::Command& c) {
     if (n >= 0 && n != w.value) count_mismatch();
 }
 
+void BattleAi::lane_job_body() {
+    world_->claim_scripts();  // #636: this thread owns the Lua VMs while it thinks
+    set_thinking(true);  // from here to the end of think() no host answer reads the battle
+    world_->think();
+    set_thinking(false);
+    lane_job_.locks = world_->object_bridge().script_lock_facts();  // slice 4e: published at collect
+    queue_global_writes();
+    StateHasher h;
+    world_->hash(h);
+    lane_job_.digest = h.digest();
+}
+
+// the Lua VMs follow the job: the AI lane's thread claims them when the job starts, the joining (sim) thread back
+// here (pushes, publish and start scripts run Lua on the sim thread between jobs)
+void BattleAi::lane_join() {
+    if (lane_wait_) {
+        const std::function<void()> wait = std::move(lane_wait_);
+        lane_wait_ = nullptr;
+        wait();
+        world_->claim_scripts();
+    }
+    if (world_->ai_lane()) publish_counts();
+}
+
+void BattleAi::publish_counts() {
+    lane_counts_.orders = world_->orders_issued();
+    lane_counts_.rejected = world_->orders_rejected();
+    lane_counts_.decisions = world_->decision_log().size();
+    lane_counts_.lua_errors = world_->lua_errors();
+}
+
+BattleAi::WorldCounts BattleAi::world_counts() const {
+    if (world_->ai_lane()) return lane_counts_;
+    return {world_->orders_issued(), world_->orders_rejected(), world_->decision_log().size(), world_->lua_errors()};
+}
+
+void BattleAi::lane_sync() {
+    lane_join();
+    world_->claim_scripts();  // the calling thread (a save, a load or the battle's end may come from another one)
+}
+
 void BattleAi::lane_collect() {
+    lane_join();  // #636
     if (!lane_job_.pending) return;
     lane_job_.pending = false;
     lane_job_.open = false;
@@ -1264,7 +1311,10 @@ lua::PreventAiResult BattleAi::prevent_ai_usage(objects::ObjectId id, int32_t ow
     return lua::PreventAiResult::Done;
 }
 
-void BattleAi::end() { world_->end_battle(); }
+void BattleAi::end() {
+    lane_sync();  // #636: the running job finished, its VMs back on this thread
+    world_->end_battle();
+}
 
 bool BattleAi::set_difficulty(int32_t player, int32_t difficulty) {
     if (!world_->ai_lane()) {
@@ -1372,6 +1422,7 @@ void BattleAi::hash(StateHasher& h) const {
 }
 
 bool BattleAi::read(ByteReader& r) {
+    lane_sync();  // #636: a running job finishes before the loaded state replaces it
     // version 5 (lane block) only into an AI-lane world; version 4 into either (an AI-lane world then starts with
     // an empty batch)
     const uint32_t version = r.u32();

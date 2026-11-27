@@ -151,12 +151,14 @@ public:
     // before (execute_order), signals included. The other AI writes stay immediate until t05. Lane off: nothing queued.
     void apply_lane_batch(uint64_t frame);
     // with the lane on, update() runs the world as TacticalAiWorld::publish() (critical lane) + think() (the AI
-    // lane; inline until t03 moves it to the AI thread). Each think() is a job whose outputs - the orders it queued and
+    // lane; #636: an AI-priority job). Each think() is a job whose outputs - the orders it queued and
     // the digest of the AI world after it - become visible only when the job is collected: at the next update(), or at
     // the start of the tick its orders are due (k_ai = 1), whichever comes first; the battle.ai CRC hashes the digest of
-    // the last collected job, so the CRC never reads the world while a job may run. lane_sync() waits until the running
-    // job has finished (saves; inline until t03), without collecting it: the save keeps it as the pending job.
-    void lane_sync() {}
+    // the last collected job, so the CRC never reads the world while a job may run. #636: the job (think() and what it
+    // queues) runs on the job system at AI priority (inline with 0 workers) while the critical lane runs the next tick.
+    // lane_sync() waits until the running job has finished and takes the world's Lua VMs back to the calling thread,
+    // without collecting it (saves: the save keeps it as the pending job; also loads, the battle's end, the destructor).
+    void lane_sync();
     size_t lane_pending() const { return lane_batch_.size(); }
     // #633: Lua Prevent_AI_Usage on object `id` (CampaignBattles' object-script hook). Lane off: TacticalAiWorld's answer
     // at once. Lane on: the owner's answer published at collect (no AI player / not initialised / done), and on done
@@ -184,6 +186,14 @@ public:
     const ai::tactical::TacticalAiWorld& world() const { return *world_; }
     bool controls(int32_t player) const;
     std::string summary() const;
+    // #636: what a host reads of the world between ticks - live with the lane off; with it on, as of the last join
+    // (a host that reads the world itself calls lane_sync() first).
+    struct WorldCounts {
+        uint64_t orders = 0, rejected = 0;
+        size_t decisions = 0;
+        std::vector<std::string> lua_errors;
+    };
+    WorldCounts world_counts() const;
     // The CRC "battle.ai": the world's digest (the last collected job's with the AI lane), then the saved fields in their
     // save order (visit_saved; one list for write() and hash(), the statistics left out).
     void hash(StateHasher& h) const;
@@ -548,6 +558,12 @@ private:
     LaneJob lane_job_;
     uint64_t lane_digest_ = 0;  // digest of the last collected job (hashed and saved)
     void lane_collect();
+    // #636: the running job's join (empty: none running, or it ran inline); lane_join waits for it.
+    std::function<void()> lane_wait_;
+    WorldCounts lane_counts_;  // #636: world_counts() with the lane on, published at each join
+    void publish_counts();
+    void lane_join();
+    void lane_job_body();  // the AI lane's job: think() and what it publishes at collect
     // #633 (docs/SIMULATION.md "AI lane"): what the critical lane pushes into the AI (order replaced, a fog refog,
     // Prevent_AI_Usage) is queued in order and delivered at the next AI slot, before the job starts; movement's threat
     // mode and Prevent_AI_Usage's answer read copies published as of the last collected job. Saved and hashed.

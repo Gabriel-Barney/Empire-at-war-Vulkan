@@ -380,6 +380,10 @@ public:
     // the rest of update() from those inputs. Lane off: unused, update() is unchanged.
     void publish(int64_t now, uint32_t mode_frame);
     void think();
+    // #636 (lua_vm.hpp "Threading"): every Lua VM of this world - the free stores, the running plans', the evaluators and
+    // the plan pools (pristine VMs included) - is owned by the calling thread from now on. The AI lane's thread claims
+    // them before think(), the sim thread back before a save, a load, the end of the battle and the error reads.
+    void claim_scripts();
     // Battle end (slot 7 / context teardown): every running plan ends (released by the goal system).
     void end_battle();
     // closes every Lua VM of this world (running plans, free stores, evaluators, plan pools) instead of one by

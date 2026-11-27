@@ -129,8 +129,11 @@ struct Session {
         if (world) n += world->background_jobs_in_flight();
 #endif
 #if defined(ALAMO_SIM_HAVE_BATTLES) && defined(ALAMO_SIM_HAVE_AI_TACTICAL)
-        const sim::CampaignBattles* b = battles ? battles.get() : skirmish.battles.get();
-        if (b && b->tactical_ai()) n += b->tactical_ai()->world().background_jobs_in_flight();
+        sim::CampaignBattles* b = battles ? battles.get() : skirmish.battles.get();
+        if (sim::BattleAi* a = b ? b->tactical_ai() : nullptr) {
+            a->lane_sync();  // #636: the AI lane's job joins at the check (else one is in flight at almost every tick)
+            n += a->world().background_jobs_in_flight();
+        }
 #endif
         return n;
     }

@@ -213,8 +213,14 @@ shows as a tick-time spike, not as a different outcome.
 
 Off by default (`TacticalAiConfig::ai_lane`, process default `sim::ai_lane_defaults()`; headless `--ai-lane`
 `[--ai-lane-k K]`). Off is the pre-lane behaviour. With it on the AI acts on tick N and its commands apply at N + k_ai, so
-it is a tier-2 change ("Flag-gated tier-2 changes"). Today `think()` still runs inline on the sim thread at the AI slot;
-the data rules below already hold, so moving it to its own thread changes no result.
+it is a tier-2 change ("Flag-gated tier-2 changes"). `think()` runs as one job at the job system's AI priority while the
+critical lane runs on (inline with 0 workers: a critical waiter never runs AI work, so a pool job would deadlock); the
+results are those of the inline lane (#636). The job is joined at its collect (the next AI slot, or the due tick when
+k_ai = 1), by `BattleAi::lane_sync()` before a save, at a scheduled save's in-flight check, at a load and at the end of
+the battle, and in the destructor. The world's Lua VMs follow the job (`TacticalAiWorld::claim_scripts`): the job's
+thread claims every one (plan pools and pristine VMs included) before `think()`, the joining thread takes them back. A
+host that reads the AI world between ticks either reads `BattleAi::world_counts()` (published at each join) or calls
+`lane_sync()` first.
 
 ### AI lane cycle
 
@@ -293,8 +299,9 @@ Lua 5.0.2's collector itself is unchanged; only when it runs is scheduled (`engi
 - A VM is looked at every `period` (32) ticks at its own slot (a hash of its threshold, saved with the VM) and is due once
   its bytes reach `fill_percent` (67 %) of its automatic threshold; after a scheduled collection the threshold is
   `threshold_percent` (150 %) of Lua's own.
-- Due VMs of one host are collected in parallel through its `ParallelFor`; `__gc` finalizers run afterwards on the sim
-  thread in list order. A VM is never collected during a call.
+- Due VMs of one host are collected in parallel through its `ParallelFor`; `__gc` finalizers run afterwards on the VMs'
+  owner thread (the sim thread; the AI lane's job thread for the tactical AI with the lane on, #636) in list order.
+  A VM is never collected during a call.
 - Collection timing is invisible to shipped scripts (none uses weak tables, `__gc`, `newproxy` or `gcinfo`).
 
 ## Checksums

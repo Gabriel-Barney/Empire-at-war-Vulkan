@@ -965,11 +965,12 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
             }
             if (!invaded && !gs->fleets_at(1, 1).empty())  // battle host: arrived at B - invade (a land conflict)
                 invaded = gs->invade(1, 1, {}) == commands::RejectReason::None;
-            if (const sim::BattleAi* a = battles.tactical_ai()) {
-                orders = a->world().orders_issued();
-                rejected = a->world().orders_rejected();
-                decisions = a->world().decision_log().size();
-                error_list = a->world().lua_errors();
+            if (const sim::BattleAi* a = battles.tactical_ai()) {  // #636: the lane's copy (its job may still run)
+                sim::BattleAi::WorldCounts c = a->world_counts();
+                orders = c.orders;
+                rejected = c.rejected;
+                decisions = c.decisions;
+                error_list = std::move(c.lua_errors);
                 lua_errors = error_list.size();
             }
             if (const sim::TacticalBattle* tb = battles.battle()) {
@@ -1034,7 +1035,10 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
                     }
                 if (!ai_log.empty() && (bs.frames == 1 || bs.frames % 600 == 0)) {
                     state_text += battle_state_text(t + 1, host, *gs, *tb);
-                    if (const sim::BattleAi* a = battles.tactical_ai()) state_text += ai_state_text(host, a->world());
+                    if (sim::BattleAi* a = battles.tactical_ai()) {
+                        a->lane_sync();  // #636: the world itself (a diagnostic dump)
+                        state_text += ai_state_text(host, a->world());
+                    }
                     if (!base_damage.empty()) {
                         state_text += "  base damage:";
                         for (const auto& [k, v] : base_damage)
@@ -1157,7 +1161,8 @@ int skirmish_ai_run(const MapRunOptions& opt, const std::string& kind, const std
         if (first_run)
             for (const std::string& l : battles.ai_log()) log_text += l + "\n";
         // skai: a battle still running at the tick limit has no ai_log yet; --ai-log then takes the live AI's decisions and stats.
-        if (const sim::BattleAi* a = battles.tactical_ai(); a && !ai_log.empty() && log_text.empty()) {
+        if (sim::BattleAi* a = battles.tactical_ai(); a && !ai_log.empty() && log_text.empty()) {
+            a->lane_sync();  // #636
             log_text = "(battle running at tick " + std::to_string(t) + ") " + a->summary() + "\n";
             for (const ai::tactical::TacticalAiDecision& dec : a->world().decision_log())
                 log_text += "  " + std::to_string(dec.frame) + " p" + std::to_string(dec.player) + " " + dec.text + "\n";

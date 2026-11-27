@@ -4288,6 +4288,20 @@ TacticalAiWorld::~TacticalAiWorld() {
     impl_->runtime.reset();
 }
 
+void TacticalAiWorld::claim_scripts() {
+    Impl& w = *impl_;
+    for (const auto& pa : w.ai)
+        if (pa && pa->fs_vm) pa->fs_vm->claim_ownership();
+    for (const auto& [id, pi] : w.plans)
+        if (pi.vm) pi.vm->claim_ownership();
+    for (const auto& [key, e] : w.scripts.loaded_vms())
+        if (e.vm) e.vm->claim_ownership();
+    if (w.runtime)
+        for (uint32_t p = 0; p < w.runtime->plan_count(); ++p)
+            for (const std::unique_ptr<lua::LuaVm>& vm : w.runtime->pool(p))
+                if (vm) vm->claim_ownership();
+}
+
 std::function<void()> TacticalAiWorld::release_scripts() {
     Impl& w = *impl_;
     std::vector<std::unique_ptr<lua::LuaVm>> vms;
