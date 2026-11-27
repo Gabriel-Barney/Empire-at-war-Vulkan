@@ -76,6 +76,10 @@ struct ButtonRuntime {
     // call, 0 / 1 = the last script value. Components whose state the engine recomputes every frame (the tactical order
     // buttons) apply these over the engine state; other components just keep the hidden / disabled the script wrote.
     int8_t script_visible = -1, script_enabled = -1;
+    // #767 Scale_Duration (0x350df0 "activate scale up" [H]): while >= 0, the time the pad's scale-up started. The pad then
+    // draws at Scale x elapsed / Scale_Duration, growing from nothing to its Scale (0x34ff70), and at Scale once that is
+    // over. The owner resets it to -1 when it is done (GalacticHud: on the next pad build after a second).
+    double scale_up_start = -1.0;
 };
 
 enum class ButtonVisual : uint8_t { Normal, MouseOver, Pressed, Selected, Disabled };
@@ -115,10 +119,19 @@ public:
     // (from the shell placeholder; {0,0} = the blank / icon atlas size). Returns the drawn rectangle size.
     Vec2f draw(HudDrawList& dl, const TextureAtlas& atlas, FontCache* fonts, const HudCanvas& canvas, uint32_t component,
                Vec2f center, Vec2f size, int32_t faction_alt, double now, int32_t layer_bias = 0) const;
+    // #767 Cross_Fade (0x352d80 / 0x350360 [H]): the cross-fade length when a Cross_Fade component's icon changes.
+    static constexpr double kCrossFadeSeconds = 0.1;
 
 private:
     const ComponentTable* table_ = nullptr;
     std::map<uint32_t, ButtonRuntime> runtime_;  // ordered: deterministic
+    // #767 Cross_Fade: per component, the icon last drawn, the one it changed from and when (start < 0: no fade). Kept by
+    // draw(), which is where the port sees a texture change (retail: the texture set 0x352d80).
+    struct IconFade {
+        std::string last, from;
+        double start = -1.0;
+    };
+    mutable std::map<uint32_t, IconFade> fades_;
     HudSfxHook sfx_;
     int32_t hover_ = -1, pressed_ = -1;
     double hover_since_ = 0.0;

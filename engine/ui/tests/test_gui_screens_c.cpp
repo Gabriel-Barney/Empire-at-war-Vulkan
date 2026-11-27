@@ -1009,6 +1009,113 @@ void test_anim_hack_drag() {
         slot.fleet = 0;
         CHECK(galactic_slot_drop(sdrag, slot, 100, &so) && so.size() == 1);
     }
+    // ledger: verifies CommandBarComponent.Scale_Duration
+    // ledger: verifies CommandBarComponent.Cross_Fade
+    {  // #767 (the lane-c RE on #767): Scale_Duration's scale-up (0x350df0 / 0x34ff70) and Cross_Fade (0x352d80 / 0x350360)
+        const char* kXml = R"(<CommandBarComponents>
+  <CommandBarComponent Name="pad"><Type>TextButton</Type><Blank_Texture_Name>i_frame.tga</Blank_Texture_Name><Scale>1.0</Scale><Scale_Duration>0.125</Scale_Duration></CommandBarComponent>
+  <CommandBarComponent Name="emblem"><Type>Icon</Type><Cross_Fade>Yes</Cross_Fade></CommandBarComponent>
+  <CommandBarComponent Name="plain"><Type>Icon</Type></CommandBarComponent>
+</CommandBarComponents>)";
+        ComponentTable t7;
+        const data::XmlDocument d7 = data::XmlDocument::parse(std::string_view(kXml), "t7.xml");
+        t7.parse(d7.root());
+        HudButtons b7;
+        b7.bind(t7);
+        const HudCanvas cv7 = HudCanvas::make(1024, 768);
+        const auto pad = static_cast<uint32_t>(t7.find("pad"));
+        const auto width_at = [&](double now) {
+            HudDrawList dl;
+            b7.draw(dl, fa, nullptr, cv7, pad, {0, 0}, {}, 0, now);
+            const auto q = dl.items(0, HudList::Alpha);
+            return q.empty() ? -1.0f : q.front().max.x - q.front().min.x;
+        };
+        const float full = width_at(1.0);
+        CHECK(full > 0.0f);
+        b7.state(pad).scale_up_start = 1.0;
+        CHECK(std::fabs(width_at(1.0)) < 1e-3f);                       // starts from nothing
+        CHECK(std::fabs(width_at(1.0625) - 0.5f * full) < 1e-3f);      // half way through 0.125 s
+        CHECK(std::fabs(width_at(1.5) - full) < 1e-3f);                // then its Scale
+        // Cross_Fade: a new icon fades in over 0.1 s while the old one fades out; a plain icon swaps at once.
+        const auto icons_at = [&](std::string_view name, const char* icon, double now) {
+            const auto ci = static_cast<uint32_t>(t7.find(name));
+            b7.state(ci).icon_override = icon;
+            HudDrawList dl;
+            b7.draw(dl, fa, nullptr, cv7, ci, {0, 0}, {}, 0, now);
+            return std::vector<HudQuad>(dl.items(0, HudList::Alpha).begin(), dl.items(0, HudList::Alpha).end());
+        };
+        CHECK(icons_at("emblem", "i_frame.tga", 2.0).size() == 1);  // the first icon: no fade
+        std::vector<HudQuad> mid = icons_at("emblem", "i_big.tga", 3.0);
+        CHECK(mid.size() == 2 && mid[0].color.a == 255 && mid[1].color.a == 0);  // the change: old opaque, new clear
+        mid = icons_at("emblem", "i_big.tga", 3.05);
+        CHECK(mid.size() == 2 && std::abs(static_cast<int>(mid[0].color.a) - 128) <= 2 && std::abs(static_cast<int>(mid[1].color.a) - 128) <= 2);
+        mid = icons_at("emblem", "i_big.tga", 3.2);
+        CHECK(mid.size() == 1 && mid[0].color.a == 255);
+        CHECK(icons_at("plain", "i_frame.tga", 2.0).size() == 1 && icons_at("plain", "i_big.tga", 3.0).size() == 1);
+        // The trigger: a unit dragged onto another fleet pops in at its new pad once the fleets show the move.
+        std::string xml = kFleetXml;
+        const std::string open = "<CommandBarComponent Name=\"q2_0001\">";
+        if (xml.find(open) != std::string::npos)
+            xml.insert(xml.find(open) + open.size(), "<Scale_Duration>0.125</Scale_Duration>");
+        ComponentTable pt;
+        const data::XmlDocument pd = data::XmlDocument::parse(std::string_view(xml), "p.xml");
+        pt.parse(pd.root());
+        GalacticHud h;
+        h.init(pt, fa, env.fonts);
+        h.resize(1024, 768);
+        GalacticHudFrame g = gf;
+        bool moved = false;
+        g.providers.fleets = [&moved](uint32_t, std::vector<GalacticFleet>& out) {
+            if (moved) {
+                out.push_back({900, {{901, "i_frame.tga", 1, false}}});
+                out.push_back({950, {{902, "i_big.tga", 1, false}}});
+            } else {
+                out.push_back({900, {{901, "i_frame.tga", 1, false}, {902, "i_big.tga", 1, false}}});
+                out.push_back({950, {{951, "i_frame.tga", 1, false}}});
+            }
+        };
+        g.time = 10.0;
+        h.build(g);
+        const auto px = [&](std::string_view name) {
+            for (const HudHitBox& hb : h.hit_boxes())
+                if (hb.component == pt.find(name))
+                    return h.canvas().canvas_to_pixel(0.5f * (hb.min.x + hb.max.x), 0.5f * (hb.min.y + hb.max.y));
+            return Vec2f{-1.0f, -1.0f};
+        };
+        const int32_t fc7 = pt.find("q1_0002"), oc = pt.find("q2_0001");
+        const Vec2f p = px("q1_0002"), q = px("q2_0001");
+        std::vector<commands::EventData> out;
+        RoutedInput r7;
+        r7.world.mouse_x = static_cast<int32_t>(p.x);
+        r7.world.mouse_y = static_cast<int32_t>(p.y);
+        r7.hover_component = fc7;
+        r7.owner[static_cast<size_t>(Button::Left)] = PointerTarget::Hud;
+        r7.hud = {{HudPointerEvent::Kind::Press, Button::Left, fc7, r7.world.mouse_x, r7.world.mouse_y}};
+        h.update_input(r7, false, false, 10.0, out);
+        r7.hud.clear();
+        r7.world.mouse_x = static_cast<int32_t>(q.x);
+        r7.world.mouse_y = static_cast<int32_t>(q.y);
+        r7.hover_component = oc;
+        h.update_input(r7, false, false, 10.1, out);
+        r7.owner = {};
+        r7.hud = {{HudPointerEvent::Kind::Release, Button::Left, oc, r7.world.mouse_x, r7.world.mouse_y}};
+        h.update_input(r7, false, false, 10.2, out);
+        CHECK(out.size() == 1 && out[0] == fleet_management_event(commands::kFleetMerge, 950, 900, 902));
+        g.time = 10.2;
+        h.build(g);  // the sim has not moved it yet: no pad pops
+        const auto pop_of = [&](std::string_view name) {
+            const ButtonRuntime* br = h.buttons().find_state(static_cast<uint32_t>(pt.find(name)));
+            return br ? br->scale_up_start : -2.0;
+        };
+        CHECK(pop_of("q1_0002") < 0.0 && pop_of("q2_0001") < 0.0);
+        moved = true;
+        g.time = 10.3;
+        h.build(g);  // 902 now shows on q2_0001 (fleet 950's pad): it pops, once
+        CHECK(pop_of("q2_0001") == 10.3);
+        g.time = 10.4;
+        h.build(g);
+        CHECK(pop_of("q2_0001") == 10.3);
+    }
 }
 
 // #623 GalacticDrag::over_planet is an index into the frame's planets (the host looks the planet up in its own list of the
